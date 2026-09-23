@@ -14,3 +14,6 @@ docker-compose.staging-supabase.local.yml
 
 __pycache__/
 *.pyc
+target/
+frontend/coverage/
+metricas/
