@@ -132,6 +132,42 @@ export function PlayerProvider({ children }) {
     setExpandedRequestId((current) => current + 1);
   }, []);
 
+    const addToQueue = useCallback((track) => {
+        if (!track) return;
+        setQueue((currentQueue) => {
+            const alreadyInQueue = currentQueue.some(
+                (t) => getTrackId(t) === getTrackId(track)
+            );
+            if (alreadyInQueue) return currentQueue;
+            return [...currentQueue, track];
+        });
+        setSourceQueue((currentSource) => {
+            const alreadyInSource = currentSource.some(
+                (t) => getTrackId(t) === getTrackId(track)
+            );
+            if (alreadyInSource) return currentSource;
+            return [...currentSource, track];
+        });
+    }, []);
+
+    const removeFromQueue = useCallback((trackId) => {
+        setQueue((currentQueue) =>
+            currentQueue.filter((t) => getTrackId(t) !== String(trackId))
+        );
+        setSourceQueue((currentSource) =>
+            currentSource.filter((t) => getTrackId(t) !== String(trackId))
+        );
+    }, []);
+
+    const reorderQueue = useCallback((fromIndex, toIndex) => {
+        setQueue((currentQueue) => {
+            const updated = [...currentQueue];
+            const [moved] = updated.splice(fromIndex, 1);
+            updated.splice(toIndex, 0, moved);
+            return updated;
+        });
+    }, []);
+
   return (
     <PlayerContext.Provider
       value={{
@@ -149,6 +185,9 @@ export function PlayerProvider({ children }) {
         setShuffleMode,
         requestExpandedPlayer,
         expandedRequestId,
+          addToQueue,
+          removeFromQueue,
+          reorderQueue,
       }}
     >
       {children}
