@@ -17,11 +17,10 @@
 }
 
 .add-music-back {
-  width: fit-content;
-  min-height: 40px;
-  margin: 0;
-  padding: 0 16px;
-  border-radius: 999px;
+  margin: 10px;
+  padding: 24px 16px;
+  height: 32px;
+  border-radius: 48px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.055);
   color: #e8e8e8;
@@ -30,8 +29,6 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  font-size: 0.9rem;
-  font-weight: 800;
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
@@ -188,7 +185,7 @@
     rgba(255, 255, 255, 0.045);
 }
 
-.add-music-info > div {
+.add-music-info>div {
   flex: 1;
   min-width: 0;
   text-align: left;

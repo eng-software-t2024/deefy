@@ -132,14 +132,14 @@ function AddMusicToPlaylist() {
         <section className="add-music-header">
           <div className="add-music-header-top">
             <span>ADICIONAR MÚSICAS</span>
-            <Link to={`/user-playlist-detail/${id}`} className="add-music-back">
-              <FaArrowLeft />
-              <span>Voltar para playlist</span>
-            </Link>
           </div>
 
           <h1>Monte sua playlist</h1>
           <p>Busque músicas ou escolha recomendações para adicionar à sua playlist pessoal.</p>
+          <Link to={`/user-playlist-detail/${id}`} className="add-music-back">
+            <FaArrowLeft />
+            <span>Voltar para playlist</span>
+          </Link>
         </section>
 
         <section className="add-music-search">
