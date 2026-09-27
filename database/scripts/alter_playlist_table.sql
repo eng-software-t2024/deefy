@@ -1,0 +1,4 @@
+ALTER TABLE PLAYLIST
+ADD COLUMN link_compartilhamento BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN token_compartilhamento UUID UNIQUE,
+ADD COLUMN permissao_link VARCHAR(30);
