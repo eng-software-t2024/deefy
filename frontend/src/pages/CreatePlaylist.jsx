@@ -127,7 +127,7 @@ function CreatePlaylist() {
 
       const created = await musicService.createPlaylist(payload)
       showMusicSuccess("Playlist criada com sucesso!")
-      navigate(`/playlist/${created.id}/add-music`)
+      navigate(`/user-playlist-detail/${created.id}`)
     } catch (err) {
       const fallbackMessage = isEditing ? "Erro ao editar playlist." : "Erro ao criar playlist."
       showMusicError(err?.response?.data?.message || fallbackMessage)
@@ -242,8 +242,8 @@ function CreatePlaylist() {
                 Se você não definir uma capa, o Deefy usará automaticamente as capas das músicas da playlist.
               </p>
 
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="create-playlist-save"
                 onClick={handleSavePlaylist}
                 disabled={isSubmitting}
