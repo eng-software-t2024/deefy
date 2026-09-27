@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FaArrowLeft, FaCheck, FaMusic, FaPlus, FaSearch, FaPlay, FaPause } from 'react-icons/fa'
+import { FaArrowLeft, FaCheck, FaMinus, FaMusic, FaPlus, FaSearch, FaPlay, FaPause } from 'react-icons/fa'
 import { Link, useParams } from 'react-router-dom'
 import './AddMusicToPlaylist.css'
 import { usePlayer } from '../contexts/PlayerContext.jsx'
@@ -35,6 +35,7 @@ function AddMusicToPlaylist() {
   const [results, setResults] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [addingId, setAddingId] = useState(null)
+  const [removingId, setRemovingId] = useState(null)
   const [addedIds, setAddedIds] = useState(() => new Set())
   const [addedSongs, setAddedSongs] = useState([])
   const [playlistName, setPlaylistName] = useState('')
@@ -159,6 +160,29 @@ function AddMusicToPlaylist() {
       }
     } finally {
       setAddingId(null)
+    }
+  }
+
+  async function handleRemove(song) {
+    if (!id) return
+
+    const songKey = getSongKey(song)
+    if (!songKey) return
+
+    try {
+      setRemovingId(songKey)
+      await musicService.removeMusicFromPlaylist(id, songKey)
+      setAddedIds((currentIds) => {
+        const next = new Set(currentIds)
+        next.delete(songKey)
+        return next
+      })
+      setAddedSongs((prev) => prev.filter((s) => getSongKey(s) !== songKey))
+      showMusicSuccess("Música removida da playlist!")
+    } catch (err) {
+      showMusicError(err?.response?.data?.message || "Erro ao remover música.")
+    } finally {
+      setRemovingId(null)
     }
   }
 
@@ -299,12 +323,16 @@ function AddMusicToPlaylist() {
                         <span className="add-music-album">{song.album || 'Álbum não informado'}</span>
                         <span className="add-music-duration">{song.duration || '--:--'}</span>
                         <button 
-                          className="add-music-button"
+                          className="add-music-button add-music-button-remove"
                           type="button"
-                          disabled
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemove(song)
+                          }}
+                          disabled={removingId === songKey}
                         >
-                          <FaCheck />
-                          Já adicionada
+                          <FaMinus />
+                          {removingId === songKey ? "..." : "Remover"}
                         </button>
                       </article>
                     )
