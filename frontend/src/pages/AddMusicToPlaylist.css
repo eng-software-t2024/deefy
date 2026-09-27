@@ -271,7 +271,30 @@
   padding: 6px;
   display: flex;
   align-items: center;
-  justify-content: center
+  justify-content: center;
+}
+
+.add-music-added-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 18px 0 6px;
+}
+
+.add-music-added-divider::before,
+.add-music-added-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(57, 240, 208, 0.18);
+}
+
+.add-music-added-divider span {
+  color: #39f0d0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 @media (max-width: 1180px) {
