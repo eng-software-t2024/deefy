@@ -114,6 +114,7 @@ public class UserServiceImpl implements UserService {
         user.setCreatedAt(LocalDateTime.now());
 
         userRepository.save(user);
+        pendingRegistrationRepository.delete(pendingRegistration);
     }
 
     @Override
@@ -199,7 +200,6 @@ public class UserServiceImpl implements UserService {
 
         user.setSenha(passwordEncoder.encode(request.novaSenha()));
         userRepository.save(user);
-        pendingRegistrationRepository.delete(pendingRegistration);
     }
 
     @Override
