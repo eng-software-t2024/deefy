@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS public.cadastro_pendente (
+    id BIGSERIAL PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    senha VARCHAR(100) NOT NULL,
+    token VARCHAR(2048) NOT NULL
+);

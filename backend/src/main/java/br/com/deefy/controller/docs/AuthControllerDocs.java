@@ -2,7 +2,7 @@ package br.com.deefy.controller.docs;
 
 import br.com.deefy.dto.request.*;
 import br.com.deefy.dto.response.AuthResponseDTO;
-import br.com.deefy.dto.response.UserResponseDTO;
+import br.com.deefy.dto.response.RegisterResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -51,9 +51,9 @@ public interface AuthControllerDocs {
     )
     @ApiResponses(value = {
             @ApiResponse(
-                    responseCode = "201",
-                    description = "Usuário registrado com sucesso — URI do novo recurso retornada no header Location",
-                    content = @Content(schema = @Schema(implementation = UserResponseDTO.class))
+                    responseCode = "200",
+                    description = "Cadastro pendente criado ou atualizado e e-mail de ativação enviado",
+                    content = @Content(schema = @Schema(implementation = RegisterResponseDTO.class))
             ),
             @ApiResponse(
                     responseCode = "400",
@@ -66,7 +66,7 @@ public interface AuthControllerDocs {
                     content = @Content(schema = @Schema(hidden = true))
             )
     })
-    ResponseEntity<UserResponseDTO> register(UserRequestDTO dto);
+    ResponseEntity<RegisterResponseDTO> register(UserRequestDTO dto);
 
     @Operation(
             summary = "Ativar conta",
