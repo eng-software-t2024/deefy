@@ -42,7 +42,7 @@ public class EmailServiceImpl implements EmailService {
     @Async
     @Override
     public void enviarEmailLinkSenha(String emailDestino, String token) {
-        String linkDeRecuperacao = buildFrontendLink("/reset-password", token);
+        String linkDeRecuperacao = buildFrontendLink("/redefinepass", token);
 
         String htmlContent =
                 "<div style='background-color: #0d0d0d; padding: 40px 20px; font-family: sans-serif; text-align: center;'>" +
