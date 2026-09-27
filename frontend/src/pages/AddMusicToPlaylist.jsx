@@ -34,11 +34,27 @@ function AddMusicToPlaylist() {
   const [isLoading, setIsLoading] = useState(false)
   const [addingId, setAddingId] = useState(null)
   const [addedIds, setAddedIds] = useState(() => new Set())
+  const [playlistName, setPlaylistName] = useState('')
 
   useEffect(() => {
     if (!id) return
 
     let isMounted = true
+
+    musicService.getPlaylistById(id).then((playlist) => {
+      if (!isMounted) return
+
+      setPlaylistName(playlist.name || playlist.nome || '') 
+
+      const existingIds = (playlist.tracks || [])
+        .map(getSongKey)
+        .filter(Boolean)
+
+      setAddedIds(new Set(existingIds))
+    })
+    .catch((err) => {
+        console.error('Erro ao buscar músicas da playlist', err)
+    })
 
     musicService.getPlaylistById(id)
       .then((playlist) => {
@@ -134,8 +150,7 @@ function AddMusicToPlaylist() {
             <span>ADICIONAR MÚSICAS</span>
           </div>
 
-          <h1>Monte sua playlist</h1>
-          <p>Busque músicas ou escolha recomendações para adicionar à sua playlist pessoal.</p>
+          <h1>Adicione novas musicas à playlist {playlistName ? `"${playlistName}"` : 'esta playlist'}</h1>
           <Link to={`/user-playlist-detail/${id}`} className="add-music-back">
             <FaArrowLeft />
             <span>Voltar para playlist</span>
