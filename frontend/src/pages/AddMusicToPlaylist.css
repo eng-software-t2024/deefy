@@ -145,6 +145,7 @@
   background: rgba(255, 255, 255, 0.045);
   border: 1px solid rgba(255, 255, 255, 0.08);
   transition: 0.22s ease;
+  cursor: pointer;
 }
 
 .add-music-card.is-added {
@@ -170,6 +171,7 @@
   height: 52px;
   border-radius: 14px;
   flex-shrink: 0;
+  justify-content: flex-start;
 }
 
 .add-music-info img {
@@ -184,12 +186,6 @@
   background:
     radial-gradient(circle at 35% 20%, rgba(57, 240, 208, 0.18), transparent 42%),
     rgba(255, 255, 255, 0.045);
-}
-
-.add-music-info>div {
-  flex: 1;
-  min-width: 0;
-  text-align: left;
 }
 
 .add-music-info h3 {
@@ -218,6 +214,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.add-music-info-body {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .add-music-duration {
   text-align: right;
@@ -225,7 +227,7 @@
 }
 
 .add-music-button {
-  min-width: 150px;
+  min-width: 100px;
   justify-self: end;
   border: none;
   border-radius: 999px;
@@ -258,6 +260,18 @@
   background: rgba(57, 240, 208, 0.14);
   color: #9fffe8;
   border: 1px solid rgba(57, 240, 208, 0.24);
+}
+
+.add-music-play {
+  position: absolute;
+  color: #39f0d0;
+  font-size: 1.2rem;
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 50%;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center
 }
 
 @media (max-width: 1180px) {

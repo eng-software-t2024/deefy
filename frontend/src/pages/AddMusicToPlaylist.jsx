@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { FaArrowLeft, FaCheck, FaMusic, FaPlus, FaSearch } from 'react-icons/fa'
+import { FaArrowLeft, FaCheck, FaMusic, FaPlus, FaSearch, FaPlay, FaPause } from 'react-icons/fa'
 import { Link, useParams } from 'react-router-dom'
 import './AddMusicToPlaylist.css'
+import { usePlayer } from '../contexts/PlayerContext.jsx'
+import { recordListeningSignal } from '../utils/recommendationEngine.js'
 
 import Sidebar from '../components/Sidebar.jsx'
 import SongListSkeleton from '../components/SongListSkeleton.jsx'
@@ -35,6 +37,21 @@ function AddMusicToPlaylist() {
   const [addingId, setAddingId] = useState(null)
   const [addedIds, setAddedIds] = useState(() => new Set())
   const [playlistName, setPlaylistName] = useState('')
+  const { currentTrack, playTrack, togglePlay, isPlaying } = usePlayer()
+
+  const handlePlaySong = (song) => {
+    const songKey = getSongKey(song)
+    const currentKey = currentTrack ? String(currentTrack.id) : null
+
+    if (songKey && currentKey === songKey) {
+      togglePlay()
+      return
+    }
+
+    recordListeningSignal(song)
+    playTrack(song, results)
+  }
+
 
   useEffect(() => {
     if (!id) return
@@ -180,42 +197,54 @@ function AddMusicToPlaylist() {
                 const songKey = getSongKey(song)
                 const isAdded = Boolean(songKey && addedIds.has(songKey))
                 const isAdding = addingId === songKey
+                const isActive = Boolean(songKey && String(currentTrack?.id ?? '') === songKey)
+                const isSongPlaying = isActive && isPlaying
 
                 return (
-                <article className={`add-music-card${isAdded ? ' is-added' : ''}`} key={songKey || `${song.title}-${index}`}>
+                <article 
+                  className={`add-music-card${isAdded ? ' is-added' : ''}${isActive ? ' is-active' : ''}`}
+                  key={songKey || `${song.title}-${index}`}
+                  onClick={() => handlePlaySong(song)}
+                >
                   <div className="add-music-info">
-                    {song.coverUrl ? (
-                      <img
-                        src={song.coverUrl}
-                        alt={`Capa de ${song.title || 'música'}`}
-                      />
-                    ) : (
-                      <span className="add-music-cover-placeholder" aria-hidden="true">
-                        <FaMusic />
-                      </span>
-                    )}
-
+                    <div className="add-music-info-body">
+                      {song.coverUrl ? (
+                        <img className="add-music-cover" src={song.coverUrl} alt={`Capa de ${song.title || 'música'}`} />
+                      ) : (
+                        <span className="add-music-cover-placeholder" aria-hidden="true">
+                          <FaMusic />
+                        </span>
+                      )}
+                      <div className="add-music-play">
+                        {isSongPlaying ? <FaPause /> : <FaPlay />}
+                      </div>
+                    </div>
                     <div>
-                      <h3>{song.title || 'Título não informado'}</h3>
+                      <h3 style={{ color: isActive ? '#39f0d0' : undefined }}>
+                        {song.title || 'Título não informado'}
+                      </h3>
                       <p>{song.artist || 'Artista não informado'}</p>
                     </div>
                   </div>
-
                   <span className="add-music-album">{song.album || 'Álbum não informado'}</span>
                   <span className="add-music-duration">{song.duration || '--:--'}</span>
-
+                  {/* Botão de Adicionar (com e.stopPropagation() para não disparar o play ao clicar no botão) */}
                   <button 
                     className="add-music-button"
                     type="button"
-                    onClick={() => handleAdd(song)}
+                    onClick={(e) => {
+                      e.stopPropagation() // Impede de tocar a música ao clicar em adicionar
+                      handleAdd(song)
+                    }}
                     disabled={isAdding || isAdded}
                   >
                     {isAdded ? <FaCheck /> : <FaPlus />}
                     {isAdded ? "Já adicionada" : isAdding ? "..." : "Adicionar"}
                   </button>
                 </article>
-              )})}
-              
+              )
+            })}
+
               {debouncedQuery && results.length === 0 && (
                 <p>Nenhuma música encontrada.</p>
               )}
