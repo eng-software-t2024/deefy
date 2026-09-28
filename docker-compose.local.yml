@@ -13,6 +13,7 @@ services:
       - deefy-local-postgres:/var/lib/postgresql/data
       - ./database/scripts/schema_local.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro,Z
       - ./database/scripts/seed_local_demo.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro,Z
+      - ./database/scripts/cadastro_pendente.sql:/docker-entrypoint-initdb.d/03_cadastro_pendente.sql:ro,Z
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U deefy -d deefy"]
       interval: 5s

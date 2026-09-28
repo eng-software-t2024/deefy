@@ -993,8 +993,15 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             <span className="deefy-player-playlist-menu-icon">
               <MdPlaylistAdd />
             </span>
-            <span className="deefy-player-playlist-menu-name">
-              {isAdding ? "Adicionando..." : isAdded ? "Adicionada" : getPlaylistName(playlist)}
+            <span className="deefy-player-playlist-menu-content">
+              <span className="deefy-player-playlist-menu-name">
+                {getPlaylistName(playlist)}
+              </span>
+              {(isAdding || isAdded) && (
+                <span className="deefy-player-playlist-menu-status">
+                  {isAdding ? "Adicionando..." : "Adicionada"}
+                </span>
+              )}
             </span>
           </button>
         );
