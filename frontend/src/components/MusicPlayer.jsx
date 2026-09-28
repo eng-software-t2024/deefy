@@ -11,8 +11,9 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from "react-icons/fa";
-import { FiChevronDown, FiMaximize2, FiRepeat, FiX } from "react-icons/fi";
+import { FiChevronDown, FiMaximize2, FiPlus, FiRepeat, FiX } from "react-icons/fi";
 import { MdPlaylistAdd } from "react-icons/md";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { usePlayer } from "../contexts/PlayerContext";
 import { FAVORITE_MUSIC_CHANGED_EVENT, musicService } from "../services/musicService";
@@ -178,6 +179,7 @@ function getPlaylistName(playlist) {
 }
 
 function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
+  const navigate = useNavigate();
   const audioRef = useRef(null);
   const compactDragActiveRef = useRef(false);
   const expandedDragActiveRef = useRef(false);
@@ -631,6 +633,12 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
     setPlaylistMenuContext(null);
   };
 
+  const handleCreatePlaylistShortcut = () => {
+  closePlaylistMenu();
+  setIsExpanded(false);
+  navigate("/create-playlist");
+  };
+
   const handlePlaylistSheetTouchStart = (event) => {
     event.stopPropagation();
     playlistSheetDragStartYRef.current = event.touches[0].clientY;
@@ -1057,6 +1065,20 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
           </div>
 
           <div className="deefy-player-playlist-sheet-list">
+            <button
+              type="button"
+              className="deefy-player-playlist-menu-item deefy-player-playlist-create"
+              role="menuitem"
+              onClick={(event) => {
+                stopCompactControlClick(event);
+                handleCreatePlaylistShortcut();
+              }}
+            >
+              <span className="deefy-player-playlist-menu-icon">
+                <FiPlus />
+              </span>
+              <span className="deefy-player-playlist-menu-name">Criar nova playlist</span>
+            </button>
             {renderPlaylistMenuItems()}
           </div>
         </section>

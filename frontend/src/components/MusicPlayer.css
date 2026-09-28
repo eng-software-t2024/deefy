@@ -743,6 +743,11 @@
   letter-spacing: 0;
 }
 
+.deefy-player-playlist-create {
+  color: #39f0d0;
+  font-weight: 800;
+}
+
 .deefy-player-playlist-empty {
   margin: 4px 8px 6px;
   color: rgba(255, 255, 255, 0.54);
