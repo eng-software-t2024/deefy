@@ -57,12 +57,7 @@ public interface AuthControllerDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Erro de validação — dados enviados estão ausentes ou em formato inválido",
-                    content = @Content(schema = @Schema(hidden = true))
-            ),
-            @ApiResponse(
-                    responseCode = "409",
-                    description = "Conflito — já existe um usuário cadastrado com este e-mail",
+                    description = "E-mail já cadastrado ou dados enviados ausentes ou inválidos",
                     content = @Content(schema = @Schema(hidden = true))
             )
     })

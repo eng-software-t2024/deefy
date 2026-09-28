@@ -102,19 +102,37 @@ public class UserServiceImpl implements UserService {
             throw new EmailJaCadastradoException("Este e-mail já foi ativado e cadastrado no sistema.");
         }
 
-        PendingRegistration pendingRegistration = pendingRegistrationRepository.findByEmail(email)
-                .filter(pending -> pending.getToken().equals(request.token()))
-                .orElseThrow(() -> new TokenInvalidoException("O cadastro pendente não foi encontrado ou o link de ativação foi substituído."));
+        PendingRegistration pendingRegistration = pendingRegistrationRepository.findByEmail(email).orElse(null);
+        String nome;
+        String senha;
+
+        if (pendingRegistration != null) {
+            if (!request.token().equals(pendingRegistration.getToken())) {
+                throw new TokenInvalidoException("O cadastro pendente não foi encontrado ou o link de ativação foi substituído.");
+            }
+
+            nome = pendingRegistration.getNome();
+            senha = pendingRegistration.getSenha();
+        } else {
+            nome = jwtUtil.extractNomeFromToken(request.token());
+            senha = jwtUtil.extractSenhaHashFromToken(request.token());
+
+            if (nome == null || nome.isBlank() || senha == null || senha.isBlank()) {
+                throw new TokenInvalidoException("O cadastro pendente não foi encontrado ou o token não é compatível.");
+            }
+        }
 
         User user = new User();
-        user.setNome(pendingRegistration.getNome());
-        user.setEmail(pendingRegistration.getEmail());
-        user.setSenha(pendingRegistration.getSenha());
+        user.setNome(nome);
+        user.setEmail(email);
+        user.setSenha(senha);
         user.setTipoUsuario(Tipo.USER);
         user.setCreatedAt(LocalDateTime.now());
 
         userRepository.save(user);
-        pendingRegistrationRepository.delete(pendingRegistration);
+        if (pendingRegistration != null) {
+            pendingRegistrationRepository.delete(pendingRegistration);
+        }
     }
 
     @Override
