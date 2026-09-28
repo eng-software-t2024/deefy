@@ -13,3 +13,14 @@ compativel com o backend atual.
 
 Os demais scripts foram mantidos como historico do projeto academico e podem
 estar desatualizados em relacao ao schema final.
+
+## Migracoes de producao
+
+O backend usa `spring.jpa.hibernate.ddl-auto=none`, portanto ele nao cria nem
+atualiza tabelas automaticamente em uma base existente. Antes de habilitar o
+fluxo de cadastro pendente em producao, aplique manualmente as migracoes da
+pasta `scripts/migrations` no banco de dados do ambiente.
+
+A migracao `001_create_cadastro_pendente.sql` deve ser aplicada uma vez antes
+do deploy desta alteracao. O arquivo usa `IF NOT EXISTS` para permitir a
+execucao segura em bases que ja possuem a tabela.
