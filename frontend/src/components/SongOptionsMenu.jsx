@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import {
   MdMoreVert,
   MdPlaylistAdd,
+    MdPlaylistPlay,
   MdPlaylistRemove,
   MdFavoriteBorder,
   MdFavorite,
@@ -17,6 +18,7 @@ import './SongOptionsMenu.css'
 import { musicService } from '../services/musicService.js'
 import { showMusicError, showMusicSuccess } from '../utils/musicToast'
 import { getMusicIdFromTrack } from '../utils/musicNormalizer.js'
+import { usePlayer } from '../contexts/PlayerContext'
 
 function getPlaylistId(playlist) {
   return playlist?.id || playlist?.uuid || playlist?.playlistId || ''
@@ -50,6 +52,7 @@ function SongOptionsMenu({
   const isPlaylistSong = playlistId !== undefined && playlistId !== null
   const canRemoveFromPlaylist = isPlaylistSong && allowRemoveFromPlaylist
   const musicId = getMusicIdFromTrack(song)
+    const { addToQueue } = usePlayer()
   const shareUrl = musicId && typeof window !== 'undefined'
     ? `${window.location.origin}/music/${musicId}`
     : ''
@@ -315,6 +318,18 @@ function SongOptionsMenu({
               </span>
             </button>
           )}
+
+            <button
+                type="button"
+                onClick={() => {
+                    addToQueue(song)
+                    showMusicSuccess('Música adicionada à fila.')
+                    setIsOpen(false)
+                }}
+            >
+                <MdPlaylistPlay />
+                <span>Adicionar à fila</span>
+            </button>
 
           <button type="button" onClick={handleShare}>
             <MdShare />
