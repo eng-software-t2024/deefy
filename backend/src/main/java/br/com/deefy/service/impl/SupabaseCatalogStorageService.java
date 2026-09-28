@@ -22,9 +22,16 @@ public class SupabaseCatalogStorageService implements CatalogStorageService {
 
     private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
             "image/jpeg",
+            "image/jpg",
             "image/png",
+            "image/x-png",
             "image/webp",
-            "image/gif"
+            "image/gif",
+            "image/svg+xml",
+            "image/avif",
+            "image/bmp",
+            "image/x-icon",
+            "image/vnd.microsoft.icon"
     );
 
     private static final Set<String> ALLOWED_AUDIO_TYPES = Set.of(
@@ -67,7 +74,7 @@ public class SupabaseCatalogStorageService implements CatalogStorageService {
 
     @Override
     public String uploadImage(MultipartFile file) {
-        validateFile(file, ALLOWED_IMAGE_TYPES, imageMaxSizeBytes, "imagem", "JPG, PNG, WEBP ou GIF");
+        validateFile(file, ALLOWED_IMAGE_TYPES, imageMaxSizeBytes, "imagem", "JPEG, PNG, WEBP, GIF, SVG, AVIF, BMP ou ICO");
         String contentType = normalizedContentType(file);
         String objectPath = "catalog/images/%s.%s".formatted(UUID.randomUUID(), extensionFor(file, contentType));
         return upload(file, imageBucket, objectPath, contentType);
@@ -156,10 +163,15 @@ public class SupabaseCatalogStorageService implements CatalogStorageService {
         }
 
         return switch (contentType) {
-            case "image/jpeg" -> "jpg";
+            case "image/jpeg", "image/jpg" -> "jpg";
             case "image/png" -> "png";
+            case "image/x-png" -> "png";
             case "image/webp" -> "webp";
             case "image/gif" -> "gif";
+            case "image/svg+xml" -> "svg";
+            case "image/avif" -> "avif";
+            case "image/bmp" -> "bmp";
+            case "image/x-icon", "image/vnd.microsoft.icon" -> "ico";
             case "audio/mpeg", "audio/mp3" -> "mp3";
             case "audio/wav", "audio/x-wav" -> "wav";
             case "audio/ogg" -> "ogg";
