@@ -225,19 +225,6 @@ function CreatePlaylist() {
                 />
               </label>
 
-              <label>
-                URL da capa opcional
-                <input
-                  type="url"
-                  placeholder="https://exemplo.com/capa.jpg"
-                  value={coverUrl}
-                  onChange={(e) => {
-                    setCoverUrl(e.target.value)
-                    setCoverFile(null)
-                  }}
-                />
-              </label>
-
               <p className="create-playlist-cover-note">
                 Se você não definir uma capa, o Deefy usará automaticamente as capas das músicas da playlist.
               </p>
