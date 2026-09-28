@@ -1045,7 +1045,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             }}
           >
             <span className="deefy-player-playlist-menu-icon">
-              {isAdded ? <MdCheck /> : <MdPlaylistAdd />}
+              <MdPlaylistAdd />
             </span>
             <span className="deefy-player-playlist-menu-name">
               {getPlaylistName(playlist)}

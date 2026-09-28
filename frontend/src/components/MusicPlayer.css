@@ -613,13 +613,19 @@
 .deefy-player-playlist-sheet-list .deefy-player-playlist-menu-item {
   min-height: 48px;
   padding: 0 16px;
-  display: grid;
-  grid-template-columns: auto auto;
-  justify-content: center;
+  display: flex;
   align-items: center;
-  column-gap: 12px;
+  justify-content: flex-start;
+  gap: 12px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
+  border: 1px solid transparent;
+  transition: all 0.16s ease;
+}
+
+.deefy-player-playlist-sheet-list .deefy-player-playlist-menu-item.is-added {
+  border-color: rgba(57, 240, 208, 0.18);
+  background: rgba(57, 240, 208, 0.05);
 }
 
 .deefy-player-playlist-sheet-list .deefy-player-playlist-menu-icon {
@@ -628,6 +634,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .deefy-player-playlist-sheet-list .deefy-player-playlist-menu-icon svg {
@@ -636,9 +643,35 @@
 }
 
 .deefy-player-playlist-sheet-list .deefy-player-playlist-menu-name {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
   line-height: 22px;
   font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deefy-player-playlist-sheet-list .deefy-player-playlist-menu-status {
+  margin-left: auto;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #39f0d0;
+  background: rgba(57, 240, 208, 0.12);
+  border: 1px solid rgba(57, 240, 208, 0.25);
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.deefy-player-playlist-sheet-list .deefy-player-playlist-menu-status svg {
+  width: 12px;
+  height: 12px;
 }
 
 .deefy-player-playlist-menu-title {
