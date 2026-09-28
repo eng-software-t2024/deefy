@@ -33,6 +33,7 @@ import AddMusicToPlaylist from './pages/AddMusicToPlaylist.jsx'
 import SharedMusic from './pages/SharedMusic.jsx'
 import SystemPlaylists from './pages/SystemPlaylists.jsx'
 import Artists from './pages/Artists.jsx'
+import VersionFooter from './pages/VersionFooter.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -93,6 +94,7 @@ createRoot(document.getElementById('root')).render(
         </Routes>
 
         <PlayerController />
+        <VersionFooter />
       </PlayerProvider>
     </BrowserRouter>
   </StrictMode>
