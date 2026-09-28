@@ -12,11 +12,12 @@ import {
   FaVolumeUp,
 } from "react-icons/fa";
 import { FiChevronDown, FiMaximize2, FiPlus, FiRepeat, FiX } from "react-icons/fi";
-import { MdPlaylistAdd } from "react-icons/md";
+import { MdPlaylistAdd, MdCheck } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { usePlayer } from "../contexts/PlayerContext";
 import { FAVORITE_MUSIC_CHANGED_EVENT, musicService } from "../services/musicService";
+import { getMusicIdFromTrack } from "../utils/musicNormalizer.js";
 import "./MusicPlayer.css";
 
 const EMPTY_TRACK = {
@@ -176,6 +177,21 @@ function getPlaylistId(playlist) {
 
 function getPlaylistName(playlist) {
   return playlist?.name || playlist?.title || "Playlist";
+}
+
+function isTrackInPlaylist(playlist, track) {
+  if (!playlist || !track) return false;
+  const targetId = getMusicIdFromTrack(track) ?? track?.id ?? null;
+  if (targetId === undefined || targetId === null || targetId === "") return false;
+
+  const tracks = playlist?.tracks || playlist?.musicas || playlist?.musics || [];
+  return tracks.some((item) => {
+    if (typeof item === "number" || typeof item === "string") {
+      return String(item) === String(targetId);
+    }
+    const itemId = getMusicIdFromTrack(item) ?? item?.id ?? null;
+    return itemId !== undefined && itemId !== null && String(itemId) === String(targetId);
+  });
 }
 
 function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
@@ -699,6 +715,15 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
         nextIds.add(String(playlistId));
         return nextIds;
       });
+      setUserPlaylists((currentPlaylists) =>
+        currentPlaylists.map((p) => {
+          if (String(getPlaylistId(p)) === String(playlistId)) {
+            const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
+            return { ...p, tracks };
+          }
+          return p;
+        })
+      );
       toast.success(`Musica adicionada a playlist ${playlistName}`);
     } catch (error) {
       const status = error?.response?.status ?? error?.status;
@@ -718,6 +743,15 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
           nextIds.add(String(playlistId));
           return nextIds;
         });
+        setUserPlaylists((currentPlaylists) =>
+          currentPlaylists.map((p) => {
+            if (String(getPlaylistId(p)) === String(playlistId)) {
+              const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
+              return { ...p, tracks };
+            }
+            return p;
+          })
+        );
         toast.error("Essa musica ja esta nessa playlist.");
       } else {
         toast.error(errorMsg || "Erro ao adicionar musica a playlist.");
@@ -725,7 +759,6 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
       console.warn("Deefy player: nao foi possivel adicionar a playlist.", error);
     } finally {
       setAddingPlaylistId(null);
-      closePlaylistMenu();
     }
   };
 
@@ -993,7 +1026,9 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
         const playlistId = getPlaylistId(playlist);
         const playlistIdKey = playlistId === null ? "" : String(playlistId);
         const isAdding = addingPlaylistId === playlistIdKey;
-        const isAdded = Boolean(playlistIdKey && addedPlaylistIds.has(playlistIdKey));
+        const isAdded =
+          Boolean(playlistIdKey && addedPlaylistIds.has(playlistIdKey)) ||
+          isTrackInPlaylist(playlist, currentTrack);
 
         return (
           <button
@@ -1010,11 +1045,21 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             }}
           >
             <span className="deefy-player-playlist-menu-icon">
-              <MdPlaylistAdd />
+              {isAdded ? <MdCheck /> : <MdPlaylistAdd />}
             </span>
             <span className="deefy-player-playlist-menu-name">
-              {isAdding ? "Adicionando..." : isAdded ? "Adicionada" : getPlaylistName(playlist)}
+              {getPlaylistName(playlist)}
             </span>
+            {isAdded && (
+              <span className="deefy-player-playlist-menu-status">
+                <MdCheck /> Adicionada
+              </span>
+            )}
+            {isAdding && (
+              <span className="deefy-player-playlist-menu-status">
+                Adicionando...
+              </span>
+            )}
           </button>
         );
       });
