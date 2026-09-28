@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/playlists/{playlistId}/sharing")
 public class PlaylistSharingController {
 
-    public ResponseEntity<void> sharePlaylist(1) {
-
+    public ResponseEntity<void> sharePlaylist() {
     }
 }
