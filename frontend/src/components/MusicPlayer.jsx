@@ -11,12 +11,13 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from "react-icons/fa";
-import { FiChevronDown, FiMaximize2, FiRepeat, FiX } from "react-icons/fi";
+import { FiChevronDown, FiMaximize2, FiRepeat, FiX, FiList } from "react-icons/fi";
 import { MdPlaylistAdd } from "react-icons/md";
 import { toast } from "sonner";
 import { usePlayer } from "../contexts/PlayerContext";
 import { FAVORITE_MUSIC_CHANGED_EVENT, musicService } from "../services/musicService";
 import "./MusicPlayer.css";
+import QueuePanel from "./QueuePanel";
 
 const EMPTY_TRACK = {
   id: null,
@@ -221,6 +222,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
   const [addingPlaylistId, setAddingPlaylistId] = useState(null);
   const [addedPlaylistIds, setAddedPlaylistIds] = useState(() => new Set());
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isExpandedClosing, setIsExpandedClosing] = useState(false);
   const [dragStartY, setDragStartY] = useState(null);
   const [dragOffsetY, setDragOffsetY] = useState(0);
@@ -1307,6 +1309,17 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             style={volumeStyle}
             aria-label="Volume"
           />
+            <button
+                type="button"
+                className={`deefy-player-control-action ${isQueueOpen ? "is-active" : ""}`}
+                onClick={(event) => {
+                    stopCompactControlClick(event);
+                    setIsQueueOpen((current) => !current);
+                }}
+                aria-label="Fila de reprodução"
+            >
+                <FiList />
+            </button>
 
           <button
             type="button"
@@ -1497,6 +1510,10 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
           </div>
         </div>
       )}
+        <QueuePanel
+            isOpen={isQueueOpen}
+            onClose={() => setIsQueueOpen(false)}
+        />
     </>
   );
 }
