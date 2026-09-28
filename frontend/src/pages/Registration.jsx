@@ -17,7 +17,7 @@ import { showMusicError } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
 
 // ─── Email Confirmation Modal ───────────────────────────────────────────────
-function EmailConfirmModal({ email, onClose }) {
+function EmailConfirmModal({ email, message, onClose }) {
   return (
     <div className="email-modal-backdrop" onClick={onClose}>
       <div className="email-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -33,7 +33,7 @@ function EmailConfirmModal({ email, onClose }) {
         <h2 className="email-modal-title">Confirme seu e-mail</h2>
 
         <p className="email-modal-subtitle">
-          Enviamos um link de ativação para:
+          {message || "Enviamos um link de ativação para:"}
         </p>
         <div className="email-modal-address">
           <MdOutlineEmail />
@@ -68,6 +68,7 @@ function Registration() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [registrationMessage, setRegistrationMessage] = useState("");
 
   const calculatePasswordStrength = (pass) => {
     let score = 0;
@@ -132,7 +133,7 @@ function Registration() {
     }
 
     try {
-      await api.post("/auth/register", {
+      const response = await api.post("/auth/register", {
         nome: fullName,
         email,
         senha: password
@@ -140,6 +141,7 @@ function Registration() {
 
       // Backend retorna pendência de ativação por e-mail (sem JWT)
       // Exibe o modal instruindo o usuário a confirmar o e-mail
+      setRegistrationMessage(response.data?.message || "Link de ativação enviado. Verifique seu e-mail.");
       setShowEmailModal(true);
     } catch (err) {
       const apiMessage = err.response?.data?.message || "";
@@ -170,6 +172,7 @@ function Registration() {
       {showEmailModal && (
         <EmailConfirmModal
           email={email}
+          message={registrationMessage}
           onClose={() => navigate("/login")}
         />
       )}

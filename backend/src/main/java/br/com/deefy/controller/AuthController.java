@@ -3,7 +3,7 @@ package br.com.deefy.controller;
 import br.com.deefy.controller.docs.AuthControllerDocs;
 import br.com.deefy.dto.request.*;
 import br.com.deefy.dto.response.AuthResponseDTO;
-import br.com.deefy.dto.response.UserResponseDTO;
+import br.com.deefy.dto.response.RegisterResponseDTO;
 import br.com.deefy.security.JwtUtil;
 import br.com.deefy.service.UserService;
 
@@ -19,9 +19,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -61,15 +58,12 @@ public class AuthController implements AuthControllerDocs {
 
     @PostMapping(value = "/register")
     @Operation(summary = "Cadastrar usuario", description = "Cria um cadastro pendente e dispara e-mail de ativacao.")
-    public ResponseEntity<UserResponseDTO> register(
+    public ResponseEntity<RegisterResponseDTO> register(
             @Valid
             @RequestBody UserRequestDTO dto
     ){
-        UserResponseDTO user = userService.createUser(dto);
-        URI uri = ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/api/v1/users/{id}")
-                .buildAndExpand(user.id()).toUri();
-        return ResponseEntity.created(uri).body(user);
+        RegisterResponseDTO response = userService.createUser(dto);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/verify-account")
