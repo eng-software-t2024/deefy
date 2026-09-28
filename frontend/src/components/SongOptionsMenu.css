@@ -205,6 +205,10 @@
   font-size: 0.84rem;
 }
 
+.song-options-error {
+  color: #ff7676;
+}
+
 @media (max-width: 768px) {
   .song-options-menu {
     right: -8px;

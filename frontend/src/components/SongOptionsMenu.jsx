@@ -59,6 +59,7 @@ function SongOptionsMenu({
   const [userPlaylists, setUserPlaylists] = useState([])
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false)
   const [hasLoadedPlaylists, setHasLoadedPlaylists] = useState(false)
+  const [playlistError, setPlaylistError] = useState('')
   const [addingPlaylistId, setAddingPlaylistId] = useState(null)
   const [addedPlaylistIds, setAddedPlaylistIds] = useState(() => new Set())
   const isPlaylistSong = playlistId !== undefined && playlistId !== null
@@ -103,16 +104,19 @@ function SongOptionsMenu({
     let isMounted = true
 
     setIsLoadingPlaylists(true)
+    setPlaylistError('')
     musicService.getUserPlaylists()
       .then((playlists) => {
         if (isMounted) {
           setUserPlaylists(Array.isArray(playlists) ? playlists : [])
           setHasLoadedPlaylists(true)
+          setPlaylistError('')
         }
       })
       .catch(() => {
         if (isMounted) {
           setUserPlaylists([])
+          setPlaylistError('Não foi possível carregar suas playlists.')
           showMusicError('Não foi possível carregar suas playlists.')
         }
       })
@@ -326,7 +330,13 @@ function SongOptionsMenu({
                     <span className="song-options-empty">Carregando playlists...</span>
                   )}
 
-                  {!isLoadingPlaylists && userPlaylists.length === 0 && (
+                  {!isLoadingPlaylists && playlistError && (
+                    <span className="song-options-empty song-options-error">
+                      {playlistError}
+                    </span>
+                  )}
+
+                  {!isLoadingPlaylists && !playlistError && userPlaylists.length === 0 && (
                     <span className="song-options-empty">Nenhuma playlist criada.</span>
                   )}
 
