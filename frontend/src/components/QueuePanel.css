@@ -1,68 +1,113 @@
+.queue-panel,
+.queue-panel * {
+    box-sizing: border-box;
+}
+
 .queue-panel {
     position: fixed;
     top: 0;
     right: -420px;
-    width: 380px;
-    height: calc(100vh - 90px);
-    background: #121212;
-    border-left: 1px solid #2a2a2a;
-    z-index: 200;
+    width: 360px;
+    height: calc(100vh - 110px);
+    background:
+            linear-gradient(135deg, rgba(18, 18, 20, 0.97), rgba(10, 10, 12, 0.96)),
+            rgba(10, 10, 12, 0.96);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 20px 0 0 20px;
+    box-shadow:
+            -16px 0 48px rgba(0, 0, 0, 0.46),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 250;
     display: flex;
     flex-direction: column;
-    transition: right 0.3s ease;
     overflow: hidden;
+    transition: right 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    color: #ffffff;
 }
 
 .queue-panel.open {
     right: 0;
 }
 
+/* Cabeçalho */
 .queue-panel__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 16px 12px;
-    border-bottom: 1px solid #2a2a2a;
+    padding: 18px 16px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+}
+
+.queue-panel__header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
 }
 
 .queue-panel__title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 850;
+    color: #ffffff;
     margin: 0;
+    letter-spacing: -0.01em;
 }
 
 .queue-panel__count {
-    font-size: 0.75rem;
-    color: #a0a0a0;
-    margin-left: 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0;
 }
 
+/* Botão fechar */
 .queue-panel__close {
-    background: none;
-    border: none;
-    color: #a0a0a0;
-    cursor: pointer;
-    padding: 4px;
+    all: unset;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    transition: color 0.2s, background 0.2s;
+    color: rgba(255, 255, 255, 0.52);
+    cursor: pointer;
+    transition: color 0.18s ease, background 0.18s ease;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.queue-panel__close svg {
+    display: block;
+    width: 1em;
+    height: 1em;
+    pointer-events: none;
 }
 
 .queue-panel__close:hover {
-    color: #fff;
-    background: #2a2a2a;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
 }
 
+.queue-panel__close:focus-visible {
+    outline: 2px solid rgba(57, 240, 208, 0.72);
+    outline-offset: 2px;
+}
+
+/* Lista */
 .queue-panel__list {
     flex: 1;
     overflow-y: auto;
-    padding: 8px 0;
+    overflow-x: hidden;
+    padding: 6px 0 8px;
 }
 
 .queue-panel__list::-webkit-scrollbar {
-    width: 4px;
+    width: 3px;
 }
 
 .queue-panel__list::-webkit-scrollbar-track {
@@ -70,31 +115,57 @@
 }
 
 .queue-panel__list::-webkit-scrollbar-thumb {
-    background: #333;
+    background: rgba(255, 255, 255, 0.12);
     border-radius: 2px;
 }
 
+.queue-panel__list::-webkit-scrollbar-thumb:hover {
+    background: rgba(57, 240, 208, 0.3);
+}
+
+/* Estado vazio */
 .queue-panel__empty {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     height: 100%;
-    gap: 12px;
-    color: #a0a0a0;
-    font-size: 0.875rem;
+    gap: 10px;
+    padding: 40px 24px;
+    text-align: center;
 }
 
+.queue-panel__empty-icon {
+    color: rgba(57, 240, 208, 0.28);
+    font-size: 2.4rem;
+    display: flex;
+}
+
+.queue-panel__empty p {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.36);
+}
+
+.queue-panel__empty p:last-child {
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.22);
+}
+
+/* Item da fila */
 .queue-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 16px;
+    gap: 10px;
+    padding: 7px 12px 7px 8px;
+    margin: 1px 8px;
+    border-radius: 10px;
     cursor: grab;
-    border-radius: 6px;
-    margin: 0 8px 2px;
-    transition: background 0.15s;
     user-select: none;
+    transition: background 0.15s ease;
+    position: relative;
 }
 
 .queue-item:active {
@@ -102,76 +173,102 @@
 }
 
 .queue-item:hover {
-    background: #1e1e1e;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .queue-item.active {
-    background: #1a2a1a;
+    background: rgba(57, 240, 208, 0.08);
+    border: 1px solid rgba(57, 240, 208, 0.13);
 }
 
 .queue-item.dragging {
-    opacity: 0.4;
+    opacity: 0.35;
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .queue-item.drag-over {
-    border-top: 2px solid #1db954;
+    border-top: 2px solid #39f0d0;
+    margin-top: -1px;
 }
 
+/* Handle de arraste */
 .queue-item__drag-handle {
-    color: #555;
+    color: rgba(255, 255, 255, 0.2);
     flex-shrink: 0;
     display: flex;
     align-items: center;
+    font-size: 1.1rem;
+    transition: color 0.15s ease;
 }
 
+.queue-item:hover .queue-item__drag-handle {
+    color: rgba(255, 255, 255, 0.42);
+}
+
+/* Capa */
 .queue-item__cover {
-    width: 40px;
-    height: 40px;
-    border-radius: 4px;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
     object-fit: cover;
     flex-shrink: 0;
-    background: #2a2a2a;
+    background: linear-gradient(135deg, #39f0d0, #6c4cff);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
+/* Info */
 .queue-item__info {
     flex: 1;
     min-width: 0;
 }
 
 .queue-item__title {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: #fff;
+    font-size: 0.835rem;
+    font-weight: 700;
+    color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    letter-spacing: -0.01em;
 }
 
 .queue-item.active .queue-item__title {
-    color: #1db954;
+    color: #39f0d0;
 }
 
 .queue-item__artist {
-    font-size: 0.75rem;
-    color: #a0a0a0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.44);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-top: 2px;
 }
 
+/* Botão remover */
 .queue-item__remove {
-    background: none;
-    border: none;
-    color: #555;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 50%;
+    all: unset;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    color: rgba(255, 255, 255, 0.28);
+    cursor: pointer;
     opacity: 0;
-    transition: color 0.2s, opacity 0.2s;
+    transition: color 0.18s ease, background 0.18s ease, opacity 0.18s ease;
     flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.queue-item__remove svg {
+    display: block;
+    width: 0.85em;
+    height: 0.85em;
+    pointer-events: none;
 }
 
 .queue-item:hover .queue-item__remove {
@@ -179,27 +276,103 @@
 }
 
 .queue-item__remove:hover {
-    color: #ff4444;
+    color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.12);
 }
 
-.queue-panel__clear {
-    padding: 12px 16px;
-    border-top: 1px solid #2a2a2a;
+.queue-item__remove:focus-visible {
+    opacity: 1;
+    outline: 2px solid rgba(255, 107, 107, 0.6);
+    outline-offset: 2px;
 }
 
-.queue-panel__clear button {
+/* Rodapé — limpar fila */
+.queue-panel__footer {
+    padding: 10px 12px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+}
+
+.queue-panel__clear-btn {
+    all: unset;
+    box-sizing: border-box;
+    display: block;
     width: 100%;
-    background: none;
-    border: 1px solid #333;
-    color: #a0a0a0;
-    padding: 8px;
-    border-radius: 6px;
+    text-align: center;
+    padding: 9px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.42);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
     cursor: pointer;
-    font-size: 0.8rem;
-    transition: all 0.2s;
+    transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 
-.queue-panel__clear button:hover {
-    border-color: #ff4444;
-    color: #ff4444;
+.queue-panel__clear-btn:hover {
+    color: #ff6b6b;
+    border-color: rgba(255, 107, 107, 0.35);
+    background: rgba(255, 107, 107, 0.07);
+}
+
+.queue-panel__clear-btn:focus-visible {
+    outline: 2px solid rgba(57, 240, 208, 0.72);
+    outline-offset: 2px;
+}
+
+/* Indicador de música tocando agora */
+.queue-item__now-playing {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.queue-item__now-playing span {
+    display: block;
+    width: 2px;
+    background: #39f0d0;
+    border-radius: 2px;
+    animation: queue-bar-bounce 1s ease-in-out infinite;
+}
+
+.queue-item__now-playing span:nth-child(1) { height: 8px; animation-delay: 0s; }
+.queue-item__now-playing span:nth-child(2) { height: 13px; animation-delay: 0.15s; }
+.queue-item__now-playing span:nth-child(3) { height: 6px; animation-delay: 0.3s; }
+
+@keyframes queue-bar-bounce {
+    0%, 100% { transform: scaleY(0.5); }
+    50%       { transform: scaleY(1); }
+}
+
+/* Animação de entrada do painel */
+@keyframes queue-panel-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.queue-panel.open {
+    animation: queue-panel-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Responsivo mobile */
+@media (max-width: 860px) {
+    .queue-panel {
+        width: 100vw;
+        border-radius: 20px 20px 0 0;
+        top: auto;
+        bottom: -100vh;
+        right: 0;
+        height: 70vh;
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        transition: bottom 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .queue-panel.open {
+        bottom: 90px;
+        animation: none;
+    }
 }
