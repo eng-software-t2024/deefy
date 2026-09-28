@@ -4,11 +4,11 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 public record AuthRequestDTO (
-        @NotBlank
-        @Email
+        @NotBlank(message = "O palco precisa do seu e-mail!")
+        @Email(message = "E-mail desafinado! Verifique o endereço.")
         String email,
 
-        @NotBlank
+        @NotBlank(message = "Entrada sem ingresso VIP! A senha é obrigatória.")
         String senha
 ){
 }

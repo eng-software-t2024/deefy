@@ -1,13 +1,14 @@
 package br.com.deefy.service;
 
 import br.com.deefy.dto.request.*;
+import br.com.deefy.dto.response.RegisterResponseDTO;
 import br.com.deefy.dto.response.UserResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface UserService {
-    UserResponseDTO createUser(UserRequestDTO request);
+    RegisterResponseDTO createUser(UserRequestDTO request);
 
     UserResponseDTO findUserById(Long id);
 

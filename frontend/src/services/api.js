@@ -25,6 +25,45 @@ const api = axios.create({
   },
 });
 
+export const normalizeApiError = (error) => {
+  const isLoginRequest = error.config?.url?.includes('/auth/login');
+  const customError = {
+    message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.',
+    status: null,
+    data: null,
+    response: error.response,
+  };
+
+  if (error.response) {
+    customError.status = error.response.status;
+    customError.data = error.response.data;
+    const isInvalidLogin = isLoginRequest &&
+      (error.response.status === 401 || error.response.status === 403);
+
+    if (isInvalidLogin) {
+      customError.message = 'E-mail ou senha inválidos.';
+    } else if (error.response.status >= 500) {
+      customError.message = 'Algo deu errado nos bastidores. Tente novamente.';
+    } else {
+      customError.message = error.response.data?.message ||
+        error.response.data?.messages?.[0] ||
+        'Não foi possível concluir a solicitação.';
+    }
+  } else if (error.request) {
+    if (error.code === 'ECONNABORTED') {
+      customError.message = 'O servidor demorou para responder. Tente novamente.';
+    } else if (isLoginRequest) {
+      customError.message = 'Não foi possível entrar agora. Tente novamente.';
+    } else {
+      customError.message = 'Não foi possível conectar ao servidor. Tente novamente.';
+    }
+  } else {
+    customError.message = error.message;
+  }
+
+  return customError;
+};
+
 // Interceptor de requisição (opcional, útil para enviar tokens futuramente)
 api.interceptors.request.use(
   (config) => {
@@ -54,23 +93,9 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Prevenindo crashes da aplicação padronizando os erros do backend
-    let customError = {
-      message: 'Ocorreu um erro inesperado. Tente novamente mais tarde.',
-      status: null,
-      data: null,
-      response: error.response,
-    };
+    const customError = normalizeApiError(error);
 
     if (error.response) {
-      // O backend retornou um status code fora da faixa 2xx
-      customError.status = error.response.status;
-      customError.data = error.response.data;
-      customError.message =
-        error.response.data?.messages?.[0] ||
-        error.response.data?.message ||
-        `Erro do Servidor: ${error.response.status}`;
-
       // Desloga o usuário se a sessão expirar, ignorando rotas de autenticação.
       // O backend atual retorna 403 quando o JWT está ausente/inválido/expirado.
       const isAuthRoute = error.config?.url?.includes('/auth/');
@@ -83,16 +108,6 @@ api.interceptors.response.use(
           window.location.href = '/login';
         }
       }
-    } else if (error.request) {
-      // A requisição foi feita mas não houve resposta (ex: servidor fora do ar, erro de CORS ou timeout)
-      if (error.code === 'ECONNABORTED') {
-        customError.message = 'A requisição demorou muito para responder (Timeout).';
-      } else {
-        customError.message = 'Não foi possível conectar ao servidor. Verifique se o Vite está em http://localhost:5173 ou http://localhost:5174 e se a API oficial está acessível.';
-      }
-    } else {
-      // Algum erro ocorreu ao montar a requisição
-      customError.message = error.message;
     }
 
     console.error('[API Error]:', {

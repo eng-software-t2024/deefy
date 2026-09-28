@@ -2,6 +2,7 @@ package br.com.deefy.service.impl;
 
 
 import br.com.deefy.dto.request.*;
+import br.com.deefy.dto.response.RegisterResponseDTO;
 import br.com.deefy.dto.response.UserResponseDTO;
 import br.com.deefy.exception.EmailJaCadastradoException;
 import br.com.deefy.exception.SenhaAtualIncorretaException;
@@ -9,7 +10,9 @@ import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.mapper.UserMapper;
 import br.com.deefy.model.Tipo;
 import br.com.deefy.model.User;
+import br.com.deefy.model.PendingRegistration;
 import br.com.deefy.repository.UserRepository;
+import br.com.deefy.repository.PendingRegistrationRepository;
 import br.com.deefy.service.ProfilePhotoStorageService;
 import br.com.deefy.service.UserService;
 import jakarta.transaction.Transactional;
@@ -28,17 +31,20 @@ import java.time.LocalDateTime;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final PendingRegistrationRepository pendingRegistrationRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final JwtUtil jwtUtil;
     private final ProfilePhotoStorageService profilePhotoStorageService;
 
-    public UserServiceImpl(UserRepository userRepository, UserMapper userMapper, PasswordEncoder passwordEncoder,
+    public UserServiceImpl(UserRepository userRepository, PendingRegistrationRepository pendingRegistrationRepository,
+                           UserMapper userMapper, PasswordEncoder passwordEncoder,
                            EmailService emailService,
                            JwtUtil jwtUtil,
                            ProfilePhotoStorageService profilePhotoStorageService){
         this.userRepository = userRepository;
+        this.pendingRegistrationRepository = pendingRegistrationRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
@@ -48,7 +54,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserResponseDTO createUser(UserRequestDTO request){
+    public RegisterResponseDTO createUser(UserRequestDTO request){
 
         if(userRepository.existsByEmail(request.email())){
             throw new EmailJaCadastradoException("Este e-mail já está cadastrado no sistema");
@@ -65,9 +71,23 @@ public class UserServiceImpl implements UserService {
         );
 
 
+        PendingRegistration pendingRegistration = pendingRegistrationRepository.findByEmail(request.email())
+                .orElseGet(PendingRegistration::new);
+
+        boolean cadastroPendenteAtualizado = pendingRegistration.getEmail() != null;
+        pendingRegistration.setNome(request.nome());
+        pendingRegistration.setEmail(request.email());
+        pendingRegistration.setSenha(senhaCriptografada);
+        pendingRegistration.setToken(tokenAtivacao);
+        pendingRegistrationRepository.save(pendingRegistration);
+
         emailService.enviarEmailAtivacaoConta(request.email(), tokenAtivacao);
 
-        return new UserResponseDTO(null, request.nome(), request.email(), null, LocalDateTime.now());
+        String message = cadastroPendenteAtualizado
+                ? "Já havia um cadastro pendente para este e-mail. Um novo link de ativação foi enviado."
+                : "Link de ativação enviado. Verifique seu e-mail para concluir o cadastro.";
+
+        return new RegisterResponseDTO(request.nome(), request.email(), cadastroPendenteAtualizado, message);
     }
 
     @Override
@@ -78,21 +98,41 @@ public class UserServiceImpl implements UserService {
         }
 
         String email = jwtUtil.extractEmail(request.token());
-        String nome = jwtUtil.extractNomeFromToken(request.token());
-        String senhaHash = jwtUtil.extractSenhaHashFromToken(request.token());
-
         if (userRepository.existsByEmail(email)) {
             throw new EmailJaCadastradoException("Este e-mail já foi ativado e cadastrado no sistema.");
+        }
+
+        PendingRegistration pendingRegistration = pendingRegistrationRepository.findByEmail(email).orElse(null);
+        String nome;
+        String senha;
+
+        if (pendingRegistration != null) {
+            if (!request.token().equals(pendingRegistration.getToken())) {
+                throw new TokenInvalidoException("O cadastro pendente não foi encontrado ou o link de ativação foi substituído.");
+            }
+
+            nome = pendingRegistration.getNome();
+            senha = pendingRegistration.getSenha();
+        } else {
+            nome = jwtUtil.extractNomeFromToken(request.token());
+            senha = jwtUtil.extractSenhaHashFromToken(request.token());
+
+            if (nome == null || nome.isBlank() || senha == null || senha.isBlank()) {
+                throw new TokenInvalidoException("O cadastro pendente não foi encontrado ou o token não é compatível.");
+            }
         }
 
         User user = new User();
         user.setNome(nome);
         user.setEmail(email);
-        user.setSenha(senhaHash);
+        user.setSenha(senha);
         user.setTipoUsuario(Tipo.USER);
         user.setCreatedAt(LocalDateTime.now());
 
         userRepository.save(user);
+        if (pendingRegistration != null) {
+            pendingRegistrationRepository.delete(pendingRegistration);
+        }
     }
 
     @Override
