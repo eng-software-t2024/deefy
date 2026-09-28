@@ -242,6 +242,41 @@ function CreatePlaylist() {
                 Se você não definir uma capa, o Deefy usará automaticamente as capas das músicas da playlist.
               </p>
 
+              <div
+                className="create-playlist-privacy-toggle"
+                role="group"
+                aria-labelledby="playlist-privacy-label"
+                aria-describedby="playlist-privacy-description"
+              >
+                <span id="playlist-privacy-label" className="create-playlist-privacy-label">
+                  Privacidade da playlist
+                </span>
+                <div className="create-playlist-privacy-options">
+                  <button
+                    type="button"
+                    className={`create-playlist-privacy-option${!isPublic ? ' create-playlist-privacy-option--active' : ''}`}
+                    aria-pressed={!isPublic}
+                    disabled={isSubmitting}
+                    onClick={() => setIsPublic(false)}
+                  >
+                    Privada
+                  </button>
+                  <button
+                    type="button"
+                    className={`create-playlist-privacy-option${isPublic ? ' create-playlist-privacy-option--active' : ''}`}
+                    aria-pressed={isPublic}
+                    disabled={isSubmitting}
+                    onClick={() => setIsPublic(true)}
+                  >
+                    Pública
+                  </button>
+                </div>
+                <span id="playlist-privacy-description" className="create-playlist-privacy-description">
+                  {isPublic
+                    ? 'Outros usuários conectados ao Deefy podem visualizar esta playlist.'
+                    : 'Somente você pode visualizar esta playlist.'}
+                </span>
+              </div>
               <button 
                 type="button" 
                 className="create-playlist-save"
