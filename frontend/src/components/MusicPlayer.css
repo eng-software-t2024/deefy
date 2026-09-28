@@ -614,8 +614,8 @@
   min-height: 48px;
   padding: 0 16px;
   display: grid;
-  grid-template-columns: auto auto;
-  justify-content: center;
+  grid-template-columns: 22px minmax(0, 1fr);
+  justify-content: stretch;
   align-items: center;
   column-gap: 12px;
   border-radius: 16px;
@@ -636,9 +636,23 @@
 }
 
 .deefy-player-playlist-sheet-list .deefy-player-playlist-menu-name {
-  flex: 0 1 auto;
   line-height: 22px;
   font-size: 0.9rem;
+}
+
+.deefy-player-playlist-menu-content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.deefy-player-playlist-menu-status {
+  color: rgba(159, 251, 234, 0.76);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .deefy-player-playlist-menu-title {
@@ -731,6 +745,7 @@
 
 .deefy-player-playlist-menu-name {
   min-width: 0;
+  max-width: 100%;
   flex: 0 1 auto;
   display: block;
   overflow: hidden;
