@@ -66,7 +66,10 @@ api.interceptors.response.use(
       // O backend retornou um status code fora da faixa 2xx
       customError.status = error.response.status;
       customError.data = error.response.data;
-      customError.message = error.response.data?.message || `Erro do Servidor: ${error.response.status}`;
+      customError.message =
+        error.response.data?.messages?.[0] ||
+        error.response.data?.message ||
+        `Erro do Servidor: ${error.response.status}`;
 
       // Desloga o usuário se a sessão expirar, ignorando rotas de autenticação.
       // O backend atual retorna 403 quando o JWT está ausente/inválido/expirado.

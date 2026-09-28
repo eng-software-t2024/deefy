@@ -46,6 +46,7 @@ function SongOptionsMenu({
   const [isFavoriteBusy, setIsFavoriteBusy] = useState(false)
   const [userPlaylists, setUserPlaylists] = useState([])
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false)
+  const [hasLoadedPlaylists, setHasLoadedPlaylists] = useState(false)
   const [addingPlaylistId, setAddingPlaylistId] = useState(null)
   const isPlaylistSong = playlistId !== undefined && playlistId !== null
   const canRemoveFromPlaylist = isPlaylistSong && allowRemoveFromPlaylist
@@ -82,7 +83,7 @@ function SongOptionsMenu({
   }, [isOpen])
 
   useEffect(() => {
-    if (!showPlaylists || userPlaylists.length > 0 || isLoadingPlaylists) {
+    if (!showPlaylists || hasLoadedPlaylists) {
       return undefined
     }
 
@@ -91,7 +92,10 @@ function SongOptionsMenu({
     setIsLoadingPlaylists(true)
     musicService.getUserPlaylists()
       .then((playlists) => {
-        if (isMounted) setUserPlaylists(Array.isArray(playlists) ? playlists : [])
+        if (isMounted) {
+          setUserPlaylists(Array.isArray(playlists) ? playlists : [])
+          setHasLoadedPlaylists(true)
+        }
       })
       .catch(() => {
         if (isMounted) {
@@ -100,13 +104,15 @@ function SongOptionsMenu({
         }
       })
       .finally(() => {
-        if (isMounted) setIsLoadingPlaylists(false)
+        if (isMounted) {
+          setIsLoadingPlaylists(false)
+        }
       })
 
     return () => {
       isMounted = false
     }
-  }, [isLoadingPlaylists, showPlaylists, userPlaylists.length])
+  }, [showPlaylists, hasLoadedPlaylists])
 
   const searchOnGoogle = () => {
     const query = encodeURIComponent(`${song?.title || ''} ${song?.artist || ''}`)
@@ -130,10 +136,20 @@ function SongOptionsMenu({
       setShowPlaylists(false)
     } catch (err) {
       const status = err?.status || err?.response?.status
+      const errorMsg =
+        err?.response?.data?.messages?.[0] ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Erro ao adicionar música à playlist.'
+
+      const isDuplicate =
+        status === 409 ||
+        (status === 400 && errorMsg.includes('já está presente'))
+
       showMusicError(
-        status === 409
+        isDuplicate
           ? 'Essa música já está nesta playlist.'
-          : err?.response?.data?.message || err?.message || 'Erro ao adicionar música à playlist.',
+          : errorMsg,
       )
     } finally {
       setAddingPlaylistId(null)

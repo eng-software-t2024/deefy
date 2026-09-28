@@ -75,20 +75,6 @@ function AddMusicToPlaylist() {
         console.error('Erro ao buscar músicas da playlist', err)
     })
 
-    musicService.getPlaylistById(id)
-      .then((playlist) => {
-        if (!isMounted) return
-
-        const existingIds = (playlist.tracks || [])
-          .map(getSongKey)
-          .filter(Boolean)
-
-        setAddedIds(new Set(existingIds))
-      })
-      .catch((err) => {
-        console.error('Erro ao buscar músicas da playlist', err)
-      })
-
     return () => { isMounted = false }
   }, [id])
 
@@ -152,11 +138,21 @@ function AddMusicToPlaylist() {
       })
       showMusicSuccess("Música adicionada à playlist!")
     } catch (err) {
-      if (err?.status === 409) {
+      const status = err?.status || err?.response?.status
+      const errorMsg =
+        err?.response?.data?.messages?.[0] ||
+        err?.response?.data?.message ||
+        err?.message ||
+        ""
+      const isDuplicate =
+        status === 409 ||
+        (status === 400 && errorMsg.includes("já está presente"))
+
+      if (isDuplicate) {
         setAddedIds((currentIds) => new Set(currentIds).add(songKey))
         showMusicError("Essa música já está na playlist.")
       } else {
-        showMusicError(err?.response?.data?.message || "Erro ao adicionar música.")
+        showMusicError(errorMsg || "Erro ao adicionar música.")
       }
     } finally {
       setAddingId(null)

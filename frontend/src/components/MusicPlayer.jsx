@@ -693,7 +693,18 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
       });
       toast.success(`Musica adicionada a playlist ${playlistName}`);
     } catch (error) {
-      if (error?.response?.status === 409 || error?.status === 409) {
+      const status = error?.response?.status ?? error?.status;
+      const messages = error?.response?.data?.messages ?? [];
+      const errorMsg =
+        messages[0] ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "";
+      const isDuplicate =
+        status === 409 ||
+        (status === 400 && (messages.some((m) => m?.includes("já está presente")) || errorMsg.includes("já está presente")));
+
+      if (isDuplicate) {
         setAddedPlaylistIds((currentIds) => {
           const nextIds = new Set(currentIds);
           nextIds.add(String(playlistId));
@@ -701,7 +712,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
         });
         toast.error("Essa musica ja esta nessa playlist.");
       } else {
-        toast.error(error?.response?.data?.message || "Erro ao adicionar musica a playlist.");
+        toast.error(errorMsg || "Erro ao adicionar musica a playlist.");
       }
       console.warn("Deefy player: nao foi possivel adicionar a playlist.", error);
     } finally {
