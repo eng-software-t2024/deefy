@@ -146,11 +146,57 @@
   font-weight: 500;
 
   color: #b8b8b8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .song-options-submenu button:hover {
   background: rgba(57, 240, 208, 0.08);
   color: #39f0d0;
+}
+
+.song-options-submenu button.is-added {
+  color: rgba(57, 240, 208, 0.85);
+}
+
+.song-options-submenu button.is-added:disabled {
+  opacity: 0.85;
+  cursor: default;
+}
+
+.song-options-submenu button.is-added:disabled:hover {
+  background: rgba(57, 240, 208, 0.06);
+  color: #39f0d0;
+}
+
+.song-options-playlist-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.song-options-playlist-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #39f0d0;
+  background: rgba(57, 240, 208, 0.12);
+  border: 1px solid rgba(57, 240, 208, 0.25);
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.song-options-check-icon {
+  font-size: 0.85rem !important;
 }
 
 .song-options-empty {
