@@ -12,6 +12,7 @@ import {
   MdKeyboardArrowRight,
   MdClose,
   MdContentCopy,
+  MdCheck,
 } from 'react-icons/md'
 import { FaEnvelope, FaTelegramPlane, FaWhatsapp } from 'react-icons/fa'
 import './SongOptionsMenu.css'
@@ -26,6 +27,17 @@ function getPlaylistId(playlist) {
 
 function getPlaylistTitle(playlist) {
   return playlist?.name || playlist?.nome || playlist?.title || playlist?.titulo || 'Playlist sem nome'
+}
+
+function isSongInPlaylist(playlist, currentSong) {
+  const currentMusicId = getMusicIdFromTrack(currentSong)
+  if (currentMusicId === null || currentMusicId === undefined || currentMusicId === '') return false
+
+  const tracks = playlist?.tracks || playlist?.musicas || playlist?.musics || []
+  return tracks.some((t) => {
+    const trackId = getMusicIdFromTrack(t)
+    return trackId !== null && trackId !== undefined && String(trackId) === String(currentMusicId)
+  })
 }
 
 function SongOptionsMenu({
@@ -48,7 +60,10 @@ function SongOptionsMenu({
   const [isFavoriteBusy, setIsFavoriteBusy] = useState(false)
   const [userPlaylists, setUserPlaylists] = useState([])
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false)
+  const [hasLoadedPlaylists, setHasLoadedPlaylists] = useState(false)
+  const [playlistError, setPlaylistError] = useState('')
   const [addingPlaylistId, setAddingPlaylistId] = useState(null)
+  const [addedPlaylistIds, setAddedPlaylistIds] = useState(() => new Set())
   const isPlaylistSong = playlistId !== undefined && playlistId !== null
   const canRemoveFromPlaylist = isPlaylistSong && allowRemoveFromPlaylist
   const musicId = getMusicIdFromTrack(song)
@@ -85,31 +100,39 @@ function SongOptionsMenu({
   }, [isOpen])
 
   useEffect(() => {
-    if (!showPlaylists || userPlaylists.length > 0 || isLoadingPlaylists) {
+    if (!showPlaylists || hasLoadedPlaylists) {
       return undefined
     }
 
     let isMounted = true
 
     setIsLoadingPlaylists(true)
+    setPlaylistError('')
     musicService.getUserPlaylists()
       .then((playlists) => {
-        if (isMounted) setUserPlaylists(Array.isArray(playlists) ? playlists : [])
+        if (isMounted) {
+          setUserPlaylists(Array.isArray(playlists) ? playlists : [])
+          setHasLoadedPlaylists(true)
+          setPlaylistError('')
+        }
       })
       .catch(() => {
         if (isMounted) {
           setUserPlaylists([])
+          setPlaylistError('Não foi possível carregar suas playlists.')
           showMusicError('Não foi possível carregar suas playlists.')
         }
       })
       .finally(() => {
-        if (isMounted) setIsLoadingPlaylists(false)
+        if (isMounted) {
+          setIsLoadingPlaylists(false)
+        }
       })
 
     return () => {
       isMounted = false
     }
-  }, [isLoadingPlaylists, showPlaylists, userPlaylists.length])
+  }, [showPlaylists, hasLoadedPlaylists])
 
   const searchOnGoogle = () => {
     const query = encodeURIComponent(`${song?.title || ''} ${song?.artist || ''}`)
@@ -128,15 +151,46 @@ function SongOptionsMenu({
     try {
       setAddingPlaylistId(selectedPlaylistId)
       await musicService.addMusicToPlaylist(selectedPlaylistId, song)
+      setAddedPlaylistIds((prev) => new Set(prev).add(String(selectedPlaylistId)))
+      setUserPlaylists((prev) =>
+        prev.map((p) => {
+          if (String(getPlaylistId(p)) === String(selectedPlaylistId)) {
+            const tracks = Array.isArray(p.tracks) ? [...p.tracks, song] : [song]
+            return { ...p, tracks }
+          }
+          return p
+        })
+      )
       showMusicSuccess(`Música adicionada em "${getPlaylistTitle(playlist)}".`)
-      setIsOpen(false)
-      setShowPlaylists(false)
     } catch (err) {
       const status = err?.status || err?.response?.status
+      const errorMsg =
+        err?.response?.data?.messages?.[0] ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Erro ao adicionar música à playlist.'
+
+      const isDuplicate =
+        status === 409 ||
+        (status === 400 && errorMsg.includes('já está presente'))
+
+      if (isDuplicate) {
+        setAddedPlaylistIds((prev) => new Set(prev).add(String(selectedPlaylistId)))
+        setUserPlaylists((prev) =>
+          prev.map((p) => {
+            if (String(getPlaylistId(p)) === String(selectedPlaylistId)) {
+              const tracks = Array.isArray(p.tracks) ? [...p.tracks, song] : [song]
+              return { ...p, tracks }
+            }
+            return p
+          })
+        )
+      }
+
       showMusicError(
-        status === 409
+        isDuplicate
           ? 'Essa música já está nesta playlist.'
-          : err?.response?.data?.message || err?.message || 'Erro ao adicionar música à playlist.',
+          : errorMsg,
       )
     } finally {
       setAddingPlaylistId(null)
@@ -279,22 +333,43 @@ function SongOptionsMenu({
                     <span className="song-options-empty">Carregando playlists...</span>
                   )}
 
-                  {!isLoadingPlaylists && userPlaylists.length === 0 && (
+                  {!isLoadingPlaylists && playlistError && (
+                    <span className="song-options-empty song-options-error">
+                      {playlistError}
+                    </span>
+                  )}
+
+                  {!isLoadingPlaylists && !playlistError && userPlaylists.length === 0 && (
                     <span className="song-options-empty">Nenhuma playlist criada.</span>
                   )}
 
                   {!isLoadingPlaylists && userPlaylists.map((playlist) => {
                     const selectedPlaylistId = getPlaylistId(playlist)
                     const isAdding = String(addingPlaylistId) === String(selectedPlaylistId)
+                    const isAdded =
+                      addedPlaylistIds.has(String(selectedPlaylistId)) ||
+                      isSongInPlaylist(playlist, song)
 
                     return (
                       <button
                         type="button"
                         key={selectedPlaylistId || getPlaylistTitle(playlist)}
+                        className={`song-options-playlist-item ${isAdded ? 'is-added' : ''}`}
                         onClick={() => handleAddToPlaylist(playlist)}
-                        disabled={isAdding}
+                        disabled={isAdding || isAdded}
                       >
-                        {isAdding ? 'Adicionando...' : getPlaylistTitle(playlist)}
+                        <span className="song-options-playlist-name">
+                          {getPlaylistTitle(playlist)}
+                        </span>
+                        {isAdded ? (
+                          <span className="song-options-playlist-badge">
+                            <MdCheck className="song-options-check-icon" /> Adicionada
+                          </span>
+                        ) : isAdding ? (
+                          <span className="song-options-playlist-badge">
+                            Adicionando...
+                          </span>
+                        ) : null}
                       </button>
                     )
                   })}
