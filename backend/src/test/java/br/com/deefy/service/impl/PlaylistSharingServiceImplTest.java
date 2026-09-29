@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -154,5 +155,31 @@ class PlaylistSharingServiceImplTest {
                 2L,
                 1L,
                 new UpdatePlaylistShareRequestDTO("ADMIN")));
+    }
+
+    @Test
+    void revokePlaylistShare_QuandoDonoECompartilhamentoExistem_DesativaRegistro() {
+        PlaylistShare share = new PlaylistShare(playlist, recipient, "VIEW", "DIRECT");
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+        when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L)).thenReturn(Optional.of(share));
+
+        service.revokePlaylistShare(10L, 2L, 1L);
+
+        assertFalse(share.getAtivo());
+    }
+
+    @Test
+    void revokePlaylistShare_QuandoSolicitanteNaoEDono_NegaOperacao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.revokePlaylistShare(10L, 2L, 99L));
+    }
+
+    @Test
+    void revokePlaylistShare_QuandoCompartilhamentoNaoExiste_LancaExcecao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+        when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L)).thenReturn(Optional.empty());
+
+        assertThrows(PlaylistException.class, () -> service.revokePlaylistShare(10L, 2L, 1L));
     }
 }

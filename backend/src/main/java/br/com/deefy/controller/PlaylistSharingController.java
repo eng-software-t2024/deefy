@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -62,6 +63,19 @@ public class PlaylistSharingController {
                 request);
 
         return ResponseEntity.ok(toResponse(share));
+    }
+
+    @DeleteMapping("/{usuarioId}")
+    @Operation(summary = "Revogar compartilhamento", description = "Revoga o acesso direto de um usuario a uma playlist sem excluir o historico.")
+    public ResponseEntity<Void> revokeSharing(
+            @PathVariable Long playlistId,
+            @PathVariable Long usuarioId) {
+        playlistSharingService.revokePlaylistShare(
+                playlistId,
+                usuarioId,
+                authenticatedUserService.getAuthenticatedUserId());
+
+        return ResponseEntity.noContent().build();
     }
 
     private PlaylistShareResponseDTO toResponse(PlaylistShare share) {

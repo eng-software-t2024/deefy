@@ -13,4 +13,6 @@ public interface PlaylistSharingService {
             Long usuarioId,
             Long ownerId,
             UpdatePlaylistShareRequestDTO request);
+
+    void revokePlaylistShare(Long playlistId, Long usuarioId, Long ownerId);
 }

@@ -11,6 +11,7 @@ playlists. Status conforme o ultimo acompanhamento realizado.
 - **#32 - Criar entidades, repositories, services e DTOs necessarios.**
 - **#33 - Criar endpoint para compartilhar com um usuario.**
 - **#34 - Criar endpoint para alterar a permissao de um usuario.**
+- **#35 - Criar endpoint para revogar o acesso de um usuario.**
 
 ## Em andamento
 
@@ -18,7 +19,6 @@ Nenhuma.
 
 ## Pendentes
 
-- **#35 - Criar endpoint para revogar o acesso de um usuario.**
 - **#37 - Criar endpoint para alterar a permissao do link.**
 - **#38 - Criar endpoint para desativar ou revogar o link.**
 - **#39 - Validar permissoes ao adicionar, remover e reordenar musicas.**

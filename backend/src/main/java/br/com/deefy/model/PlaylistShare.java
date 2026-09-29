@@ -65,4 +65,8 @@ public class PlaylistShare {
     public Boolean getAtivo() {
         return ativo;
     }
+
+    public void desativar() {
+        this.ativo = false;
+    }
 } 

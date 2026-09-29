@@ -82,6 +82,25 @@ public class PlaylistSharingServiceImpl implements PlaylistSharingService {
         return playlistShareRepository.save(share);
     }
 
+    @Override
+    @Transactional
+    public void revokePlaylistShare(Long playlistId, Long usuarioId, Long ownerId) {
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new PlaylistException("Playlist não encontrada"));
+
+        if (!playlist.belongsTo(ownerId)) {
+            throw new PlaylistException("Você não tem permissão para revogar compartilhamentos desta playlist");
+        }
+
+        PlaylistShare share = playlistShareRepository.findByPlaylistIdAndUsuarioId(playlistId, usuarioId)
+                .orElseThrow(() -> new PlaylistException("Compartilhamento não encontrado"));
+
+        if (share.getAtivo()) {
+            share.desativar();
+            playlistShareRepository.save(share);
+        }
+    }
+
     private String normalizePermission(String permission) {
         if (permission == null || permission.isBlank()) {
             throw new PlaylistException("A permissão deve ser VIEW ou EDITOR");
