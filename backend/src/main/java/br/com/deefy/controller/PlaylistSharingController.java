@@ -1,15 +1,56 @@
 package br.com.deefy.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import br.com.deefy.dto.request.PlaylistShareRequestDTO;
+import br.com.deefy.dto.response.PlaylistShareResponseDTO;
+import br.com.deefy.config.OpenApiConfig;
+import br.com.deefy.model.PlaylistShare;
+import br.com.deefy.service.PlaylistSharingService;
+import br.com.deefy.service.impl.AuthenticatedUserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/playlists/{playlistId}/sharing")
+@Tag(name = "Playlist Sharing", description = "Compartilhamento de playlists com usuarios")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class PlaylistSharingController {
 
-    public ResponseEntity<void> sharePlaylist() {
+    private final PlaylistSharingService playlistSharingService;
+    private final AuthenticatedUserService authenticatedUserService;
+
+    public PlaylistSharingController(
+            PlaylistSharingService playlistSharingService,
+            AuthenticatedUserService authenticatedUserService) {
+        this.playlistSharingService = playlistSharingService;
+        this.authenticatedUserService = authenticatedUserService;
+    }
+
+    @PostMapping
+    @Operation(summary = "Compartilhar playlist com usuario", description = "Concede acesso direto a uma playlist para um usuario existente.")
+    public ResponseEntity<PlaylistShareResponseDTO> sharePlaylist(
+            @PathVariable Long playlistId,
+            @Valid @RequestBody PlaylistShareRequestDTO request) {
+        PlaylistShare share = playlistSharingService.sharePlaylist(
+                playlistId,
+                authenticatedUserService.getAuthenticatedUserId(),
+                request);
+
+        PlaylistShareResponseDTO response = new PlaylistShareResponseDTO(
+                share.getId(),
+                share.getUsuario().getId(),
+                share.getPermissao(),
+                share.getOrigem(),
+                share.getAtivo());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
