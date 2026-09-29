@@ -11,11 +11,13 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from "react-icons/fa";
-import { FiChevronDown, FiMaximize2, FiRepeat, FiX } from "react-icons/fi";
-import { MdPlaylistAdd } from "react-icons/md";
+import { FiChevronDown, FiMaximize2, FiPlus, FiRepeat, FiX } from "react-icons/fi";
+import { MdPlaylistAdd, MdCheck } from "react-icons/md";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { usePlayer } from "../contexts/PlayerContext";
 import { FAVORITE_MUSIC_CHANGED_EVENT, musicService } from "../services/musicService";
+import { getMusicIdFromTrack } from "../utils/musicNormalizer.js";
 import "./MusicPlayer.css";
 
 const EMPTY_TRACK = {
@@ -177,7 +179,23 @@ function getPlaylistName(playlist) {
   return playlist?.name || playlist?.title || "Playlist";
 }
 
+function isTrackInPlaylist(playlist, track) {
+  if (!playlist || !track) return false;
+  const targetId = getMusicIdFromTrack(track) ?? track?.id ?? null;
+  if (targetId === undefined || targetId === null || targetId === "") return false;
+
+  const tracks = playlist?.tracks || playlist?.musicas || playlist?.musics || [];
+  return tracks.some((item) => {
+    if (typeof item === "number" || typeof item === "string") {
+      return String(item) === String(targetId);
+    }
+    const itemId = getMusicIdFromTrack(item) ?? item?.id ?? null;
+    return itemId !== undefined && itemId !== null && String(itemId) === String(targetId);
+  });
+}
+
 function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
+  const navigate = useNavigate();
   const audioRef = useRef(null);
   const compactDragActiveRef = useRef(false);
   const expandedDragActiveRef = useRef(false);
@@ -631,6 +649,12 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
     setPlaylistMenuContext(null);
   };
 
+  const handleCreatePlaylistShortcut = () => {
+  closePlaylistMenu();
+  setIsExpanded(false);
+  navigate("/create-playlist");
+  };
+
   const handlePlaylistSheetTouchStart = (event) => {
     event.stopPropagation();
     playlistSheetDragStartYRef.current = event.touches[0].clientY;
@@ -691,22 +715,50 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
         nextIds.add(String(playlistId));
         return nextIds;
       });
+      setUserPlaylists((currentPlaylists) =>
+        currentPlaylists.map((p) => {
+          if (String(getPlaylistId(p)) === String(playlistId)) {
+            const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
+            return { ...p, tracks };
+          }
+          return p;
+        })
+      );
       toast.success(`Musica adicionada a playlist ${playlistName}`);
     } catch (error) {
-      if (error?.response?.status === 409 || error?.status === 409) {
+      const status = error?.response?.status ?? error?.status;
+      const messages = error?.response?.data?.messages ?? [];
+      const errorMsg =
+        messages[0] ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "";
+      const isDuplicate =
+        status === 409 ||
+        (status === 400 && (messages.some((m) => m?.includes("já está presente")) || errorMsg.includes("já está presente")));
+
+      if (isDuplicate) {
         setAddedPlaylistIds((currentIds) => {
           const nextIds = new Set(currentIds);
           nextIds.add(String(playlistId));
           return nextIds;
         });
+        setUserPlaylists((currentPlaylists) =>
+          currentPlaylists.map((p) => {
+            if (String(getPlaylistId(p)) === String(playlistId)) {
+              const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
+              return { ...p, tracks };
+            }
+            return p;
+          })
+        );
         toast.error("Essa musica ja esta nessa playlist.");
       } else {
-        toast.error(error?.response?.data?.message || "Erro ao adicionar musica a playlist.");
+        toast.error(errorMsg || "Erro ao adicionar musica a playlist.");
       }
       console.warn("Deefy player: nao foi possivel adicionar a playlist.", error);
     } finally {
       setAddingPlaylistId(null);
-      closePlaylistMenu();
     }
   };
 
@@ -974,7 +1026,9 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
         const playlistId = getPlaylistId(playlist);
         const playlistIdKey = playlistId === null ? "" : String(playlistId);
         const isAdding = addingPlaylistId === playlistIdKey;
-        const isAdded = Boolean(playlistIdKey && addedPlaylistIds.has(playlistIdKey));
+        const isAdded =
+          Boolean(playlistIdKey && addedPlaylistIds.has(playlistIdKey)) ||
+          isTrackInPlaylist(playlist, currentTrack);
 
         return (
           <button
@@ -993,16 +1047,19 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             <span className="deefy-player-playlist-menu-icon">
               <MdPlaylistAdd />
             </span>
-            <span className="deefy-player-playlist-menu-content">
-              <span className="deefy-player-playlist-menu-name">
-                {getPlaylistName(playlist)}
-              </span>
-              {(isAdding || isAdded) && (
-                <span className="deefy-player-playlist-menu-status">
-                  {isAdding ? "Adicionando..." : "Adicionada"}
-                </span>
-              )}
+            <span className="deefy-player-playlist-menu-name">
+              {getPlaylistName(playlist)}
             </span>
+            {isAdded && (
+              <span className="deefy-player-playlist-menu-status">
+                <MdCheck /> Adicionada
+              </span>
+            )}
+            {isAdding && (
+              <span className="deefy-player-playlist-menu-status">
+                Adicionando...
+              </span>
+            )}
           </button>
         );
       });
@@ -1064,6 +1121,20 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
           </div>
 
           <div className="deefy-player-playlist-sheet-list">
+            <button
+              type="button"
+              className="deefy-player-playlist-menu-item deefy-player-playlist-create"
+              role="menuitem"
+              onClick={(event) => {
+                stopCompactControlClick(event);
+                handleCreatePlaylistShortcut();
+              }}
+            >
+              <span className="deefy-player-playlist-menu-icon">
+                <FiPlus />
+              </span>
+              <span className="deefy-player-playlist-menu-name">Criar nova playlist</span>
+            </button>
             {renderPlaylistMenuItems()}
           </div>
         </section>
