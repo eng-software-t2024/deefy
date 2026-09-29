@@ -58,13 +58,7 @@ function Login() {
         showMusicError("Música pausada: O servidor não retornou um token de acesso.");
       }
     } catch (err) {
-      const status = err.status || err.response?.status;
-      const apiMessage = err.response?.data?.message || err.response?.data?.error;
-      const errorMessage =
-        status === 401 || status === 403
-          ? "E-mail ou senha inválidos."
-          : apiMessage || err.message || "Erro de conexão ao palco. Tente novamente.";
-      showMusicError(errorMessage);
+      showMusicError(err.message || "Não foi possível entrar agora. Tente novamente.");
     } finally {
       setIsLoading(false);
     }
