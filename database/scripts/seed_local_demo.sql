@@ -44,10 +44,10 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.playlist_musica (playlist_id, musica_id, ordem)
 VALUES
-  (1, 1, 1),
-  (1, 2, 2),
-  (1, 3, 3),
-  (2, 1, 1)
+  (1, 1, 0),
+  (1, 2, 1),
+  (1, 3, 2),
+  (2, 1, 0)
 ON CONFLICT (playlist_id, musica_id) DO NOTHING;
 
 SELECT setval('public.perfil_id_seq', GREATEST((SELECT MAX(id) FROM public.perfil), 1), true);

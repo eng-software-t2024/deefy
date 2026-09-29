@@ -314,15 +314,6 @@ function UserPlaylistDetail() {
 
                 {isMenuOpen && (
                   <div className="user-playlist-actions-menu" role="menu">
-                    <Link
-                      to={`/playlist/${playlist.id}/add-music`}
-                      className="user-playlist-menu-item"
-                      role="menuitem"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <MdPlaylistAdd />
-                      <span>Adicionar música</span>
-                    </Link>
 
                     <Link
                       to={`/playlist/${playlist.id}/edit`}
@@ -351,15 +342,24 @@ function UserPlaylistDetail() {
           </div>
         </section>
 
-        {songs.length > 0 ? (
+        <Link to={`/playlist/${playlist.id}/add-music`} className="song-row user-playlist-add-music" >
+            <span className="song-col-num">
+              <MdPlaylistAdd/>
+            </span>
+            <div className="song-col-info">
+              <div className="song-text">
+                <span  className="song-title">Adicionar mais músicas</span>
+              </div>
+            </div>
+          </Link>
+
+        {songs.length > 0 && (
           <SongList
             songs={songs}
             title=""
             playlistId={playlist.id}
             onSongRemoved={handleSongRemoved}
           />
-        ) : (
-          <p style={{ margin: '20px 0', color: '#a9a9a9' }}>Você ainda não adicionou nenhuma música a esta playlist.</p>
         )}
       </main>
     </div>
