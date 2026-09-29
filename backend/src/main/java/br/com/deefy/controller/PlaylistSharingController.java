@@ -1,6 +1,7 @@
 package br.com.deefy.controller;
 
 import br.com.deefy.dto.request.PlaylistShareRequestDTO;
+import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
 import br.com.deefy.dto.response.PlaylistShareResponseDTO;
 import br.com.deefy.config.OpenApiConfig;
 import br.com.deefy.model.PlaylistShare;
@@ -13,6 +14,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -44,13 +46,30 @@ public class PlaylistSharingController {
                 authenticatedUserService.getAuthenticatedUserId(),
                 request);
 
-        PlaylistShareResponseDTO response = new PlaylistShareResponseDTO(
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(share));
+    }
+
+    @PatchMapping("/{usuarioId}")
+    @Operation(summary = "Alterar permissao de compartilhamento", description = "Altera a permissao de um usuario compartilhado pelo proprietario da playlist.")
+    public ResponseEntity<PlaylistShareResponseDTO> updatePermission(
+            @PathVariable Long playlistId,
+            @PathVariable Long usuarioId,
+            @Valid @RequestBody UpdatePlaylistShareRequestDTO request) {
+        PlaylistShare share = playlistSharingService.updatePlaylistSharePermission(
+                playlistId,
+                usuarioId,
+                authenticatedUserService.getAuthenticatedUserId(),
+                request);
+
+        return ResponseEntity.ok(toResponse(share));
+    }
+
+    private PlaylistShareResponseDTO toResponse(PlaylistShare share) {
+        return new PlaylistShareResponseDTO(
                 share.getId(),
                 share.getUsuario().getId(),
                 share.getPermissao(),
                 share.getOrigem(),
                 share.getAtivo());
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

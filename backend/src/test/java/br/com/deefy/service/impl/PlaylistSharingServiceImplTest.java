@@ -1,6 +1,7 @@
 package br.com.deefy.service.impl;
 
 import br.com.deefy.dto.request.PlaylistShareRequestDTO;
+import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
 import br.com.deefy.exception.PlaylistException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.model.Playlist;
@@ -100,6 +101,58 @@ class PlaylistSharingServiceImplTest {
         assertThrows(PlaylistException.class, () -> service.sharePlaylist(
                 10L,
                 1L,
-                new PlaylistShareRequestDTO("recipient@deefy.com", "VIEWER")));
+                new PlaylistShareRequestDTO("recipient@deefy.com", "ADMIN")));
+    }
+
+    @Test
+    void updatePlaylistSharePermission_QuandoDonoECompartilhamentoExistem_AtualizaPermissao() {
+        PlaylistShare share = new PlaylistShare(playlist, recipient, "VIEW", "DIRECT");
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+        when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L)).thenReturn(Optional.of(share));
+        when(playlistShareRepository.save(share)).thenReturn(share);
+
+        PlaylistShare result = service.updatePlaylistSharePermission(
+                10L,
+                2L,
+                1L,
+                new UpdatePlaylistShareRequestDTO("editor"));
+
+        assertEquals("EDITOR", result.getPermissao());
+    }
+
+    @Test
+    void updatePlaylistSharePermission_QuandoSolicitanteNaoEDono_NegaOperacao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.updatePlaylistSharePermission(
+                10L,
+                2L,
+                99L,
+                new UpdatePlaylistShareRequestDTO("EDITOR")));
+    }
+
+    @Test
+    void updatePlaylistSharePermission_QuandoCompartilhamentoNaoExiste_LancaExcecao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+        when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L)).thenReturn(Optional.empty());
+
+        assertThrows(PlaylistException.class, () -> service.updatePlaylistSharePermission(
+                10L,
+                2L,
+                1L,
+                new UpdatePlaylistShareRequestDTO("EDITOR")));
+    }
+
+    @Test
+    void updatePlaylistSharePermission_QuandoPermissaoInvalida_LancaExcecao() {
+        PlaylistShare share = new PlaylistShare(playlist, recipient, "VIEW", "DIRECT");
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+        when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L)).thenReturn(Optional.of(share));
+
+        assertThrows(PlaylistException.class, () -> service.updatePlaylistSharePermission(
+                10L,
+                2L,
+                1L,
+                new UpdatePlaylistShareRequestDTO("ADMIN")));
     }
 }

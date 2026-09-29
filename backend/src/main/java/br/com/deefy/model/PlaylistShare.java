@@ -54,6 +54,10 @@ public class PlaylistShare {
         return permissao;
     }
 
+    public void setPermissao(String permissao) {
+        this.permissao = permissao;
+    }
+
     public String getOrigem() {
         return origem;
     }

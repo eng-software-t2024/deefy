@@ -1,6 +1,7 @@
 package br.com.deefy.service.impl;
 
 import br.com.deefy.dto.request.PlaylistShareRequestDTO;
+import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
 import br.com.deefy.exception.PlaylistException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.model.Playlist;
@@ -56,7 +57,36 @@ public class PlaylistSharingServiceImpl implements PlaylistSharingService {
         return playlistShareRepository.save(share);
     }
 
+    @Override
+    @Transactional
+    public PlaylistShare updatePlaylistSharePermission(
+            Long playlistId,
+            Long usuarioId,
+            Long ownerId,
+            UpdatePlaylistShareRequestDTO request) {
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new PlaylistException("Playlist não encontrada"));
+
+        if (!playlist.belongsTo(ownerId)) {
+            throw new PlaylistException("Você não tem permissão para alterar os compartilhamentos desta playlist");
+        }
+
+        PlaylistShare share = playlistShareRepository.findByPlaylistIdAndUsuarioId(playlistId, usuarioId)
+                .orElseThrow(() -> new PlaylistException("Compartilhamento não encontrado"));
+
+        if (!share.getAtivo()) {
+            throw new PlaylistException("O compartilhamento está revogado");
+        }
+
+        share.setPermissao(normalizePermission(request.permissao()));
+        return playlistShareRepository.save(share);
+    }
+
     private String normalizePermission(String permission) {
+        if (permission == null || permission.isBlank()) {
+            throw new PlaylistException("A permissão deve ser VIEW ou EDITOR");
+        }
+
         String normalized = permission.trim().toUpperCase(Locale.ROOT);
         if (!ALLOWED_PERMISSIONS.contains(normalized)) {
             throw new PlaylistException("A permissão deve ser VIEW ou EDITOR");
