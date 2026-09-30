@@ -12,6 +12,7 @@ playlists. Status conforme o ultimo acompanhamento realizado.
 - **#33 - Criar endpoint para compartilhar com um usuario.**
 - **#34 - Criar endpoint para alterar a permissao de um usuario.**
 - **#35 - Criar endpoint para revogar o acesso de um usuario.**
+- **#36 - Criar endpoint para gerar ou ativar o compartilhamento por link.**
 
 ## Em andamento
 

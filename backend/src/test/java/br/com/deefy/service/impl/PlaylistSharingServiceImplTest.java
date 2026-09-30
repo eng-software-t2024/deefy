@@ -2,6 +2,7 @@ package br.com.deefy.service.impl;
 
 import br.com.deefy.dto.request.PlaylistShareRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
+import br.com.deefy.dto.request.UpdatePlaylistSharingRequestDTO;
 import br.com.deefy.exception.PlaylistException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.model.Playlist;
@@ -19,10 +20,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -181,5 +185,66 @@ class PlaylistSharingServiceImplTest {
         when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L)).thenReturn(Optional.empty());
 
         assertThrows(PlaylistException.class, () -> service.revokePlaylistShare(10L, 2L, 1L));
+    }
+
+    @Test
+    void configureLinkSharing_QuandoNaoPossuiToken_GeraTokenEAtivaLink() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+        when(playlistRepository.save(playlist)).thenReturn(playlist);
+
+        Playlist result = service.configureLinkSharing(
+                10L,
+                1L,
+                new UpdatePlaylistSharingRequestDTO(true, "view"));
+
+        assertTrue(result.isLinkCompartilhamento());
+        assertNotNull(result.getTokenCompartilhamento());
+        assertEquals("VIEW", result.getPermissaoLink());
+    }
+
+    @Test
+    void configureLinkSharing_QuandoJaPossuiToken_ReutilizaToken() {
+        UUID token = UUID.randomUUID();
+        playlist.setTokenCompartilhamento(token);
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+        when(playlistRepository.save(playlist)).thenReturn(playlist);
+
+        Playlist result = service.configureLinkSharing(
+                10L,
+                1L,
+                new UpdatePlaylistSharingRequestDTO(true, "EDITOR"));
+
+        assertEquals(token, result.getTokenCompartilhamento());
+        assertTrue(result.isLinkCompartilhamento());
+    }
+
+    @Test
+    void configureLinkSharing_QuandoSolicitanteNaoEDono_NegaOperacao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.configureLinkSharing(
+                10L,
+                99L,
+                new UpdatePlaylistSharingRequestDTO(true, "VIEW")));
+    }
+
+    @Test
+    void configureLinkSharing_QuandoPermissaoInvalida_LancaExcecao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.configureLinkSharing(
+                10L,
+                1L,
+                new UpdatePlaylistSharingRequestDTO(true, "ADMIN")));
+    }
+
+    @Test
+    void configureLinkSharing_QuandoSolicitaDesativacao_NegaOperacao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.configureLinkSharing(
+                10L,
+                1L,
+                new UpdatePlaylistSharingRequestDTO(false, "VIEW")));
     }
 }

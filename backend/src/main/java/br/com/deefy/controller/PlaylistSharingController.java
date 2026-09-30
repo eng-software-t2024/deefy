@@ -2,7 +2,9 @@ package br.com.deefy.controller;
 
 import br.com.deefy.dto.request.PlaylistShareRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
+import br.com.deefy.dto.request.UpdatePlaylistSharingRequestDTO;
 import br.com.deefy.dto.response.PlaylistShareResponseDTO;
+import br.com.deefy.dto.response.PlaylistSharingResponseDTO;
 import br.com.deefy.config.OpenApiConfig;
 import br.com.deefy.model.PlaylistShare;
 import br.com.deefy.service.PlaylistSharingService;
@@ -48,6 +50,24 @@ public class PlaylistSharingController {
                 request);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(share));
+    }
+
+    @PostMapping("/link")
+    @Operation(summary = "Ativar compartilhamento por link", description = "Ativa o link da playlist e gera um token UUID quando necessario.")
+    public ResponseEntity<PlaylistSharingResponseDTO> configureLinkSharing(
+            @PathVariable Long playlistId,
+            @Valid @RequestBody UpdatePlaylistSharingRequestDTO request) {
+        var playlist = playlistSharingService.configureLinkSharing(
+                playlistId,
+                authenticatedUserService.getAuthenticatedUserId(),
+                request);
+
+        PlaylistSharingResponseDTO response = new PlaylistSharingResponseDTO(
+                playlist.isLinkCompartilhamento(),
+                playlist.getTokenCompartilhamento(),
+                playlist.getPermissaoLink());
+
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{usuarioId}")

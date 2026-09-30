@@ -2,6 +2,7 @@ package br.com.deefy.service.impl;
 
 import br.com.deefy.dto.request.PlaylistShareRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
+import br.com.deefy.dto.request.UpdatePlaylistSharingRequestDTO;
 import br.com.deefy.exception.PlaylistException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.model.Playlist;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class PlaylistSharingServiceImpl implements PlaylistSharingService {
@@ -99,6 +101,32 @@ public class PlaylistSharingServiceImpl implements PlaylistSharingService {
             share.desativar();
             playlistShareRepository.save(share);
         }
+    }
+
+    @Override
+    @Transactional
+    public Playlist configureLinkSharing(
+            Long playlistId,
+            Long ownerId,
+            UpdatePlaylistSharingRequestDTO request) {
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new PlaylistException("Playlist não encontrada"));
+
+        if (!playlist.belongsTo(ownerId)) {
+            throw new PlaylistException("Você não tem permissão para configurar o link desta playlist");
+        }
+
+        if (!request.linkCompartilhamento()) {
+            throw new PlaylistException("A ativação do link deve ser solicitada com linkCompartilhamento=true");
+        }
+
+        playlist.setPermissaoLink(normalizePermission(request.permissaoLink()));
+        if (playlist.getTokenCompartilhamento() == null) {
+            playlist.setTokenCompartilhamento(UUID.randomUUID());
+        }
+        playlist.setLinkCompartilhamento(true);
+
+        return playlistRepository.save(playlist);
     }
 
     private String normalizePermission(String permission) {
