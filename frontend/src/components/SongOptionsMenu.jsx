@@ -82,7 +82,7 @@ function SongOptionsMenu({
   }, [isOpen])
 
   useEffect(() => {
-    if (!showPlaylists || userPlaylists.length > 0 || isLoadingPlaylists) {
+    if (!showPlaylists || userPlaylists.length > 0) {
       return undefined
     }
 
@@ -106,7 +106,7 @@ function SongOptionsMenu({
     return () => {
       isMounted = false
     }
-  }, [isLoadingPlaylists, showPlaylists, userPlaylists.length])
+  }, [showPlaylists, userPlaylists.length])
 
   const searchOnGoogle = () => {
     const query = encodeURIComponent(`${song?.title || ''} ${song?.artist || ''}`)

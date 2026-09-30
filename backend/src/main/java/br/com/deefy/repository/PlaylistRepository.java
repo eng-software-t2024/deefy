@@ -9,6 +9,8 @@ import java.util.List;
 
 @Repository
 public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
+    List<Playlist> findByPublicaTrueOrderByDataCriacaoDesc();
+
     // Busca as playlists filtrando pelo ID do usuário
     List<Playlist> findByOwnerId(Long ownerId);
 

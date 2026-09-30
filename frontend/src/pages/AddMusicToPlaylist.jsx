@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { FaArrowLeft, FaCheck, FaMusic, FaPlus, FaSearch } from 'react-icons/fa'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import './AddMusicToPlaylist.css'
 
 import Sidebar from '../components/Sidebar.jsx'
@@ -25,8 +25,11 @@ function uniqueSongs(songs) {
   ).values())
 }
 
-function AddMusicToPlaylist() {
+function AddMusicToPlaylistContent() {
   const { id } = useParams()
+  const navigate = useNavigate()
+  const [editableId, setEditableId] = useState(null)
+  const canEdit = editableId === id
   const [search, setSearch] = useState('')
   const debouncedQuery = useDebounce(search, 300)
   
@@ -44,6 +47,11 @@ function AddMusicToPlaylist() {
       .then((playlist) => {
         if (!isMounted) return
 
+        if (!playlist.canManage) {
+          navigate(`/user-playlist-detail/${id}`, { replace: true })
+          return
+        }
+        setEditableId(id)
         const existingIds = (playlist.tracks || [])
           .map(getSongKey)
           .filter(Boolean)
@@ -51,11 +59,13 @@ function AddMusicToPlaylist() {
         setAddedIds(new Set(existingIds))
       })
       .catch((err) => {
+        if (!isMounted) return
         console.error('Erro ao buscar músicas da playlist', err)
+        navigate('/playlists', { replace: true })
       })
 
     return () => { isMounted = false }
-  }, [id])
+  }, [id, navigate])
 
   useEffect(() => {
     let isMounted = true
@@ -96,7 +106,7 @@ function AddMusicToPlaylist() {
   }, [debouncedQuery])
 
   async function handleAdd(song) {
-    if (!id) return;
+    if (!id || !canEdit) return;
 
     const songKey = getSongKey(song)
 
@@ -123,6 +133,8 @@ function AddMusicToPlaylist() {
       setAddingId(null)
     }
   }
+
+  if (!canEdit) return <p>Carregando playlist...</p>
 
   return (
     <div className="add-music-page">
@@ -214,6 +226,11 @@ function AddMusicToPlaylist() {
       </main>
     </div>
   )
+}
+
+function AddMusicToPlaylist() {
+  const { id } = useParams()
+  return <AddMusicToPlaylistContent key={id || "new"} />
 }
 
 export default AddMusicToPlaylist

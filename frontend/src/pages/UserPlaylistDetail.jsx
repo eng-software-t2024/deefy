@@ -33,7 +33,7 @@ function shuffleSongs(songs) {
   return shuffled
 }
 
-function UserPlaylistDetail() {
+function UserPlaylistDetailContent() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { currentTrack, playTrack } = usePlayer()
@@ -46,6 +46,7 @@ function UserPlaylistDetail() {
 
   const handleDelete = async () => {
     setIsMenuOpen(false)
+    if (!playlist?.canManage) return
 
     if (window.confirm("Tem certeza que deseja excluir esta playlist?")) {
       setIsDeleting(true)
@@ -61,15 +62,20 @@ function UserPlaylistDetail() {
   }
 
   useEffect(() => {
+    let active = true
     musicService.getPlaylistById(id)
       .then(data => {
+        if (!active) return
         setPlaylist(data)
         setLoading(false)
       })
       .catch(err => {
+        if (!active) return
+        setPlaylist(null)
         console.error("Erro ao buscar playlist", err)
         setLoading(false)
       })
+    return () => { active = false }
   }, [id])
 
   useEffect(() => {
@@ -263,7 +269,7 @@ function UserPlaylistDetail() {
           {renderCover()}
 
           <div className="user-playlist-info">
-            <span>PLAYLIST PÚBLICA</span>
+            <span>{playlist.publica ? 'PLAYLIST PÚBLICA' : 'PLAYLIST PRIVADA'}</span>
 
             <h1>{playlist.name}</h1>
 
@@ -299,7 +305,7 @@ function UserPlaylistDetail() {
                 <MdShuffle />
               </button>
 
-              <div className="user-playlist-actions-menu-wrap" ref={menuRef}>
+              {playlist.canManage && <div className="user-playlist-actions-menu-wrap" ref={menuRef}>
                 <button
                   type="button"
                   className={`user-playlist-icon-btn user-playlist-more-btn${isMenuOpen ? ' is-active' : ''}`}
@@ -346,7 +352,7 @@ function UserPlaylistDetail() {
                     </button>
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
           </div>
         </section>
@@ -357,13 +363,19 @@ function UserPlaylistDetail() {
             title=""
             playlistId={playlist.id}
             onSongRemoved={handleSongRemoved}
+            allowRemoveFromPlaylist={playlist.canManage === true}
           />
         ) : (
-          <p style={{ margin: '20px 0', color: '#a9a9a9' }}>Você ainda não adicionou nenhuma música a esta playlist.</p>
+          <p style={{ margin: '20px 0', color: '#a9a9a9' }}>Esta playlist ainda não tem músicas.</p>
         )}
       </main>
     </div>
   )
+}
+
+function UserPlaylistDetail() {
+  const { id } = useParams()
+  return <UserPlaylistDetailContent key={id || "new"} />
 }
 
 export default UserPlaylistDetail

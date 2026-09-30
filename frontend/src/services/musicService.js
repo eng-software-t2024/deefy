@@ -416,6 +416,12 @@ export const musicService = {
     }
   },
 
+  /** Get public playlists from all owners for discovery. */
+  async getPublicPlaylists() {
+    const response = await api.get('/playlists/public');
+    return normalizePlaylistList(getListFromResponse(response.data));
+  },
+
   /**
    * Get global/system playlists recommended by Deefy
    * @returns {Promise<Array>} Array of playlists
@@ -451,25 +457,8 @@ export const musicService = {
    */
   async getPlaylistById(id) {
     try {
-      try {
-        const directResponse = await api.get(`/playlists/${id}`);
-        return hydratePlaylistTracks(directResponse.data);
-      } catch (directError) {
-        console.warn(`Failed direct playlist lookup ${id}, trying lists:`, directError);
-      }
-
-      const [userResponse, globalResponse] = await Promise.allSettled([
-        api.get('/playlists'),
-        api.get('/playlists/global'),
-      ]);
-      const playlists = [
-        ...(userResponse.status === 'fulfilled' ? getListFromResponse(userResponse.value.data) : []),
-        ...(globalResponse.status === 'fulfilled' ? getListFromResponse(globalResponse.value.data) : []),
-      ];
-      const playlist = playlists.find(p => String(p.id) === String(id));
-
-      if (!playlist) throw new Error('Playlist não encontrada');
-      return hydratePlaylistTracks(playlist);
+      const response = await api.get(`/playlists/${id}`);
+      return hydratePlaylistTracks(response.data);
     } catch (error) {
       console.error(`Failed to get playlist ${id}:`, error);
       throw error;
