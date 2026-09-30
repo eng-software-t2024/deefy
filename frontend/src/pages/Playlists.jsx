@@ -20,6 +20,8 @@ import { normalizeMusic } from '../utils/musicNormalizer'
 function Playlists() {
   const [userPlaylistsApi, setUserPlaylistsApi] = useState([])
   const [isLoadingUser, setIsLoadingUser] = useState(true)
+  const [publicPlaylists, setPublicPlaylists] = useState([])
+  const [isLoadingPublic, setIsLoadingPublic] = useState(true)
   const [genresApi, setGenresApi] = useState([])
   const [isLoadingGenres, setIsLoadingGenres] = useState(true)
 
@@ -33,6 +35,13 @@ function Playlists() {
         console.error("Erro ao buscar playlists", err)
         setIsLoadingUser(false)
       })
+
+    musicService.getPublicPlaylists()
+      .then(data => setPublicPlaylists(Array.from(new Map(
+        data.filter(playlist => !playlist.canManage).map(playlist => [String(playlist.id), playlist])
+      ).values())))
+      .catch(err => console.error('Erro ao buscar playlists públicas', err))
+      .finally(() => setIsLoadingPublic(false))
 
     // Search real genres from backend
     api.get('/genres')
@@ -150,6 +159,28 @@ function Playlists() {
             ) : (
               <p>Você ainda não tem nenhuma playlist criada.</p>
             )}
+          </div>
+        </section>
+
+        <section className="playlists-user-section">
+          <h2>Playlists públicas</h2>
+          <div className="playlists-user-grid">
+            {isLoadingPublic && <p>Carregando playlists públicas...</p>}
+            {!isLoadingPublic && publicPlaylists.length === 0 && <p>Nenhuma playlist pública disponível.</p>}
+            {!isLoadingPublic && publicPlaylists.map(playlist => (
+                <Link
+                  to={`/user-playlist-detail/${playlist.id}`}
+                  className="playlist-user-card"
+                  key={playlist.id}
+                  style={playlist.coverUrl ? { backgroundImage: `url(${playlist.coverUrl})` } : {}}
+                >
+                  {!playlist.coverUrl && <div className="playlist-user-card-placeholder" aria-hidden="true"><FaMusic /></div>}
+                  <div className="playlist-user-card-content">
+                    <h3>{playlist.name}</h3>
+                    <p>{playlist.description || 'Sem descrição adicionada.'}</p>
+                  </div>
+                </Link>
+              ))}
           </div>
         </section>
 

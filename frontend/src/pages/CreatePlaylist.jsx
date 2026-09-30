@@ -7,9 +7,11 @@ import { showMusicError, showMusicSuccess } from '../utils/musicToast'
 import { useNavigate, useParams } from 'react-router-dom'
 import { MdAddPhotoAlternate, MdClose } from 'react-icons/md'
 
-function CreatePlaylist() {
+function CreatePlaylistContent() {
   const { id } = useParams()
   const isEditing = Boolean(id)
+  const [editableId, setEditableId] = useState(null)
+  const canEdit = !isEditing || editableId === id
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [coverUrl, setCoverUrl] = useState('')
@@ -33,12 +35,18 @@ function CreatePlaylist() {
           return
         }
 
+        if (!playlist.canManage) {
+          navigate(`/user-playlist-detail/${id}`, { replace: true })
+          return
+        }
+        setEditableId(id)
         setName(playlist.name || '')
         setDescription(playlist.description || playlist.descricao || '')
         setCoverUrl(playlist.coverUrl || playlist.capaUrl || '')
         setIsPublic(Boolean(playlist.publica))
       })
       .catch((err) => {
+        if (!isMounted) return
         showMusicError(err?.response?.data?.message || "Erro ao carregar playlist.")
         navigate('/playlists')
       })
@@ -89,6 +97,7 @@ function CreatePlaylist() {
   }
 
   async function handleSavePlaylist() {
+    if (!canEdit) return
     if (!name.trim()) {
       showMusicError("O nome da playlist é obrigatório.")
       return
@@ -136,7 +145,7 @@ function CreatePlaylist() {
     }
   }
 
-  if (isLoading) {
+  if (isLoading || !canEdit) {
     return (
       <div className="create-playlist-page">
         <Sidebar />
@@ -229,8 +238,43 @@ function CreatePlaylist() {
                 Se você não definir uma capa, o Deefy usará automaticamente as capas das músicas da playlist.
               </p>
 
-              <button
-                type="button"
+              <div
+                className="create-playlist-privacy-toggle"
+                role="group"
+                aria-labelledby="playlist-privacy-label"
+                aria-describedby="playlist-privacy-description"
+              >
+                <span id="playlist-privacy-label" className="create-playlist-privacy-label">
+                  Privacidade da playlist
+                </span>
+                <div className="create-playlist-privacy-options">
+                  <button
+                    type="button"
+                    className={`create-playlist-privacy-option${!isPublic ? ' create-playlist-privacy-option--active' : ''}`}
+                    aria-pressed={!isPublic}
+                    disabled={isSubmitting}
+                    onClick={() => setIsPublic(false)}
+                  >
+                    Privada
+                  </button>
+                  <button
+                    type="button"
+                    className={`create-playlist-privacy-option${isPublic ? ' create-playlist-privacy-option--active' : ''}`}
+                    aria-pressed={isPublic}
+                    disabled={isSubmitting}
+                    onClick={() => setIsPublic(true)}
+                  >
+                    Pública
+                  </button>
+                </div>
+                <span id="playlist-privacy-description" className="create-playlist-privacy-description">
+                  {isPublic
+                    ? 'Outros usuários conectados ao Deefy podem visualizar esta playlist.'
+                    : 'Somente você pode visualizar esta playlist.'}
+                </span>
+              </div>
+              <button 
+                type="button" 
                 className="create-playlist-save"
                 onClick={handleSavePlaylist}
                 disabled={isSubmitting}
@@ -243,6 +287,11 @@ function CreatePlaylist() {
       </main>
     </div>
   )
+}
+
+function CreatePlaylist() {
+  const { id } = useParams()
+  return <CreatePlaylistContent key={id || "new"} />
 }
 
 export default CreatePlaylist

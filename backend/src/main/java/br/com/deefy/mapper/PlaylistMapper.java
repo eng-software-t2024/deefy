@@ -14,7 +14,7 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface PlaylistMapper {
 
-    default PlaylistResponseDTO toResponseDTO(Playlist playlist) {
+    default PlaylistResponseDTO toResponseDTO(Playlist playlist, Long viewerId) {
         if (playlist == null) {
             return null;
         }
@@ -27,6 +27,7 @@ public interface PlaylistMapper {
                 playlist.getCoverUrl(),
                 playlist.getCoverUrl(),
                 playlist.isPublica(),
+                playlist.belongsTo(viewerId),
                 playlist.getDataCriacao(),
                 toMusicDTOList(playlist.getTracks(), playlist.getName())
         );
