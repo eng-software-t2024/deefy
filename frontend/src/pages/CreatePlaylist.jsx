@@ -136,7 +136,7 @@ function CreatePlaylistContent() {
 
       const created = await musicService.createPlaylist(payload)
       showMusicSuccess("Playlist criada com sucesso!")
-      navigate(`/playlist/${created.id}/add-music`)
+      navigate(`/user-playlist-detail/${created.id}`)
     } catch (err) {
       const fallbackMessage = isEditing ? "Erro ao editar playlist." : "Erro ao criar playlist."
       showMusicError(err?.response?.data?.message || fallbackMessage)

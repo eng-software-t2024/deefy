@@ -320,15 +320,6 @@ function UserPlaylistDetailContent() {
 
                 {isMenuOpen && (
                   <div className="user-playlist-actions-menu" role="menu">
-                    <Link
-                      to={`/playlist/${playlist.id}/add-music`}
-                      className="user-playlist-menu-item"
-                      role="menuitem"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <MdPlaylistAdd />
-                      <span>Adicionar música</span>
-                    </Link>
 
                     <Link
                       to={`/playlist/${playlist.id}/edit`}
@@ -357,7 +348,20 @@ function UserPlaylistDetailContent() {
           </div>
         </section>
 
-        {songs.length > 0 ? (
+        {playlist.canManage && (
+          <Link to={`/playlist/${playlist.id}/add-music`} className="song-row user-playlist-add-music">
+            <span className="song-col-num">
+              <MdPlaylistAdd/>
+            </span>
+            <div className="song-col-info">
+              <div className="song-text">
+                <span  className="song-title">Adicionar mais músicas</span>
+              </div>
+            </div>
+          </Link>
+        )}
+
+        {songs.length > 0 && (
           <SongList
             songs={songs}
             title=""
@@ -365,8 +369,6 @@ function UserPlaylistDetailContent() {
             onSongRemoved={handleSongRemoved}
             allowRemoveFromPlaylist={playlist.canManage === true}
           />
-        ) : (
-          <p style={{ margin: '20px 0', color: '#a9a9a9' }}>Esta playlist ainda não tem músicas.</p>
         )}
       </main>
     </div>

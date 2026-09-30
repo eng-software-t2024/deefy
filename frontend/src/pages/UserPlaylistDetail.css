@@ -297,6 +297,27 @@
   opacity: 0.6;
 }
 
+.user-playlist-add-music {
+  text-decoration: none;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  margin-bottom: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 16px 32px;
+}
+
+.user-playlist-add-music span {
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.user-playlist-add-music:hover {
+  border: 1px dashed rgba(57, 240, 208, 0.3);
+}
+
 @media (max-width: 1100px) {
   .user-playlist-hero {
     gap: 32px;

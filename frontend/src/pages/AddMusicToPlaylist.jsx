@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { FaArrowLeft, FaCheck, FaMusic, FaPlus, FaSearch } from 'react-icons/fa'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { FaArrowLeft, FaMinus, FaMusic, FaPause, FaPlay, FaPlus, FaSearch } from 'react-icons/fa'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import './AddMusicToPlaylist.css'
+import { usePlayer } from '../contexts/PlayerContext.jsx'
+import { recordListeningSignal } from '../utils/recommendationEngine.js'
 
 import Sidebar from '../components/Sidebar.jsx'
 import SongListSkeleton from '../components/SongListSkeleton.jsx'
@@ -36,7 +38,25 @@ function AddMusicToPlaylistContent() {
   const [results, setResults] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [addingId, setAddingId] = useState(null)
+  const [removingId, setRemovingId] = useState(null)
   const [addedIds, setAddedIds] = useState(() => new Set())
+  const [addedSongs, setAddedSongs] = useState([])
+  const [playlistName, setPlaylistName] = useState('')
+  const { currentTrack, playTrack, togglePlay, isPlaying } = usePlayer()
+
+  const handlePlaySong = (song) => {
+    const songKey = getSongKey(song)
+    const currentKey = currentTrack ? String(currentTrack.id) : null
+
+    if (songKey && currentKey === songKey) {
+      togglePlay()
+      return
+    }
+
+    recordListeningSignal(song)
+    playTrack(song, results)
+  }
+
 
   useEffect(() => {
     if (!id) return
@@ -46,16 +66,16 @@ function AddMusicToPlaylistContent() {
     musicService.getPlaylistById(id)
       .then((playlist) => {
         if (!isMounted) return
-
         if (!playlist.canManage) {
           navigate(`/user-playlist-detail/${id}`, { replace: true })
           return
         }
+
         setEditableId(id)
+        setPlaylistName(playlist.name || playlist.nome || '')
         const existingIds = (playlist.tracks || [])
           .map(getSongKey)
           .filter(Boolean)
-
         setAddedIds(new Set(existingIds))
       })
       .catch((err) => {
@@ -121,20 +141,63 @@ function AddMusicToPlaylistContent() {
       setAddingId(songKey)
       await musicService.addMusicToPlaylist(id, song)
       setAddedIds((currentIds) => new Set(currentIds).add(songKey))
+      setAddedSongs((prev) => {
+        const alreadyExists = prev.some((s) => getSongKey(s) === songKey)
+        return alreadyExists ? prev : [...prev, song]
+      })
       showMusicSuccess("Música adicionada à playlist!")
     } catch (err) {
-      if (err?.status === 409) {
+      const status = err?.status || err?.response?.status
+      const errorMsg =
+        err?.response?.data?.messages?.[0] ||
+        err?.response?.data?.message ||
+        err?.message ||
+        ""
+      const isDuplicate =
+        status === 409 ||
+        (status === 400 && errorMsg.includes("já está presente"))
+
+      if (isDuplicate) {
         setAddedIds((currentIds) => new Set(currentIds).add(songKey))
         showMusicError("Essa música já está na playlist.")
       } else {
-        showMusicError(err?.response?.data?.message || "Erro ao adicionar música.")
+        showMusicError(errorMsg || "Erro ao adicionar música.")
       }
     } finally {
       setAddingId(null)
     }
   }
 
-  if (!canEdit) return <p>Carregando playlist...</p>
+  async function handleRemove(song) {
+    if (!id || !canEdit) return
+    const songKey = getSongKey(song)
+    if (!songKey) return
+
+    try {
+      setRemovingId(songKey)
+      await musicService.removeMusicFromPlaylist(id, songKey)
+      setAddedIds((currentIds) => {
+        const nextIds = new Set(currentIds)
+        nextIds.delete(songKey)
+        return nextIds
+      })
+      setAddedSongs((currentSongs) => currentSongs.filter((item) => getSongKey(item) !== songKey))
+      showMusicSuccess("Música removida da playlist!")
+    } catch (err) {
+      showMusicError(err?.response?.data?.message || "Erro ao remover música.")
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  if (!canEdit) {
+    return (
+      <div className="add-music-page">
+        <Sidebar />
+        <main className="add-music-main"><p>Carregando playlist...</p></main>
+      </div>
+    )
+  }
 
   return (
     <div className="add-music-page">
@@ -144,14 +207,13 @@ function AddMusicToPlaylistContent() {
         <section className="add-music-header">
           <div className="add-music-header-top">
             <span>ADICIONAR MÚSICAS</span>
-            <Link to={`/user-playlist-detail/${id}`} className="add-music-back">
-              <FaArrowLeft />
-              <span>Voltar para playlist</span>
-            </Link>
           </div>
 
-          <h1>Monte sua playlist</h1>
-          <p>Busque músicas ou escolha recomendações para adicionar à sua playlist pessoal.</p>
+          <h1>Adicione novas musicas à playlist {playlistName ? `"${playlistName}"` : 'esta playlist'}</h1>
+          <Link to={`/user-playlist-detail/${id}`} className="add-music-back">
+            <FaArrowLeft />
+            <span>Voltar para playlist</span>
+          </Link>
         </section>
 
         <section className="add-music-search">
@@ -173,52 +235,122 @@ function AddMusicToPlaylistContent() {
             </div>
           ) : (
             <div className="add-music-list">
-              {results.map((song, index) => {
-                const songKey = getSongKey(song)
-                const isAdded = Boolean(songKey && addedIds.has(songKey))
-                const isAdding = addingId === songKey
+              {/* Músicas não adicionadas primeiro */}
+              {results
+                .filter((song) => !addedIds.has(getSongKey(song)))
+                .map((song, index) => {
+                  const songKey = getSongKey(song)
+                  const isAdding = addingId === songKey
+                  const isActive = Boolean(songKey && String(currentTrack?.id ?? '') === songKey)
+                  const isSongPlaying = isActive && isPlaying
 
-                return (
-                <article className={`add-music-card${isAdded ? ' is-added' : ''}`} key={songKey || `${song.title}-${index}`}>
-                  <div className="add-music-info">
-                    {song.coverUrl ? (
-                      <img
-                        src={song.coverUrl}
-                        alt={`Capa de ${song.title || 'música'}`}
-                      />
-                    ) : (
-                      <span className="add-music-cover-placeholder" aria-hidden="true">
-                        <FaMusic />
-                      </span>
-                    )}
+                  return (
+                    <article
+                      className={`add-music-card${isActive ? ' is-active' : ''}`}
+                      key={songKey || `${song.title}-${index}`}
+                      onClick={() => handlePlaySong(song)}
+                    >
+                      <div className="add-music-info">
+                        <div className="add-music-info-body">
+                          {song.coverUrl ? (
+                            <img className="add-music-cover" src={song.coverUrl} alt={`Capa de ${song.title || 'música'}`} />
+                          ) : (
+                            <span className="add-music-cover-placeholder" aria-hidden="true">
+                              <FaMusic />
+                            </span>
+                          )}
+                          <div className="add-music-play">
+                            {isSongPlaying ? <FaPause /> : <FaPlay />}
+                          </div>
+                        </div>
+                        <div>
+                          <h3 style={{ color: isActive ? '#39f0d0' : undefined }}>
+                            {song.title || 'Título não informado'}
+                          </h3>
+                          <p>{song.artist || 'Artista não informado'}</p>
+                        </div>
+                      </div>
+                      <span className="add-music-album">{song.album || 'Álbum não informado'}</span>
+                      <span className="add-music-duration">{song.duration || '--:--'}</span>
+                      <button
+                        className="add-music-button"
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleAdd(song)
+                        }}
+                        disabled={isAdding}
+                      >
+                        <FaPlus />
+                        {isAdding ? "..." : "Adicionar"}
+                      </button>
+                    </article>
+                  )
+                })}
 
-                    <div>
-                      <h3>{song.title || 'Título não informado'}</h3>
-                      <p>{song.artist || 'Artista não informado'}</p>
-                    </div>
-                  </div>
-
-                  <span className="add-music-album">{song.album || 'Álbum não informado'}</span>
-                  <span className="add-music-duration">{song.duration || '--:--'}</span>
-
-                  <button 
-                    className="add-music-button"
-                    type="button"
-                    onClick={() => handleAdd(song)}
-                    disabled={isAdding || isAdded}
-                  >
-                    {isAdded ? <FaCheck /> : <FaPlus />}
-                    {isAdded ? "Já adicionada" : isAdding ? "..." : "Adicionar"}
-                  </button>
-                </article>
-              )})}
-              
-              {debouncedQuery && results.length === 0 && (
+              {debouncedQuery && results.filter((s) => !addedIds.has(getSongKey(s))).length === 0 && (
                 <p>Nenhuma música encontrada.</p>
               )}
 
-              {!debouncedQuery && results.length === 0 && (
+              {!debouncedQuery && results.filter((s) => !addedIds.has(getSongKey(s))).length === 0 && (
                 <p>Nenhuma recomendação disponível agora.</p>
+              )}
+
+              {/* Seção de músicas já adicionadas (persistente no final) */}
+              {addedSongs.length > 0 && (
+                <>
+                  <div className="add-music-added-divider">
+                    <span>Adicionadas nesta sessão — {addedSongs.length} {addedSongs.length === 1 ? 'música' : 'músicas'}</span>
+                  </div>
+                  {addedSongs.map((song, index) => {
+                    const songKey = getSongKey(song)
+                    const isActive = Boolean(songKey && String(currentTrack?.id ?? '') === songKey)
+                    const isSongPlaying = isActive && isPlaying
+
+                    return (
+                      <article
+                        className={`add-music-card is-added${isActive ? ' is-active' : ''}`}
+                        key={`added-${songKey || index}`}
+                        onClick={() => handlePlaySong(song)}
+                      >
+                        <div className="add-music-info">
+                          <div className="add-music-info-body">
+                            {song.coverUrl ? (
+                              <img className="add-music-cover" src={song.coverUrl} alt={`Capa de ${song.title || 'música'}`} />
+                            ) : (
+                              <span className="add-music-cover-placeholder" aria-hidden="true">
+                                <FaMusic />
+                              </span>
+                            )}
+                            <div className="add-music-play">
+                              {isSongPlaying ? <FaPause /> : <FaPlay />}
+                            </div>
+                          </div>
+                          <div>
+                            <h3 style={{ color: isActive ? '#39f0d0' : undefined }}>
+                              {song.title || 'Título não informado'}
+                            </h3>
+                            <p>{song.artist || 'Artista não informado'}</p>
+                          </div>
+                        </div>
+                        <span className="add-music-album">{song.album || 'Álbum não informado'}</span>
+                        <span className="add-music-duration">{song.duration || '--:--'}</span>
+                        <button
+                          className="add-music-button add-music-button-remove"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRemove(song)
+                          }}
+                          disabled={removingId === songKey}
+                        >
+                          <FaMinus />
+                          {removingId === songKey ? "..." : "Remover"}
+                        </button>
+                      </article>
+                    )
+                  })}
+                </>
               )}
             </div>
           )}

@@ -18,7 +18,7 @@ vi.mock('../services/musicService', () => ({
   musicService: {
     getPlaylistById: vi.fn(), getPublicPlaylists: vi.fn(), getUserPlaylists: vi.fn(), getGlobalPlaylists: vi.fn(),
     getFavoriteMusics: vi.fn(), getHomeMusics: vi.fn(), deletePlaylist: vi.fn(), updatePlaylist: vi.fn(),
-    addMusicToPlaylist: vi.fn(), removeMusicFromPlaylist: vi.fn(),
+    addMusicToPlaylist: vi.fn(), removeMusicFromPlaylist: vi.fn(), createPlaylist: vi.fn(),
   },
 }))
 const track = { id: 10, title: 'Faixa teste', artist: 'Artista', audioUrl: 'https://example.com/audio.mp3' }
@@ -27,6 +27,7 @@ const ownPlaylist = { ...publicPlaylist, id: 2, name: 'Seleção privada própri
 function open(Component, initial = '/details/1') {
   const router = createMemoryRouter([
     { path: '/details/:id', element: <Component /> },
+    { path: '/create-playlist', element: <Component /> },
     { path: '/user-playlist-detail/:id', element: <UserPlaylistDetail /> },
     { path: '/playlists', element: <p>Lista de playlists</p> },
   ], { initialEntries: [initial] })
@@ -72,6 +73,7 @@ it('allows visitor playback but hides playlist management and removal', async ()
   const { container } = open(UserPlaylistDetail)
   await screen.findByText(publicPlaylist.name)
   expect(screen.queryByRole('button', { name: 'Mais ações da playlist' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Adicionar mais músicas' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Reproduzir playlist' }))
   expect(playTrack).toHaveBeenCalledWith(expect.objectContaining({ id: 10 }), [expect.objectContaining({ id: 10 })])
   fireEvent.click(screen.getByText(track.title))
@@ -91,7 +93,7 @@ it('retains owner management and removal, and labels private playlists correctly
   await screen.findByText(ownPlaylist.name)
   expect(screen.getByText('PLAYLIST PRIVADA')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Mais ações da playlist' }))
-  expect(screen.getByText('Adicionar música')).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Adicionar mais músicas' }).getAttribute('href')).toBe('/playlist/2/add-music')
   expect(screen.getByText('Editar playlist')).toBeTruthy()
   expect(screen.getByText('Excluir playlist')).toBeTruthy()
   fireEvent.click(container.querySelector('.song-options-button'))
@@ -162,4 +164,38 @@ it('keeps adding songs available to the owner', async () => {
   open(AddMusicToPlaylist, '/details/2')
   fireEvent.click(await screen.findByRole('button', { name: 'Adicionar' }))
   await waitFor(() => expect(musicService.addMusicToPlaylist).toHaveBeenCalledWith('2', expect.objectContaining({ id: 10 })))
+})
+
+it('hides the add songs link on an empty public playlist owned by someone else', async () => {
+  musicService.getPlaylistById.mockResolvedValue({ ...publicPlaylist, tracks: [] })
+  open(UserPlaylistDetail)
+  await screen.findByText(publicPlaylist.name)
+  expect(screen.queryByRole('link', { name: 'Adicionar mais músicas' })).toBeNull()
+})
+
+it.each([false, true])('creates a playlist with publica=%s and opens its detail', async (publica) => {
+  musicService.createPlaylist.mockResolvedValue({ id: 2 })
+  musicService.getPlaylistById.mockResolvedValue(ownPlaylist)
+  const { router } = open(CreatePlaylist, '/create-playlist')
+  fireEvent.change(screen.getByLabelText('Nome da playlist'), { target: { value: 'Nova seleção' } })
+  if (publica) fireEvent.click(screen.getByRole('button', { name: 'Pública' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Salvar playlist' }))
+  await waitFor(() => expect(musicService.createPlaylist).toHaveBeenCalledWith({
+    name: 'Nova seleção', publica, description: '', coverUrl: '',
+  }))
+  await waitFor(() => expect(router.state.location.pathname).toBe('/user-playlist-detail/2'))
+  expect(await screen.findByRole('link', { name: 'Adicionar mais músicas' })).toBeTruthy()
+})
+
+it('plays recommendations and lets the owner remove a song added in this session', async () => {
+  musicService.getPlaylistById.mockResolvedValue({ ...ownPlaylist, tracks: [] })
+  musicService.getHomeMusics.mockResolvedValue([track])
+  open(AddMusicToPlaylist, '/details/2')
+  fireEvent.click(await screen.findByText(track.title))
+  expect(playTrack).toHaveBeenCalledWith(expect.objectContaining({ id: 10 }), [expect.objectContaining({ id: 10 })])
+  fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Remover' }))
+  await waitFor(() => expect(musicService.removeMusicFromPlaylist).toHaveBeenCalledWith('2', '10'))
+  expect(await screen.findByRole('button', { name: 'Adicionar' })).toBeTruthy()
+  expect(playTrack).toHaveBeenCalledTimes(1)
 })
