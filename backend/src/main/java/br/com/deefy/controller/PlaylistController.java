@@ -67,7 +67,7 @@ public class PlaylistController implements PlaylistControllerDocs {
         Playlist saved = playlistService.createPlaylist(newPlaylist, owner.getId());
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(playlistMapper.toResponseDTO(saved));
+                .body(playlistMapper.toResponseDTO(saved, owner.getId()));
     }
 
     // Listar todas as playlists do usuário logado
@@ -79,21 +79,30 @@ public class PlaylistController implements PlaylistControllerDocs {
         List<Playlist> playlists = playlistService.findAllByOwner(user.getId());
 
         return ResponseEntity.ok(playlists.stream()
-                .map(playlistMapper::toResponseDTO)
+                .map(playlist -> playlistMapper.toResponseDTO(playlist, user.getId()))
                 .toList());
     }
 
     @GetMapping("/global")
     @Operation(summary = "Listar playlists globais", description = "Retorna playlists publicas geradas pelo sistema/admin para descoberta.")
-    public ResponseEntity<List<PlaylistResponseDTO>> listGlobal() {
+    public ResponseEntity<List<PlaylistResponseDTO>> listGlobal(@AuthenticationPrincipal Object principal) {
+        User user = findAuthenticatedUser(principal);
         List<Playlist> playlists = playlistService.findGlobalPlaylists();
 
         return ResponseEntity.ok(playlists.stream()
-                .map(playlistMapper::toResponseDTO)
+                .map(playlist -> playlistMapper.toResponseDTO(playlist, user.getId()))
                 .toList());
     }
 
-    // Visualizar uma playlist específica
+    @GetMapping("/public")
+    @Operation(summary = "Listar playlists publicas", description = "Retorna playlists publicas de qualquer proprietario para descoberta.")
+    public ResponseEntity<List<PlaylistResponseDTO>> listPublic(@AuthenticationPrincipal Object principal) {
+        User user = findAuthenticatedUser(principal);
+        return ResponseEntity.ok(playlistService.findPublicPlaylists().stream()
+                .map(playlist -> playlistMapper.toResponseDTO(playlist, user.getId()))
+                .toList());
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Buscar playlist por ID", description = "Retorna uma playlist propria ou publica acessivel ao usuario autenticado.")
     public ResponseEntity<PlaylistResponseDTO> findById(
@@ -102,7 +111,7 @@ public class PlaylistController implements PlaylistControllerDocs {
 
         User user = findAuthenticatedUser(principal);
         Playlist playlist = playlistService.findAccessibleById(id, user.getId());
-        return ResponseEntity.ok(playlistMapper.toResponseDTO(playlist));
+        return ResponseEntity.ok(playlistMapper.toResponseDTO(playlist, user.getId()));
     }
 
     // Adicionar uma música à playlist
@@ -119,7 +128,7 @@ public class PlaylistController implements PlaylistControllerDocs {
 
         // O service agora recebe o objeto User ou o ID dele para validar a posse
         Playlist updated = playlistService.addMusicToPlaylist(playlistId, musicId, user.getId());
-        return ResponseEntity.ok(playlistMapper.toResponseDTO(updated));
+        return ResponseEntity.ok(playlistMapper.toResponseDTO(updated, user.getId()));
     }
 
     @DeleteMapping("/{playlistId}/tracks/{musicId}")
@@ -171,7 +180,7 @@ public class PlaylistController implements PlaylistControllerDocs {
         // Passamos o ID da playlist, o DTO com o novo Nnome e o ID do dono
         Playlist updated = playlistService.updateName(id, request, user.getId());
 
-        return ResponseEntity.ok(playlistMapper.toResponseDTO(updated));
+        return ResponseEntity.ok(playlistMapper.toResponseDTO(updated, user.getId()));
     }
 
     // Excluir uma playlist

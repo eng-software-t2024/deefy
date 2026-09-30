@@ -8,6 +8,7 @@ public interface PlaylistService {
     Playlist createPlaylist(Playlist playlist, Long ownerId);
     List<Playlist> findAllByOwner(Long ownerId);
     List<Playlist> findGlobalPlaylists();
+    List<Playlist> findPublicPlaylists();
     Playlist findById(Long id, Long ownerId);
     Playlist findAccessibleById(Long id, Long ownerId);
     Playlist updateName(Long id, PlaylistRequestDTO request, Long ownerId);

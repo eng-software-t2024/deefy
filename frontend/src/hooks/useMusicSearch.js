@@ -120,6 +120,7 @@ export function useMusicSearch(rawQuery, scope = "all") {
       ? Promise.allSettled([
         musicService.getGlobalPlaylists(),
         musicService.getUserPlaylists(),
+        musicService.getPublicPlaylists(),
       ]).then((playlistResponses) => {
         const playlists = [];
         playlistResponses.forEach((result, responseIndex) => {
