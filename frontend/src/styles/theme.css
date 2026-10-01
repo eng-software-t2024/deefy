@@ -1,0 +1,78 @@
+:root,
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    /* superfícies */
+    --bg-app: #0a0a0a;
+    --bg-deep: #050505;
+    --surface: rgba(20, 20, 22, 0.72);
+    --surface-solid: #141417;
+    --surface-glass: rgba(10, 10, 12, 0.72);
+
+    /* texto */
+    --text-primary: #ffffff;
+    --text-secondary: #b9b9b9;
+    --text-muted: #858484;
+
+    /* "véus" translúcidos (hoje: rgba(255,255,255,.0X)) */
+    --fill-subtle: rgba(255, 255, 255, 0.05);
+    --fill-hover: rgba(255, 255, 255, 0.10);
+    --fill-strong: rgba(255, 255, 255, 0.16);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+
+    /* marca */
+    --accent: #39f0d0;        /* preenchimentos, bordas, fundos */
+    --accent-text: #39f0d0;   /* texto/ícone colorido sobre o fundo */
+    --accent-soft: rgba(57, 240, 208, 0.12);
+    --accent-border: rgba(57, 240, 208, 0.34);
+    --on-accent: #061512;     /* texto sobre botão preenchido */
+    --danger-soft: rgba(255, 93, 93, 0.12);
+    --danger: #ff5d5d;
+
+    --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.45);
+
+    --glow-a: rgba(57, 240, 208, 0.12);
+    --glow-b: rgba(57, 240, 208, 0.10);
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+
+    --bg-app: #f2f8f7;
+    --bg-deep: #eceff1;
+    --surface: rgb(89 88 88 / 0.82);
+    --surface-solid: #ffffff;
+    --surface-glass: rgba(255, 255, 255, 0.80);
+
+    --glow-a: rgba(57, 240, 208, 0.38);
+    --glow-b: rgba(57, 240, 208, 0.28);
+
+    --text-primary: #0f1416;
+    --text-secondary: #4a5559;
+    --text-muted: #353535;
+
+    --fill-subtle: rgba(0, 0, 0, 0.04);
+    --fill-hover: rgba(0, 0, 0, 0.08);
+    --fill-strong: rgba(0, 0, 0, 0.14);
+    --border-subtle: rgba(0, 0, 0, 0.10);
+    --border-strong: rgba(0, 0, 0, 0.20);
+
+    --accent: #39f0d0;
+    --accent-text: #00806b;   /* escurecido p/ contraste (~4,5:1 sobre branco; confirme no checker) */
+    --accent-soft: rgba(0, 128, 107, 0.10);
+    --accent-border: rgba(0, 128, 107, 0.35);
+    --on-accent: #061512;
+    --danger-soft: rgba(217, 54, 54, 0.10);
+    --danger: #d93636;
+
+    --shadow-lg: 0 20px 50px rgba(15, 20, 22, 0.12);
+}
+
+/* Aliases: o Admin já usa esses nomes, então ele passa a acompanhar o tema sem editar cada linha */
+:root {
+    --color-bg: var(--bg-app);
+    --color-text-primary: var(--text-primary);
+    --color-text-secondary: var(--text-muted);
+    --color-accent: var(--accent-text);
+}

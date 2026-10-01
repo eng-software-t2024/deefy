@@ -331,7 +331,7 @@
   align-items: center !important;
   justify-content: center !important;
   gap: 8px !important;
-  color: #d6d6d6 !important;
+  color: var(--text-secondary) !important;
   cursor: pointer !important;
   font-size: 1.2rem !important;
   transition: color 0.25s ease, transform 0.25s ease !important;
@@ -339,7 +339,7 @@
 }
 
 .custom-profile-back-login:hover {
-  color: #39f0d0 !important;
+  color: var(--accent-text) !important;
   transform: translateX(-3px) !important;
 }
 
