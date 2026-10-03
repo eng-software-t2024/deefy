@@ -31,6 +31,7 @@ import PlayerController from './routes/PlayerController.jsx'
 import CreatePlaylist from './pages/CreatePlaylist.jsx'
 import AddMusicToPlaylist from './pages/AddMusicToPlaylist.jsx'
 import SharedMusic from './pages/SharedMusic.jsx'
+import SharedPlaylist from './pages/SharedPlaylist.jsx'
 import SystemPlaylists from './pages/SystemPlaylists.jsx'
 import Artists from './pages/Artists.jsx'
 import VersionFooter from './pages/VersionFooter.jsx'
@@ -81,6 +82,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/playlist/:id/add-music" element={<ProtectedRoute><AddMusicToPlaylist /></ProtectedRoute>} />
           <Route path="/playlist/:id/edit" element={<ProtectedRoute><CreatePlaylist /></ProtectedRoute>} />
           <Route path="/music/:id" element={<ProtectedRoute><SharedMusic /></ProtectedRoute>} />
+          <Route path="/shared-playlist/:token" element={<SharedPlaylist />} />
 
           <Route
             path="/admin"
