@@ -3,6 +3,9 @@ package br.com.deefy.service.impl;
 import br.com.deefy.dto.request.PlaylistShareRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistSharingRequestDTO;
+import br.com.deefy.dto.response.PlaylistShareDetailsResponseDTO;
+import br.com.deefy.dto.response.PlaylistSharingDetailsResponseDTO;
+import br.com.deefy.dto.response.PlaylistLinkAcceptanceResponseDTO;
 import br.com.deefy.exception.PlaylistException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.model.Playlist;
@@ -18,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class PlaylistSharingServiceImpl implements PlaylistSharingService {
@@ -161,6 +165,78 @@ public class PlaylistSharingServiceImpl implements PlaylistSharingService {
             playlist.setLinkCompartilhamento(false);
             playlistRepository.save(playlist);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PlaylistSharingDetailsResponseDTO getSharingDetails(Long playlistId, Long ownerId) {
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new PlaylistException("Playlist não encontrada"));
+
+        if (!playlist.belongsTo(ownerId)) {
+            throw new PlaylistException("Você não tem permissão para consultar os compartilhamentos desta playlist");
+        }
+
+        var shares = playlistShareRepository.findByPlaylistId(playlistId).stream()
+                .filter(share -> Boolean.TRUE.equals(share.getAtivo()))
+                .map(share -> new PlaylistShareDetailsResponseDTO(
+                        share.getId(),
+                        share.getUsuario().getId(),
+                        share.getUsuario().getNome(),
+                        share.getUsuario().getEmail(),
+                        share.getPermissao(),
+                        share.getOrigem(),
+                        share.getAtivo()))
+                .collect(Collectors.toList());
+
+        return new PlaylistSharingDetailsResponseDTO(
+                playlist.getOwner().getId(),
+                playlist.getOwner().getNome(),
+                playlist.getOwner().getEmail(),
+                playlist.isLinkCompartilhamento(),
+                playlist.getTokenCompartilhamento(),
+                playlist.getPermissaoLink(),
+                shares);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Playlist findPlaylistByShareToken(UUID token) {
+        return playlistRepository.findByTokenCompartilhamentoAndLinkCompartilhamentoTrue(token)
+                .orElseThrow(() -> new PlaylistException("Link de compartilhamento inválido ou desativado"));
+    }
+
+    @Override
+    @Transactional
+    public PlaylistLinkAcceptanceResponseDTO acceptLinkSharing(UUID token, Long userId) {
+        Playlist playlist = findPlaylistByShareToken(token);
+
+        if (playlist.belongsTo(userId)) {
+            return new PlaylistLinkAcceptanceResponseDTO(
+                    playlist.getId(), true, "OWNER", "OWNER", true);
+        }
+
+        PlaylistShare share = playlistShareRepository.findByPlaylistIdAndUsuarioId(playlist.getId(), userId)
+                .orElse(null);
+
+        if (share == null) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new UsuarioNaoEncontradoException("Usuário não encontrado"));
+            share = new PlaylistShare(playlist, user, playlist.getPermissaoLink(), "LINK");
+            share = playlistShareRepository.save(share);
+        } else if (!Boolean.TRUE.equals(share.getAtivo())) {
+            share.ativar();
+            share.setPermissao(playlist.getPermissaoLink());
+            share.setOrigem("LINK");
+            share = playlistShareRepository.save(share);
+        }
+
+        return new PlaylistLinkAcceptanceResponseDTO(
+                playlist.getId(),
+                true,
+                share.getPermissao(),
+                share.getOrigem(),
+                share.getAtivo());
     }
 
     private String normalizePermission(String permission) {

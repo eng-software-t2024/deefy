@@ -6,6 +6,7 @@ import br.com.deefy.dto.request.UpdatePlaylistSharingRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistLinkPermissionRequestDTO;
 import br.com.deefy.dto.response.PlaylistShareResponseDTO;
 import br.com.deefy.dto.response.PlaylistSharingResponseDTO;
+import br.com.deefy.dto.response.PlaylistSharingDetailsResponseDTO;
 import br.com.deefy.config.OpenApiConfig;
 import br.com.deefy.model.PlaylistShare;
 import br.com.deefy.service.PlaylistSharingService;
@@ -18,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -69,6 +71,15 @@ public class PlaylistSharingController {
                 playlist.getPermissaoLink());
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping
+    @Operation(summary = "Consultar compartilhamentos da playlist", description = "Retorna os usuarios com acesso e a configuracao atual do link para o proprietario.")
+    public ResponseEntity<PlaylistSharingDetailsResponseDTO> getSharingDetails(
+            @PathVariable Long playlistId) {
+        return ResponseEntity.ok(playlistSharingService.getSharingDetails(
+                playlistId,
+                authenticatedUserService.getAuthenticatedUserId()));
     }
 
     @PatchMapping("/link")

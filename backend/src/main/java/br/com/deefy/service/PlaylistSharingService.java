@@ -5,6 +5,10 @@ import br.com.deefy.dto.request.UpdatePlaylistSharingRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
 import br.com.deefy.model.Playlist;
 import br.com.deefy.model.PlaylistShare;
+import br.com.deefy.dto.response.PlaylistSharingDetailsResponseDTO;
+import br.com.deefy.dto.response.PlaylistLinkAcceptanceResponseDTO;
+
+import java.util.UUID;
 
 public interface PlaylistSharingService {
 
@@ -26,4 +30,10 @@ public interface PlaylistSharingService {
             String permissaoLink);
 
     void deactivateLinkSharing(Long playlistId, Long ownerId);
+
+    PlaylistSharingDetailsResponseDTO getSharingDetails(Long playlistId, Long ownerId);
+
+    Playlist findPlaylistByShareToken(UUID token);
+
+    PlaylistLinkAcceptanceResponseDTO acceptLinkSharing(UUID token, Long userId);
 }

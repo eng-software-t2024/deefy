@@ -58,6 +58,10 @@ public class PlaylistShare {
         this.permissao = permissao;
     }
 
+    public void setOrigem(String origem) {
+        this.origem = origem;
+    }
+
     public String getOrigem() {
         return origem;
     }
@@ -68,5 +72,9 @@ public class PlaylistShare {
 
     public void desativar() {
         this.ativo = false;
+    }
+
+    public void ativar() {
+        this.ativo = true;
     }
 } 
