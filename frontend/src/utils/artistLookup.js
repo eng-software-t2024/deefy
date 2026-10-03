@@ -8,8 +8,8 @@ export function normalizeArtistName(name) {
 
 export function loadArtistIdsByName() {
   if (!artistIdsPromise) {
-    artistIdsPromise = musicService
-      .getArtists()
+    artistIdsPromise = Promise.resolve()
+      .then(() => musicService.getArtists())
       .then((artists) => {
         const idsByName = new Map()
 
