@@ -20,6 +20,7 @@ import { FAVORITE_MUSIC_CHANGED_EVENT, musicService } from "../services/musicSer
 import { getMusicIdFromTrack } from "../utils/musicNormalizer.js";
 import "./MusicPlayer.css";
 import QueuePanel from "./QueuePanel";
+import ArtistLink from "./ArtistLink";
 
 const EMPTY_TRACK = {
   id: null,
@@ -1241,7 +1242,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
               {currentTrack.title}
             </p>
             <p className="deefy-player-meta">
-              {currentTrack.artist}
+             <ArtistLink name={currentTrack.artist} />
               {currentTrack.album ? ` - ${currentTrack.album}` : ""}
             </p>
           </div>
@@ -1470,7 +1471,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
                     </p>
                     <div className="deefy-player-expanded-meta-row">
                       <p className="deefy-player-expanded-meta">
-                        {currentTrack.artist}
+                        <ArtistLink name={currentTrack.artist} onNavigate={closeExpandedPlayer} />
                         {currentTrack.album ? ` - ${currentTrack.album}` : ""}
                       </p>
 
