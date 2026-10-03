@@ -24,4 +24,6 @@ public interface PlaylistSharingService {
             Long playlistId,
             Long ownerId,
             String permissaoLink);
+
+    void deactivateLinkSharing(Long playlistId, Long ownerId);
 }

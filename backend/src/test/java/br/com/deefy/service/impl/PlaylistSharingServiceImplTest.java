@@ -282,4 +282,38 @@ class PlaylistSharingServiceImplTest {
 
         assertThrows(PlaylistException.class, () -> service.updateLinkPermission(10L, 1L, "ADMIN"));
     }
+
+    @Test
+    void deactivateLinkSharing_QuandoDonoElinkAtivo_DesativaLinkEPreservaToken() {
+        UUID token = UUID.randomUUID();
+        playlist.setLinkCompartilhamento(true);
+        playlist.setTokenCompartilhamento(token);
+        playlist.setPermissaoLink("VIEW");
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        service.deactivateLinkSharing(10L, 1L);
+
+        assertFalse(playlist.isLinkCompartilhamento());
+        assertEquals(token, playlist.getTokenCompartilhamento());
+        assertEquals("VIEW", playlist.getPermissaoLink());
+    }
+
+    @Test
+    void deactivateLinkSharing_QuandoSolicitanteNaoEDono_NegaOperacao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.deactivateLinkSharing(10L, 99L));
+    }
+
+    @Test
+    void deactivateLinkSharing_QuandoLinkJaDesativado_PermaneceIdempotente() {
+        UUID token = UUID.randomUUID();
+        playlist.setTokenCompartilhamento(token);
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        service.deactivateLinkSharing(10L, 1L);
+
+        assertFalse(playlist.isLinkCompartilhamento());
+        assertEquals(token, playlist.getTokenCompartilhamento());
+    }
 }

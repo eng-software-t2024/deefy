@@ -89,6 +89,16 @@ public class PlaylistSharingController {
         return ResponseEntity.ok(response);
     }
 
+    @DeleteMapping("/link")
+    @Operation(summary = "Desativar compartilhamento por link", description = "Desativa o link da playlist sem remover o token salvo.")
+    public ResponseEntity<Void> deactivateLinkSharing(@PathVariable Long playlistId) {
+        playlistSharingService.deactivateLinkSharing(
+                playlistId,
+                authenticatedUserService.getAuthenticatedUserId());
+
+        return ResponseEntity.noContent().build();
+    }
+
     @PatchMapping("/{usuarioId}")
     @Operation(summary = "Alterar permissao de compartilhamento", description = "Altera a permissao de um usuario compartilhado pelo proprietario da playlist.")
     public ResponseEntity<PlaylistShareResponseDTO> updatePermission(
