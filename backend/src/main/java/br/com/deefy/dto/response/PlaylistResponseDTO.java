@@ -13,6 +13,7 @@ public record PlaylistResponseDTO(
         String coverUrl,
         String capaUrl,
         boolean publica,
+        boolean canManage,
         @JsonFormat(pattern = "dd/MM/yyyy HH:mm:ss")
         LocalDateTime dataCriacao,
         List<MusicDetailsResponseDTO> tracks

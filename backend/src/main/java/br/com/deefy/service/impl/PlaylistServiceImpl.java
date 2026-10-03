@@ -54,6 +54,11 @@ public class PlaylistServiceImpl implements PlaylistService {
     }
 
     @Override
+    public List<Playlist> findPublicPlaylists() {
+        return playlistRepository.findByPublicaTrueOrderByDataCriacaoDesc();
+    }
+
+    @Override
     public Playlist findById(Long id, Long ownerId) {
         Playlist playlist = playlistRepository.findById(id)
                 .orElseThrow(() -> new PlaylistException("Playlist não encontrada com o ID: " + id));

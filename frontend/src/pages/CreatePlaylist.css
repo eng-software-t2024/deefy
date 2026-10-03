@@ -179,6 +179,7 @@
 }
 
 .create-playlist-fields input,
+.create-playlist-fields select,
 .create-playlist-fields textarea {
   width: 100%;
   padding: 16px 18px;
@@ -203,6 +204,69 @@
   color: #777;
 }
 
+.create-playlist-privacy-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.create-playlist-privacy-toggle .create-playlist-privacy-label {
+  color: #d8d8d8;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.create-playlist-privacy-toggle .create-playlist-privacy-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.create-playlist-privacy-toggle .create-playlist-privacy-option {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 15px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.055);
+  color: #d8d8d8;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.45;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.create-playlist-privacy-toggle .create-playlist-privacy-option--active {
+  border-color: #39f0d0;
+  background: #9fffe8;
+  color: #061512;
+}
+
+.create-playlist-privacy-toggle .create-playlist-privacy-option:hover:not(:disabled) {
+  border-color: #39f0d0;
+}
+
+.create-playlist-privacy-toggle .create-playlist-privacy-option:focus-visible {
+  outline: 2px solid #39f0d0;
+  outline-offset: 2px;
+}
+
+.create-playlist-privacy-toggle .create-playlist-privacy-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.create-playlist-privacy-description {
+  color: #a9a9a9;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
 .create-playlist-cover-note {
   margin: -6px 0 0;
   color: var(--accent-text);
@@ -317,6 +381,7 @@
   }
 
   .create-playlist-fields input,
+  .create-playlist-fields select,
   .create-playlist-fields textarea {
     border-radius: 14px;
     padding: 14px 16px;

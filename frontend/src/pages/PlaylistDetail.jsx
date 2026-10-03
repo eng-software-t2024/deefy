@@ -1,4 +1,5 @@
 import './PlaylistDetail.css'
+import { usePlayer } from '../contexts/PlayerContext.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 import SongList from '../components/SongList.jsx'
 import SongListSkeleton from '../components/SongListSkeleton.jsx'
@@ -8,8 +9,9 @@ import { MdClose, MdLibraryMusic } from 'react-icons/md'
 import { musicService } from '../services/musicService.js'
 import { normalizeMusic } from '../utils/musicNormalizer.js'
 
-function PlaylistDetail() {
+function PlaylistDetailContent() {
   const { id } = useParams()
+  const { playTrack } = usePlayer()
   const [playlist, setPlaylist] = useState(null)
   const [loading, setLoading] = useState(Boolean(id))
 
@@ -17,15 +19,20 @@ function PlaylistDetail() {
     if (!id) {
       return
     }
+    let active = true
     musicService.getPlaylistById(id)
       .then(data => {
+        if (!active) return
         setPlaylist(data)
         setLoading(false)
       })
       .catch(err => {
+        if (!active) return
+        setPlaylist(null)
         console.error("Erro ao buscar playlist", err)
         setLoading(false)
       })
+    return () => { active = false }
   }, [id])
 
   if (loading) {
@@ -87,6 +94,19 @@ function PlaylistDetail() {
   }
 
   const tracks = (playlist.tracks || []).map(normalizeMusic).filter(Boolean)
+  const playPlaylist = (shuffle = false) => {
+    if (!tracks.length) return
+    const queue = [...tracks]
+    if (shuffle) {
+      for (let i = queue.length - 1; i > 0; i -= 1) {
+        // Playback shuffle does not require cryptographic randomness.
+        // eslint-disable-next-line sonarjs/pseudo-random
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[queue[i], queue[j]] = [queue[j], queue[i]]
+      }
+    }
+    playTrack(queue[0], queue)
+  }
   const description = playlist.description || playlist.descricao || ''
   const cover = playlist.coverUrl || playlist.capaUrl || tracks[0]?.coverUrl || ''
 
@@ -153,8 +173,8 @@ function PlaylistDetail() {
   <p>{tracks.length} faixas</p>
 
   <div className="playlist-detail-actions">
-    <button className="playlist-play-btn">▶ Play</button>
-    <button className="playlist-random-btn">⤨ Iniciar Aleatoriamente</button>
+    <button className="playlist-play-btn" disabled={!tracks.length} onClick={() => playPlaylist()}>▶ Play</button>
+    <button className="playlist-random-btn" disabled={!tracks.length} onClick={() => playPlaylist(true)}>⤨ Iniciar Aleatoriamente</button>
   </div>
 </div>
 </section>
@@ -169,6 +189,11 @@ function PlaylistDetail() {
       </main>
     </div>
   )
+}
+
+function PlaylistDetail() {
+  const { id } = useParams()
+  return <PlaylistDetailContent key={id || "new"} />
 }
 
 export default PlaylistDetail
