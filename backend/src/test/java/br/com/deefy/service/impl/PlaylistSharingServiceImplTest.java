@@ -284,6 +284,67 @@ class PlaylistSharingServiceImplTest {
     }
 
     @Test
+    void acceptLinkSharing_QuandoUsuarioAindaNaoTemAcesso_CriaRegistroComOrigemLink() {
+        UUID token = UUID.randomUUID();
+        playlist.setTokenCompartilhamento(token);
+        playlist.setLinkCompartilhamento(true);
+        playlist.setPermissaoLink("EDITOR");
+        when(playlistRepository.findByTokenCompartilhamentoAndLinkCompartilhamentoTrue(token))
+                .thenReturn(Optional.of(playlist));
+        when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L)).thenReturn(Optional.empty());
+        when(userRepository.findById(2L)).thenReturn(Optional.of(recipient));
+        when(playlistShareRepository.save(any(PlaylistShare.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.acceptLinkSharing(token, 2L);
+
+        assertTrue(result.aceito());
+        assertEquals("EDITOR", result.permissao());
+        assertEquals("LINK", result.origem());
+        assertTrue(result.ativo());
+    }
+
+    @Test
+    void acceptLinkSharing_QuandoAcessoDiretoJaExiste_MantemRegistroExistente() {
+        UUID token = UUID.randomUUID();
+        playlist.setTokenCompartilhamento(token);
+        playlist.setLinkCompartilhamento(true);
+        playlist.setPermissaoLink("EDITOR");
+        PlaylistShare directShare = new PlaylistShare(playlist, recipient, "VIEW", "DIRECT");
+        when(playlistRepository.findByTokenCompartilhamentoAndLinkCompartilhamentoTrue(token))
+                .thenReturn(Optional.of(playlist));
+        when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L))
+                .thenReturn(Optional.of(directShare));
+
+        var result = service.acceptLinkSharing(token, 2L);
+
+        assertEquals("VIEW", result.permissao());
+        assertEquals("DIRECT", result.origem());
+        assertTrue(result.ativo());
+    }
+
+    @Test
+    void acceptLinkSharing_QuandoAcessoFoiRevogado_ReativaComoLink() {
+        UUID token = UUID.randomUUID();
+        playlist.setTokenCompartilhamento(token);
+        playlist.setLinkCompartilhamento(true);
+        playlist.setPermissaoLink("VIEW");
+        PlaylistShare revokedShare = new PlaylistShare(playlist, recipient, "EDITOR", "DIRECT");
+        revokedShare.desativar();
+        when(playlistRepository.findByTokenCompartilhamentoAndLinkCompartilhamentoTrue(token))
+                .thenReturn(Optional.of(playlist));
+        when(playlistShareRepository.findByPlaylistIdAndUsuarioId(10L, 2L))
+                .thenReturn(Optional.of(revokedShare));
+        when(playlistShareRepository.save(revokedShare)).thenReturn(revokedShare);
+
+        var result = service.acceptLinkSharing(token, 2L);
+
+        assertEquals("VIEW", result.permissao());
+        assertEquals("LINK", result.origem());
+        assertTrue(result.ativo());
+    }
+
+    @Test
     void deactivateLinkSharing_QuandoDonoElinkAtivo_DesativaLinkEPreservaToken() {
         UUID token = UUID.randomUUID();
         playlist.setLinkCompartilhamento(true);
