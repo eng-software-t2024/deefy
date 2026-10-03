@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import {createPortal} from "react-dom";
 import {
   FaHeart,
   FaPause,
@@ -11,13 +11,13 @@ import {
   FaVolumeMute,
   FaVolumeUp,
 } from "react-icons/fa";
-import { FiChevronDown, FiMaximize2, FiPlus, FiRepeat, FiX, FiList } from "react-icons/fi";
-import { MdPlaylistAdd, MdCheck } from "react-icons/md";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
-import { usePlayer } from "../contexts/PlayerContext";
-import { FAVORITE_MUSIC_CHANGED_EVENT, musicService } from "../services/musicService";
-import { getMusicIdFromTrack } from "../utils/musicNormalizer.js";
+import {FiChevronDown, FiMaximize2, FiPlus, FiRepeat, FiX, FiList} from "react-icons/fi";
+import {MdPlaylistAdd, MdCheck} from "react-icons/md";
+import {useNavigate} from "react-router-dom";
+import {toast} from "sonner";
+import {usePlayer} from "../contexts/PlayerContext";
+import {FAVORITE_MUSIC_CHANGED_EVENT, musicService} from "../services/musicService";
+import {getMusicIdFromTrack} from "../utils/musicNormalizer.js";
 import "./MusicPlayer.css";
 import QueuePanel from "./QueuePanel";
 
@@ -123,27 +123,27 @@ function normalizeTrack(track) {
     "";
 
   const audioUrl = resolveMediaUrl(
-      track.audioUrl ||
-      track.arquivoUrl ||
-      track.arquivourl ||
-      track.url ||
-      track.fileUrl ||
-      track.src ||
-      track.streamUrl ||
-      track.previewUrl ||
-      ""
+    track.audioUrl ||
+    track.arquivoUrl ||
+    track.arquivourl ||
+    track.url ||
+    track.fileUrl ||
+    track.src ||
+    track.streamUrl ||
+    track.previewUrl ||
+    ""
   );
 
   const coverUrl = resolveMediaUrl(
     track.coverUrl ||
-      track.capaUrl ||
-      track.capaurl ||
-      track.imageUrl ||
-      track.thumbnailUrl ||
-      track.cover ||
-      track.capa ||
-      track.albumCover ||
-      ""
+    track.capaUrl ||
+    track.capaurl ||
+    track.imageUrl ||
+    track.thumbnailUrl ||
+    track.cover ||
+    track.capa ||
+    track.albumCover ||
+    ""
   );
 
   return {
@@ -195,7 +195,7 @@ function isTrackInPlaylist(playlist, track) {
   });
 }
 
-function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
+function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   const navigate = useNavigate();
   const audioRef = useRef(null);
   const compactDragActiveRef = useRef(false);
@@ -652,9 +652,9 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
   };
 
   const handleCreatePlaylistShortcut = () => {
-  closePlaylistMenu();
-  setIsExpanded(false);
-  navigate("/create-playlist");
+    closePlaylistMenu();
+    setIsExpanded(false);
+    navigate("/create-playlist");
   };
 
   const handlePlaylistSheetTouchStart = (event) => {
@@ -721,7 +721,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
         currentPlaylists.map((p) => {
           if (String(getPlaylistId(p)) === String(playlistId)) {
             const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
-            return { ...p, tracks };
+            return {...p, tracks};
           }
           return p;
         })
@@ -749,7 +749,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
           currentPlaylists.map((p) => {
             if (String(getPlaylistId(p)) === String(playlistId)) {
               const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
-              return { ...p, tracks };
+              return {...p, tracks};
             }
             return p;
           })
@@ -975,12 +975,12 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
       : className;
     const expandProps = canExpand
       ? {
-          role: "button",
-          tabIndex: 0,
-          onClick: handleCoverExpand,
-          onKeyDown: handleCoverKeyDown,
-          "aria-label": "Expandir player pela capa",
-        }
+        role: "button",
+        tabIndex: 0,
+        onClick: handleCoverExpand,
+        onKeyDown: handleCoverKeyDown,
+        "aria-label": "Expandir player pela capa",
+      }
       : {};
 
     if (!currentTrack.coverUrl) {
@@ -1047,14 +1047,14 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             }}
           >
             <span className="deefy-player-playlist-menu-icon">
-              <MdPlaylistAdd />
+              <MdPlaylistAdd/>
             </span>
             <span className="deefy-player-playlist-menu-name">
               {getPlaylistName(playlist)}
             </span>
             {isAdded && (
               <span className="deefy-player-playlist-menu-status">
-                <MdCheck /> Adicionada
+                <MdCheck/> Adicionada
               </span>
             )}
             {isAdding && (
@@ -1102,7 +1102,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
           onTouchEnd={handlePlaylistSheetTouchEnd}
           onTouchCancel={handlePlaylistSheetTouchEnd}
         >
-          <div className="deefy-player-playlist-sheet-handle" aria-hidden="true" />
+          <div className="deefy-player-playlist-sheet-handle" aria-hidden="true"/>
 
           <div className="deefy-player-playlist-sheet-header">
             <div className="deefy-player-playlist-sheet-copy">
@@ -1118,7 +1118,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
               }}
               aria-label="Fechar playlists"
             >
-              <FiX />
+              <FiX/>
             </button>
           </div>
 
@@ -1133,7 +1133,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
               }}
             >
               <span className="deefy-player-playlist-menu-icon">
-                <FiPlus />
+                <FiPlus/>
               </span>
               <span className="deefy-player-playlist-menu-name">Criar nova playlist</span>
             </button>
@@ -1160,7 +1160,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
           aria-expanded={isOpen}
           aria-haspopup="menu"
         >
-          <MdPlaylistAdd />
+          <MdPlaylistAdd/>
         </button>
 
         {playlistOverlay && typeof document !== "undefined"
@@ -1183,7 +1183,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
         aria-pressed={isFavorite}
       >
         <span className="deefy-player-favorite-icon">
-          {isFavorite ? <FaHeart /> : <FaRegHeart />}
+          {isFavorite ? <FaHeart/> : <FaRegHeart/>}
         </span>
       </button>
 
@@ -1260,7 +1260,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             aria-pressed={isFavorite}
           >
             <span className="deefy-player-favorite-icon">
-              {isFavorite ? <FaHeart /> : <FaRegHeart />}
+              {isFavorite ? <FaHeart/> : <FaRegHeart/>}
             </span>
           </button>
         </div>
@@ -1279,7 +1279,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
               aria-label="Aleatorio"
               aria-pressed={isShuffle}
             >
-              <FaRandom />
+              <FaRandom/>
             </button>
 
             <button
@@ -1292,7 +1292,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
               disabled={!hasPrevious}
               aria-label="Musica anterior"
             >
-              <FaStepBackward />
+              <FaStepBackward/>
             </button>
 
             <button
@@ -1307,7 +1307,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
               aria-pressed={isPlaying}
             >
               <span className="deefy-player-main-icon">
-                {isPlaying ? <FaPause /> : <FaPlay />}
+                {isPlaying ? <FaPause/> : <FaPlay/>}
               </span>
             </button>
 
@@ -1323,7 +1323,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
               disabled={!hasNext}
               aria-label="Proxima musica"
             >
-              <FaStepForward />
+              <FaStepForward/>
             </button>
 
             <button
@@ -1338,7 +1338,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
               aria-label="Repetir"
               aria-pressed={isRepeat}
             >
-              <FiRepeat />
+              <FiRepeat/>
             </button>
           </div>
 
@@ -1373,7 +1373,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             }}
             aria-label={isMuted ? "Ativar volume" : "Silenciar"}
           >
-            {isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
+            {isMuted ? <FaVolumeMute/> : <FaVolumeUp/>}
           </button>
 
           <input
@@ -1387,17 +1387,17 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             style={volumeStyle}
             aria-label="Volume"
           />
-            <button
-                type="button"
-                className={`deefy-player-control-action ${isQueueOpen ? "is-active" : ""}`}
-                onClick={(event) => {
-                    stopCompactControlClick(event);
-                    setIsQueueOpen((current) => !current);
-                }}
-                aria-label="Fila de reprodução"
-            >
-                <FiList />
-            </button>
+          <button
+            type="button"
+            className={`deefy-player-control-action ${isQueueOpen ? "is-active" : ""}`}
+            onClick={(event) => {
+              stopCompactControlClick(event);
+              setIsQueueOpen((current) => !current);
+            }}
+            aria-label="Fila de reprodução"
+          >
+            <FiList/>
+          </button>
 
           <button
             type="button"
@@ -1408,7 +1408,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
             }}
             aria-label="Expandir player"
           >
-            <FiMaximize2 />
+            <FiMaximize2/>
           </button>
         </div>
       </aside>
@@ -1446,7 +1446,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
                 }}
                 aria-label="Minimizar player"
               >
-                <FiChevronDown />
+                <FiChevronDown/>
               </button>
             </div>
 
@@ -1511,7 +1511,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
                     aria-label="Aleatorio"
                     aria-pressed={isShuffle}
                   >
-                    <FaRandom />
+                    <FaRandom/>
                   </button>
 
                   <button
@@ -1521,7 +1521,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
                     disabled={!hasPrevious}
                     aria-label="Musica anterior"
                   >
-                    <FaStepBackward />
+                    <FaStepBackward/>
                   </button>
 
                   <button
@@ -1535,7 +1535,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
                     aria-pressed={isPlaying}
                   >
                     <span className="deefy-player-main-icon">
-                      {isPlaying ? <FaPause /> : <FaPlay />}
+                      {isPlaying ? <FaPause/> : <FaPlay/>}
                     </span>
                   </button>
 
@@ -1546,7 +1546,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
                     disabled={!hasNext}
                     aria-label="Proxima musica"
                   >
-                    <FaStepForward />
+                    <FaStepForward/>
                   </button>
 
                   <button
@@ -1558,7 +1558,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
                     aria-label="Repetir"
                     aria-pressed={isRepeat}
                   >
-                    <FiRepeat />
+                    <FiRepeat/>
                   </button>
                 </div>
 
@@ -1569,7 +1569,7 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
                     onClick={toggleMute}
                     aria-label={isMuted ? "Ativar volume" : "Silenciar"}
                   >
-                    {isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
+                    {isMuted ? <FaVolumeMute/> : <FaVolumeUp/>}
                   </button>
 
                   <input
@@ -1588,10 +1588,10 @@ function MusicPlayer({ playlists, onAddToPlaylist, isHidden = false }) {
           </div>
         </div>
       )}
-        <QueuePanel
-            isOpen={isQueueOpen}
-            onClose={() => setIsQueueOpen(false)}
-        />
+      <QueuePanel
+        isOpen={isQueueOpen}
+        onClose={() => setIsQueueOpen(false)}
+      />
     </>
   );
 }
