@@ -129,6 +129,24 @@ public class PlaylistSharingServiceImpl implements PlaylistSharingService {
         return playlistRepository.save(playlist);
     }
 
+    @Override
+    @Transactional
+    public Playlist updateLinkPermission(Long playlistId, Long ownerId, String permissaoLink) {
+        Playlist playlist = playlistRepository.findById(playlistId)
+                .orElseThrow(() -> new PlaylistException("Playlist não encontrada"));
+
+        if (!playlist.belongsTo(ownerId)) {
+            throw new PlaylistException("Você não tem permissão para alterar o link desta playlist");
+        }
+
+        if (!playlist.isLinkCompartilhamento()) {
+            throw new PlaylistException("O compartilhamento por link está desativado");
+        }
+
+        playlist.setPermissaoLink(normalizePermission(permissaoLink));
+        return playlistRepository.save(playlist);
+    }
+
     private String normalizePermission(String permission) {
         if (permission == null || permission.isBlank()) {
             throw new PlaylistException("A permissão deve ser VIEW ou EDITOR");

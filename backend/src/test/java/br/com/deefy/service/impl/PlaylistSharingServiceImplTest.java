@@ -247,4 +247,39 @@ class PlaylistSharingServiceImplTest {
                 1L,
                 new UpdatePlaylistSharingRequestDTO(false, "VIEW")));
     }
+
+    @Test
+    void updateLinkPermission_QuandoDonoElinkAtivo_AtualizaPermissao() {
+        playlist.setLinkCompartilhamento(true);
+        playlist.setPermissaoLink("VIEW");
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+        when(playlistRepository.save(playlist)).thenReturn(playlist);
+
+        Playlist result = service.updateLinkPermission(10L, 1L, "editor");
+
+        assertEquals("EDITOR", result.getPermissaoLink());
+        assertTrue(result.isLinkCompartilhamento());
+    }
+
+    @Test
+    void updateLinkPermission_QuandoSolicitanteNaoEDono_NegaOperacao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.updateLinkPermission(10L, 99L, "VIEW"));
+    }
+
+    @Test
+    void updateLinkPermission_QuandoLinkDesativado_NegaOperacao() {
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.updateLinkPermission(10L, 1L, "VIEW"));
+    }
+
+    @Test
+    void updateLinkPermission_QuandoPermissaoInvalida_LancaExcecao() {
+        playlist.setLinkCompartilhamento(true);
+        when(playlistRepository.findById(10L)).thenReturn(Optional.of(playlist));
+
+        assertThrows(PlaylistException.class, () -> service.updateLinkPermission(10L, 1L, "ADMIN"));
+    }
 }

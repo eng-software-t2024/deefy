@@ -19,4 +19,9 @@ public interface PlaylistSharingService {
     void revokePlaylistShare(Long playlistId, Long usuarioId, Long ownerId);
 
     Playlist configureLinkSharing(Long playlistId, Long ownerId, UpdatePlaylistSharingRequestDTO request);
+
+    Playlist updateLinkPermission(
+            Long playlistId,
+            Long ownerId,
+            String permissaoLink);
 }

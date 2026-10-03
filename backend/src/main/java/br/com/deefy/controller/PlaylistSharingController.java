@@ -3,6 +3,7 @@ package br.com.deefy.controller;
 import br.com.deefy.dto.request.PlaylistShareRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistShareRequestDTO;
 import br.com.deefy.dto.request.UpdatePlaylistSharingRequestDTO;
+import br.com.deefy.dto.request.UpdatePlaylistLinkPermissionRequestDTO;
 import br.com.deefy.dto.response.PlaylistShareResponseDTO;
 import br.com.deefy.dto.response.PlaylistSharingResponseDTO;
 import br.com.deefy.config.OpenApiConfig;
@@ -61,6 +62,24 @@ public class PlaylistSharingController {
                 playlistId,
                 authenticatedUserService.getAuthenticatedUserId(),
                 request);
+
+        PlaylistSharingResponseDTO response = new PlaylistSharingResponseDTO(
+                playlist.isLinkCompartilhamento(),
+                playlist.getTokenCompartilhamento(),
+                playlist.getPermissaoLink());
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/link")
+    @Operation(summary = "Alterar permissao do link", description = "Altera a permissao do compartilhamento por link da playlist.")
+    public ResponseEntity<PlaylistSharingResponseDTO> updateLinkPermission(
+            @PathVariable Long playlistId,
+            @Valid @RequestBody UpdatePlaylistLinkPermissionRequestDTO request) {
+        var playlist = playlistSharingService.updateLinkPermission(
+                playlistId,
+                authenticatedUserService.getAuthenticatedUserId(),
+                request.permissaoLink());
 
         PlaylistSharingResponseDTO response = new PlaylistSharingResponseDTO(
                 playlist.isLinkCompartilhamento(),
