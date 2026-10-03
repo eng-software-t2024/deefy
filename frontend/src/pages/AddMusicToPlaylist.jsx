@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { FaArrowLeft, FaCheck, FaMinus, FaMusic, FaPlus, FaSearch, FaPlay, FaPause } from 'react-icons/fa'
-import { Link, useParams } from 'react-router-dom'
+import { FaArrowLeft, FaMinus, FaMusic, FaPause, FaPlay, FaPlus, FaSearch } from 'react-icons/fa'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import './AddMusicToPlaylist.css'
 import { usePlayer } from '../contexts/PlayerContext.jsx'
 import { recordListeningSignal } from '../utils/recommendationEngine.js'
@@ -27,8 +27,11 @@ function uniqueSongs(songs) {
   ).values())
 }
 
-function AddMusicToPlaylist() {
+function AddMusicToPlaylistContent() {
   const { id } = useParams()
+  const navigate = useNavigate()
+  const [editableId, setEditableId] = useState(null)
+  const canEdit = editableId === id
   const [search, setSearch] = useState('')
   const debouncedQuery = useDebounce(search, 300)
   
@@ -60,23 +63,29 @@ function AddMusicToPlaylist() {
 
     let isMounted = true
 
-    musicService.getPlaylistById(id).then((playlist) => {
-      if (!isMounted) return
+    musicService.getPlaylistById(id)
+      .then((playlist) => {
+        if (!isMounted) return
+        if (!playlist.canManage) {
+          navigate(`/user-playlist-detail/${id}`, { replace: true })
+          return
+        }
 
-      setPlaylistName(playlist.name || playlist.nome || '') 
-
-      const existingIds = (playlist.tracks || [])
-        .map(getSongKey)
-        .filter(Boolean)
-
-      setAddedIds(new Set(existingIds))
-    })
-    .catch((err) => {
+        setEditableId(id)
+        setPlaylistName(playlist.name || playlist.nome || '')
+        const existingIds = (playlist.tracks || [])
+          .map(getSongKey)
+          .filter(Boolean)
+        setAddedIds(new Set(existingIds))
+      })
+      .catch((err) => {
+        if (!isMounted) return
         console.error('Erro ao buscar músicas da playlist', err)
-    })
+        navigate('/playlists', { replace: true })
+      })
 
     return () => { isMounted = false }
-  }, [id])
+  }, [id, navigate])
 
   useEffect(() => {
     let isMounted = true
@@ -117,7 +126,7 @@ function AddMusicToPlaylist() {
   }, [debouncedQuery])
 
   async function handleAdd(song) {
-    if (!id) return;
+    if (!id || !canEdit) return;
 
     const songKey = getSongKey(song)
 
@@ -160,8 +169,7 @@ function AddMusicToPlaylist() {
   }
 
   async function handleRemove(song) {
-    if (!id) return
-
+    if (!id || !canEdit) return
     const songKey = getSongKey(song)
     if (!songKey) return
 
@@ -169,17 +177,26 @@ function AddMusicToPlaylist() {
       setRemovingId(songKey)
       await musicService.removeMusicFromPlaylist(id, songKey)
       setAddedIds((currentIds) => {
-        const next = new Set(currentIds)
-        next.delete(songKey)
-        return next
+        const nextIds = new Set(currentIds)
+        nextIds.delete(songKey)
+        return nextIds
       })
-      setAddedSongs((prev) => prev.filter((s) => getSongKey(s) !== songKey))
+      setAddedSongs((currentSongs) => currentSongs.filter((item) => getSongKey(item) !== songKey))
       showMusicSuccess("Música removida da playlist!")
     } catch (err) {
       showMusicError(err?.response?.data?.message || "Erro ao remover música.")
     } finally {
       setRemovingId(null)
     }
+  }
+
+  if (!canEdit) {
+    return (
+      <div className="add-music-page">
+        <Sidebar />
+        <main className="add-music-main"><p>Carregando playlist...</p></main>
+      </div>
+    )
   }
 
   return (
@@ -228,7 +245,7 @@ function AddMusicToPlaylist() {
                   const isSongPlaying = isActive && isPlaying
 
                   return (
-                    <article 
+                    <article
                       className={`add-music-card${isActive ? ' is-active' : ''}`}
                       key={songKey || `${song.title}-${index}`}
                       onClick={() => handlePlaySong(song)}
@@ -255,7 +272,7 @@ function AddMusicToPlaylist() {
                       </div>
                       <span className="add-music-album">{song.album || 'Álbum não informado'}</span>
                       <span className="add-music-duration">{song.duration || '--:--'}</span>
-                      <button 
+                      <button
                         className="add-music-button"
                         type="button"
                         onClick={(e) => {
@@ -291,7 +308,7 @@ function AddMusicToPlaylist() {
                     const isSongPlaying = isActive && isPlaying
 
                     return (
-                      <article 
+                      <article
                         className={`add-music-card is-added${isActive ? ' is-active' : ''}`}
                         key={`added-${songKey || index}`}
                         onClick={() => handlePlaySong(song)}
@@ -318,7 +335,7 @@ function AddMusicToPlaylist() {
                         </div>
                         <span className="add-music-album">{song.album || 'Álbum não informado'}</span>
                         <span className="add-music-duration">{song.duration || '--:--'}</span>
-                        <button 
+                        <button
                           className="add-music-button add-music-button-remove"
                           type="button"
                           onClick={(e) => {
@@ -341,6 +358,11 @@ function AddMusicToPlaylist() {
       </main>
     </div>
   )
+}
+
+function AddMusicToPlaylist() {
+  const { id } = useParams()
+  return <AddMusicToPlaylistContent key={id || "new"} />
 }
 
 export default AddMusicToPlaylist
