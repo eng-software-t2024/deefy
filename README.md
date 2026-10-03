@@ -167,7 +167,7 @@ adequado para publicacao open source.
 - [Luiz Meneses](https://github.com/MenesesLuiz)
 - [Lucas Henrique](https://github.com/LucaasHenrique)
 - [Nicolas Gabriel](https://github.com/NicolasGabriel-dev)
-
+- [Ikki Carvalho](https://github.com/ikki157)
 
 Se voce tambem participou do projeto, adicione seu nome e perfil GitHub nesta
 seção.
