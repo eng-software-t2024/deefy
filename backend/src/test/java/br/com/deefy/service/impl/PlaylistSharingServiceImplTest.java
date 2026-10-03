@@ -284,6 +284,42 @@ class PlaylistSharingServiceImplTest {
     }
 
     @Test
+    void findPlaylistByShareToken_QuandoTokenNaoExiste_LancaExcecao() {
+        UUID token = UUID.randomUUID();
+        when(playlistRepository.findByTokenCompartilhamentoAndLinkCompartilhamentoTrue(token))
+                .thenReturn(Optional.empty());
+
+        assertThrows(PlaylistException.class, () -> service.findPlaylistByShareToken(token));
+    }
+
+    @Test
+    void findPlaylistByShareToken_QuandoLinkEstaDesativado_LancaExcecao() {
+        UUID token = UUID.randomUUID();
+        when(playlistRepository.findByTokenCompartilhamentoAndLinkCompartilhamentoTrue(token))
+                .thenReturn(Optional.empty());
+
+        assertThrows(PlaylistException.class, () -> service.findPlaylistByShareToken(token));
+    }
+
+    @Test
+    void acceptLinkSharing_QuandoUsuarioEDono_NaoCriaCompartilhamento() {
+        UUID token = UUID.randomUUID();
+        playlist.setTokenCompartilhamento(token);
+        playlist.setLinkCompartilhamento(true);
+        playlist.setPermissaoLink("EDITOR");
+        when(playlistRepository.findByTokenCompartilhamentoAndLinkCompartilhamentoTrue(token))
+                .thenReturn(Optional.of(playlist));
+
+        var result = service.acceptLinkSharing(token, owner.getId());
+
+        assertTrue(result.aceito());
+        assertEquals("OWNER", result.permissao());
+        assertEquals("OWNER", result.origem());
+        assertTrue(result.ativo());
+        org.mockito.Mockito.verifyNoInteractions(playlistShareRepository, userRepository);
+    }
+
+    @Test
     void acceptLinkSharing_QuandoUsuarioAindaNaoTemAcesso_CriaRegistroComOrigemLink() {
         UUID token = UUID.randomUUID();
         playlist.setTokenCompartilhamento(token);
