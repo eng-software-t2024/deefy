@@ -159,9 +159,18 @@ function PlaylistSharingModal({ playlistId, playlistName, onClose }) {
                 aria-label="Email do usuário"
                 required
               />
-              <select value={permission} onChange={(event) => setPermission(event.target.value)} aria-label="Permissão do novo usuário">
-                {PERMISSIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
+              <div className="sharing-permission-switch sharing-permission-switch--compact" role="group" aria-label="Permissão do novo usuário">
+                {PERMISSIONS.map((item) => (
+                  <button
+                    key={item.value}
+                    type="button"
+                    className={permission === item.value ? 'is-active' : ''}
+                    onClick={() => setPermission(item.value)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
               <button type="submit" disabled={isSaving} aria-label="Adicionar usuário">Adicionar</button>
             </form>
 
@@ -183,14 +192,19 @@ function PlaylistSharingModal({ playlistId, playlistName, onClose }) {
                     <strong>{share.usuarioNome || share.usuarioEmail}</strong>
                     <small>{share.usuarioEmail}</small>
                   </div>
-                  <select
-                    value={share.permissao}
-                    onChange={(event) => handlePermissionChange(share.usuarioId, event.target.value)}
-                    disabled={isSaving}
-                    aria-label={`Permissão de ${share.usuarioEmail}`}
-                  >
-                    {PERMISSIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                  </select>
+                  <div className="sharing-permission-switch sharing-permission-switch--compact" role="group" aria-label={`Permissão de ${share.usuarioEmail}`}>
+                    {PERMISSIONS.map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        className={share.permissao === item.value ? 'is-active' : ''}
+                        onClick={() => handlePermissionChange(share.usuarioId, item.value)}
+                        disabled={isSaving}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                   <button type="button" className="sharing-revoke" onClick={() => handleRevoke(share.usuarioId)} disabled={isSaving}>
                     Revogar
                   </button>
@@ -214,10 +228,20 @@ function PlaylistSharingModal({ playlistId, playlistName, onClose }) {
               </div>
 
               <div className="sharing-link-controls">
-                <label htmlFor="link-permission">Permissão do link</label>
-                <select id="link-permission" value={linkPermission} onChange={(event) => handleLinkPermissionChange(event.target.value)} disabled={isSaving}>
-                  {PERMISSIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-                </select>
+                <span id="link-permission-label">Permissão do link</span>
+                <div className="sharing-permission-switch" role="group" aria-labelledby="link-permission-label">
+                  {PERMISSIONS.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      className={linkPermission === item.value ? 'is-active' : ''}
+                      onClick={() => handleLinkPermissionChange(item.value)}
+                      disabled={isSaving}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {shareUrl && sharing?.linkCompartilhamento && (

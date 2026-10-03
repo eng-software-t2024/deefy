@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MdCheckCircle, MdLibraryMusic, MdLockOpen } from 'react-icons/md'
+import { MdLibraryMusic, MdLockOpen } from 'react-icons/md'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { musicService } from '../services/musicService.js'
@@ -15,7 +15,6 @@ function SharedPlaylist() {
   const [playlist, setPlaylist] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAccepting, setIsAccepting] = useState(false)
-  const [accepted, setAccepted] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -44,8 +43,8 @@ function SharedPlaylist() {
     try {
       setIsAccepting(true)
       await musicService.acceptSharedPlaylist(token)
-      setAccepted(true)
       showMusicSuccess('Convite aceito com sucesso.')
+      navigate(`/user-playlist-detail/${playlist.id}`)
     } catch (error) {
       showMusicError(error?.message || 'Não foi possível aceitar o convite.')
     } finally {
@@ -53,7 +52,6 @@ function SharedPlaylist() {
     }
   }
 
-  const openPlaylist = () => navigate(`/user-playlist-detail/${playlist.id}`)
   const songs = (playlist?.tracks || []).map(normalizeMusic).filter(Boolean)
 
   if (isLoading) {
@@ -90,15 +88,9 @@ function SharedPlaylist() {
           </div>
         )}
 
-        {accepted ? (
-          <button type="button" className="shared-playlist-accept-button" onClick={openPlaylist}>
-            <MdCheckCircle /> Abrir playlist
-          </button>
-        ) : (
-          <button type="button" className="shared-playlist-accept-button" onClick={handleAccept} disabled={isAccepting}>
-            <MdLockOpen /> {isAccepting ? 'Aceitando...' : 'Aceitar convite'}
-          </button>
-        )}
+        <button type="button" className="shared-playlist-accept-button" onClick={handleAccept} disabled={isAccepting}>
+          <MdLockOpen /> {isAccepting ? 'Aceitando...' : 'Aceitar convite'}
+        </button>
         {!isAuthenticated() && <small className="shared-playlist-login-hint">Você precisará entrar ou criar uma conta para aceitar.</small>}
       </section>
     </main>

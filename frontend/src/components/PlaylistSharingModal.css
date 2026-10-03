@@ -50,12 +50,14 @@
   place-items: center;
   width: 40px;
   height: 40px;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.06);
   color: #f6fffc;
   cursor: pointer;
   font-size: 1.35rem;
+  line-height: 1;
 }
 
 .sharing-modal-close:hover,
@@ -87,8 +89,7 @@
 }
 
 .sharing-add-form select,
-.sharing-person-row select,
-.sharing-link-controls select {
+.sharing-person-row select {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   padding: 8px 10px;
@@ -100,13 +101,18 @@
 .sharing-toggle,
 .sharing-copy-row button,
 .sharing-done-button {
+  width: auto;
+  flex: 0 0 auto;
   border: 0;
   border-radius: 999px;
-  padding: 10px 16px;
+  padding: 9px 16px;
   background: #9fffe8;
   color: #061512;
   cursor: pointer;
+  font-size: 0.86rem;
   font-weight: 800;
+  line-height: 1.2;
+  outline: 0;
   white-space: nowrap;
 }
 
@@ -238,6 +244,54 @@
   font-size: 0.9rem;
 }
 
+.sharing-permission-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid rgba(57, 240, 208, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sharing-permission-switch button {
+  width: auto;
+  flex: 0 0 auto;
+  min-width: 76px;
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 13px;
+  background: transparent;
+  color: #a8b2b0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+  outline: 0;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.sharing-permission-switch button:hover:not(:disabled) {
+  color: #f6fffc;
+}
+
+.sharing-permission-switch button.is-active {
+  background: #9fffe8;
+  color: #061512;
+  box-shadow: 0 3px 12px rgba(57, 240, 208, 0.18);
+}
+
+.sharing-permission-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.sharing-permission-switch--compact button {
+  min-width: 0;
+  padding: 6px 9px;
+  font-size: 0.74rem;
+}
+
 .sharing-copy-row {
   margin-top: 12px;
   padding: 8px 10px;
@@ -284,7 +338,7 @@
     flex-basis: calc(100% - 42px);
   }
 
-  .sharing-add-form select,
+  .sharing-add-form .sharing-permission-switch,
   .sharing-add-form button {
     flex: 1;
   }
@@ -295,5 +349,10 @@
 
   .sharing-person-row select {
     margin-left: 53px;
+  }
+
+  .sharing-link-controls {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
