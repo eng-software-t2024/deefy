@@ -157,7 +157,7 @@ function Artists() {
                         className={`catalog-featured-card catalog-featured-card--artist ${
                           index === 0 ? 'is-main' : ''
                         }`}
-                        to={`/home?artist=${encodeURIComponent(artistName)}`}
+                        to={`/artists/${artist.id}`}
                         key={artist.id || artistName}
                         style={image ? { backgroundImage: `url(${image})` } : undefined}
                       >
@@ -195,7 +195,7 @@ function Artists() {
                     return (
                       <Link
                         className="catalog-artist-card"
-                        to={`/home?artist=${encodeURIComponent(artistName)}`}
+                        to={`/artists/${artist.id}`}
                         key={artist.id || artistName}
                       >
                         {image ? (

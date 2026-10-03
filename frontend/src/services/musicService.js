@@ -451,6 +451,37 @@ export const musicService = {
   },
 
   /**
+   * Get a single artist by ID
+   * @param {string|number} id
+   * @returns {Promise<Object>} Artist (name, bio, photo)
+   */
+  async getArtistById(id) {
+    try {
+      const response = await api.get(`/artists/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to fetch artist ${id}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get every music of an artist (follows pagination)
+   * @param {string|number} artistId
+   * @param {number} size
+   * @returns {Promise<Array>} Normalized musics
+   */
+  async getMusicsByArtistId(artistId, size = 100) {
+    try {
+      const items = await fetchAllPages(api, `/musics/artist/${artistId}`, { size });
+      return normalizeMusicList(items);
+    } catch (error) {
+      console.error(`Failed to fetch musics for artist ${artistId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
    * Get playlist details by ID
    * @param {string|number} id
    * @returns {Promise<Object>} Playlist details including tracks
