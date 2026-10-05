@@ -13,13 +13,6 @@ playlists. Status conforme o ultimo acompanhamento realizado.
 - **#34 - Criar endpoint para alterar a permissao de um usuario.**
 - **#35 - Criar endpoint para revogar o acesso de um usuario.**
 - **#36 - Criar endpoint para gerar ou ativar o compartilhamento por link.**
-
-## Em andamento
-
-Nenhuma.
-
-## Pendentes
-
 - **#37 - Criar endpoint para alterar a permissao do link.**
 - **#38 - Criar endpoint para desativar ou revogar o link.**
 - **#39 - Validar permissoes ao adicionar, remover e reordenar musicas.**
@@ -27,9 +20,16 @@ Nenhuma.
 - **#41 - Criar tela para ativar, copiar e revogar o link.**
 - **#42 - Adicionar testes para proprietario, usuario VIEW, usuario EDITOR, acesso por link e usuario sem acesso.**
 
+## Em andamento
+
+Nenhuma.
+
+## Pendentes
+
+Nenhuma.
+
 ## Estado tecnico atual
 
-As estruturas iniciais de banco, modelo, DTOs e repository para o
-compartilhamento ja foram criadas. O proximo ciclo deve concluir os endpoints,
-aplicar as regras de permissao nas operacoes da playlist, finalizar as telas e
-adicionar os testes dos cenarios de acesso.
+As estruturas de banco, modelo, DTOs, repositories, services, endpoints, telas
+e testes do compartilhamento foram implementadas. O backend valida acesso do
+dono, `VIEW`, `EDITOR`, acesso por link, token invalido e link desativado.
