@@ -5,6 +5,7 @@ import background from "../assets/background2.jpg";
 import "./CustomProfile.css";
 import "./Registration.css";
 import { useNavigate } from "react-router-dom";
+import { getApiErrorMessage } from "../utils/apiError";
 import { showMusicError, showMusicSuccess } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
 import api from "../services/api";
@@ -27,7 +28,7 @@ function CustomProfile() {
         setFullName(res.data?.nome || "");
       } catch (err) {
         console.error("Erro ao carregar perfil:", err);
-        showMusicError("Não foi possível carregar seu perfil.");
+        showMusicError(getApiErrorMessage(err, "Não foi possível carregar seu perfil."));
       } finally {
         setLoadingProfile(false);
       }
@@ -68,8 +69,7 @@ function CustomProfile() {
       showMusicSuccess("Nome atualizado com sucesso!");
       setTimeout(() => setSent(false), 3000);
     } catch (err) {
-      const message = err?.message || "Erro ao atualizar o perfil. Tente novamente.";
-      showMusicError(message);
+      showMusicError(getApiErrorMessage(err, "Não foi possível atualizar o perfil. Tente novamente."));
     } finally {
       setIsLoading(false);
     }

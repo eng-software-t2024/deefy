@@ -174,12 +174,16 @@ export const musicService = {
     }
   },
 
-  async getCatalogMusics(size = 400) {
-    if (musicCatalogCache && musicCatalogSize >= size) {
+  async getCatalogMusics(size = 400, { refresh = false } = {}) {
+    if (!refresh && musicCatalogCache && musicCatalogSize >= size) {
       return musicCatalogCache;
     }
 
-    if (!musicCatalogPromise || musicCatalogSize < size) {
+    if (!refresh && musicCatalogPromise && musicCatalogSize >= size) {
+      return musicCatalogPromise;
+    }
+
+    if (!musicCatalogPromise || musicCatalogSize < size || refresh) {
       musicCatalogSize = size;
       musicCatalogPromise = api.get('/musics', { params: { size } })
         .then((response) => {
@@ -207,7 +211,7 @@ export const musicService = {
     if (!sanitizedQuery) return [];
 
     const fields = options.fields || ['title', 'artist', 'album', 'genre'];
-    const catalog = await this.getCatalogMusics(options.size || 400);
+    const catalog = await this.getCatalogMusics(options.size || 400, { refresh: Boolean(options.refresh) });
     return filterBySearch(catalog, sanitizedQuery, (music) => getMusicSearchText(music, fields));
   },
 
@@ -219,11 +223,15 @@ export const musicService = {
 
     try {
       return await this.searchCatalogMusics(sanitizedQuery, { ...options, fields });
-    } catch {
+    } catch (catalogError) {
       const requests = getFallbackSearchRequests(this, sanitizedQuery, fields);
-      if (!requests.length) return [];
+      if (!requests.length) throw catalogError;
 
       const results = await Promise.allSettled(requests);
+      if (results.every((result) => result.status === 'rejected')) {
+        throw results[0].reason || catalogError;
+      }
+
       return dedupeByIdentity(
         results
           .filter((result) => result.status === 'fulfilled' && Array.isArray(result.value))
