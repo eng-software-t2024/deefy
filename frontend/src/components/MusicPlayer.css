@@ -2164,6 +2164,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
+body:has(.catalog-page) .deefy-player-shell,
+body:has(.artist-profile-page) .deefy-player-shell,
 body:has(.home-layout) .deefy-player-shell,
 body:has(.admin-layout) .deefy-player-shell,
 body:has(.playlists-page) .deefy-player-shell,
@@ -2261,7 +2263,8 @@ body:has(.add-music-page) .deefy-player-shell {
     min-width: 100%;
     animation: deefy-player-title-marquee 7s ease-in-out infinite alternate;
   }
-
+  body:has(.catalog-page) .deefy-player-shell,
+  body:has(.artist-profile-page) .deefy-player-shell,
   body:has(.home-layout) .deefy-player-shell,
   body:has(.admin-layout) .deefy-player-shell,
   body:has(.playlists-page) .deefy-player-shell,
