@@ -352,13 +352,11 @@
 .deefy-player-range::-webkit-slider-runnable-track {
   height: 2px;
   border-radius: 999px;
-  background: linear-gradient(
-    to right,
-    #39f0d0 0%,
-    #39f0d0 var(--deefy-player-fill),
-    rgba(255, 255, 255, 0.16) var(--deefy-player-fill),
-    rgba(255, 255, 255, 0.16) 100%
-  );
+  background: linear-gradient(to right,
+      #39f0d0 0%,
+      #39f0d0 var(--deefy-player-fill),
+      rgba(255, 255, 255, 0.16) var(--deefy-player-fill),
+      rgba(255, 255, 255, 0.16) 100%);
 }
 
 .deefy-player-range::-moz-range-track {
@@ -830,6 +828,7 @@
 }
 
 @keyframes deefy-player-main-pulse {
+
   0%,
   100% {
     box-shadow:
@@ -1304,7 +1303,7 @@
   gap: 16px;
 }
 
-.deefy-player-expanded-controls > button {
+.deefy-player-expanded-controls>button {
   align-self: center;
   justify-self: center;
   display: inline-flex;
@@ -1602,9 +1601,9 @@
 
 @media (max-width: 860px) {
   .deefy-player-shell {
-    left: 18px;
-    right: 18px;
-    bottom: 96px;
+    left: 0;
+    right: 0;
+    bottom: 0;
     min-height: 88px;
     padding: 12px 14px;
     grid-template-columns: minmax(0, 1fr) 48px;
@@ -1612,7 +1611,7 @@
       "track controls"
       "timeline timeline";
     gap: 10px;
-    border-radius: 22px;
+    border-radius: 0;
     cursor: pointer;
     touch-action: pan-y;
   }
@@ -1717,7 +1716,7 @@
     transform: translateX(18px);
   }
 
-  .deefy-player-expanded-track-row > .deefy-player-expanded-track-actions {
+  .deefy-player-expanded-track-row>.deefy-player-expanded-track-actions {
     display: none;
   }
 
@@ -1858,12 +1857,12 @@
     scrollbar-width: thin;
   }
 
-.deefy-player-playlist-sheet-list .deefy-player-playlist-menu-item {
-  min-height: 48px;
-  padding: 0 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.035);
-}
+  .deefy-player-playlist-sheet-list .deefy-player-playlist-menu-item {
+    min-height: 48px;
+    padding: 0 16px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.035);
+  }
 
   .deefy-player-playlist-sheet-list .deefy-player-playlist-menu-name {
     font-size: 0.9rem;
@@ -1928,7 +1927,7 @@
     border-radius: 13px;
   }
 
-  .deefy-player-track > .deefy-player-favorite-action {
+  .deefy-player-track>.deefy-player-favorite-action {
     display: none;
   }
 
@@ -1945,11 +1944,11 @@
     gap: 0;
   }
 
-  .deefy-player-shell .deefy-player-controls > button:not(.deefy-player-main-action) {
+  .deefy-player-shell .deefy-player-controls>button:not(.deefy-player-main-action) {
     display: none;
   }
 
-  .deefy-player-shell .deefy-player-controls > .deefy-player-main-action {
+  .deefy-player-shell .deefy-player-controls>.deefy-player-main-action {
     display: inline-flex;
   }
 
@@ -1990,13 +1989,13 @@
   }
 
   .deefy-player-shell {
-    left: 10px;
-    right: 10px;
-    bottom: 90px;
+    left: 0;
+    right: 0;
+    bottom: 0;
     min-height: 84px;
     padding: 10px 12px;
     gap: 9px;
-    border-radius: 18px;
+    border-radius: 0;
   }
 
   .deefy-player-expanded-panel {
@@ -2228,8 +2227,12 @@ body:has(.add-music-page) .deefy-player-shell {
   .deefy-player-shell {
     left: 0;
     right: 0;
-    bottom: max(16px, env(safe-area-inset-bottom));
+    bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
   }
 
   .deefy-player-expanded {
@@ -2265,6 +2268,8 @@ body:has(.add-music-page) .deefy-player-shell {
     min-width: 100%;
     animation: deefy-player-title-marquee 7s ease-in-out infinite alternate;
   }
+
+  body:has(.bottom-nav) .deefy-player-shell,
   body:has(.catalog-page) .deefy-player-shell,
   body:has(.artist-profile-page) .deefy-player-shell,
   body:has(.home-layout) .deefy-player-shell,
@@ -2276,7 +2281,10 @@ body:has(.add-music-page) .deefy-player-shell {
   body:has(.create-playlist-page) .deefy-player-shell,
   body:has(.add-music-page) .deefy-player-shell {
     left: 0;
-    bottom: calc(72px + env(safe-area-inset-bottom));
+    right: 0;
+    bottom: calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 0;
   }
 
   .home-layout .home-content,
@@ -2287,7 +2295,7 @@ body:has(.add-music-page) .deefy-player-shell {
   .favorites-page .favorites-main,
   .create-playlist-page .create-playlist-main,
   .add-music-page .add-music-main {
-    padding-bottom: 176px;
+    padding-bottom: calc(var(--bottom-nav-height, 64px) + 96px + env(safe-area-inset-bottom, 0px));
   }
 
   .preferences-page {
@@ -2299,8 +2307,12 @@ body:has(.add-music-page) .deefy-player-shell {
   .deefy-player-shell {
     left: 0;
     right: 0;
-    bottom: max(16px, env(safe-area-inset-bottom));
+    bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
   }
 
   .deefy-player-expanded {
@@ -2314,6 +2326,7 @@ body:has(.add-music-page) .deefy-player-shell {
     box-shadow: none;
   }
 
+  body:has(.bottom-nav) .deefy-player-shell,
   body:has(.home-layout) .deefy-player-shell,
   body:has(.admin-layout) .deefy-player-shell,
   body:has(.playlists-page) .deefy-player-shell,
@@ -2322,6 +2335,8 @@ body:has(.add-music-page) .deefy-player-shell {
   body:has(.favorites-page) .deefy-player-shell,
   body:has(.create-playlist-page) .deefy-player-shell,
   body:has(.add-music-page) .deefy-player-shell {
-    bottom: calc(72px + env(safe-area-inset-bottom));
+    bottom: calc(var(--bottom-nav-height, 64px) + env(safe-area-inset-bottom, 0px));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 0;
   }
-}
+}
