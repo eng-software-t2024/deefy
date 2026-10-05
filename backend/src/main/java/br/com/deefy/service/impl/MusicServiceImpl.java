@@ -66,6 +66,16 @@ public class MusicServiceImpl implements MusicService {
         Page<Music> musicPage = musicRepository.findByArtistName(artistName, pageable);
         return musicPage.map(musicMapper::toListDTO);
     }
+    
+    @Override
+    public Page<MusicListResponseDTO> findByArtistId(Long artistId, Pageable pageable) {
+        if (!artistRepository.existsById(artistId)) {
+            throw new ArtistNotFoundException(artistId);
+        }
+
+        Page<Music> musicPage = musicRepository.findByArtistId(artistId, pageable);
+        return musicPage.map(musicMapper::toListDTO);
+    }
 
     @Override
     public Page<MusicListResponseDTO> searchByGenre(String genre, Pageable pageable) {
