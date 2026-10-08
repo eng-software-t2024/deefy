@@ -47,7 +47,7 @@ client/
 
 ## Requisitos
 
-- Node.js 18 ou superior
+- Node.js 22.22.2
 - npm 9 ou superior
 - API Deefy disponível localmente ou em produção
 
