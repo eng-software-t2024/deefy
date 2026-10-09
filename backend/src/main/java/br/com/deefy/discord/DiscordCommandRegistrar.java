@@ -6,6 +6,7 @@ import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -32,13 +33,27 @@ public class DiscordCommandRegistrar extends ListenerAdapter {
             return;
         }
 
-        guild.upsertCommand(Commands.slash("deefy", "Comandos do Deefy")
-                        .addSubcommands(new SubcommandData("ping", "Verifica se o bot está conectado")))
-                .queue(
-                        command -> LOGGER.info("Discord command /deefy ping registered in test guild {}", guildId),
-                        error -> LOGGER.error("Could not register /deefy ping in test guild {}", guildId, error)
-                );
+        register(guild, guildId, Commands.slash("deefy", "Comandos do Deefy")
+                .addSubcommands(new SubcommandData("ping", "Verifica se o bot está conectado")));
+        register(guild, guildId, Commands.slash("entrar", "Conecta o bot ao seu canal de voz"));
+        register(guild, guildId, Commands.slash("sair", "Desconecta o bot do canal de voz"));
 
         LOGGER.info("Discord bot connected and ready in test guild {}", guildId);
+    }
+
+    private void register(Guild guild, String guildId, CommandData command) {
+        guild.upsertCommand(command)
+                .queue(
+                        registered -> LOGGER.info(
+                                "Discord command /{} registered in test guild {}",
+                                command.getName(),
+                                guildId
+                        ),
+                        error -> LOGGER.error(
+                                "Could not register Discord command /{} in test guild {}",
+                                command.getName(),
+                                guildId
+                        )
+                );
     }
 }
