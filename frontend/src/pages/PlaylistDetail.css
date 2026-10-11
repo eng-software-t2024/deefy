@@ -1,6 +1,9 @@
 .playlist-detail-page {
   min-height: 100vh;
-  background: #050505;
+  background:
+  radial-gradient(circle at top left, var(--glow-a), transparent 30%),
+  radial-gradient(circle at bottom right, var(--glow-b), transparent 28%),
+  var(--bg-app);;;
   color: white;
   display: flex;
   overflow-x: hidden;

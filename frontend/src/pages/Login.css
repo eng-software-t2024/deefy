@@ -15,9 +15,9 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at top left, rgba(57, 240, 208, 0.12), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(57, 240, 208, 0.10), transparent 28%),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.92));
+          radial-gradient(circle at top left, var(--glow-a), transparent 30%),
+          radial-gradient(circle at bottom right, var(--glow-b), transparent 28%),
+          var(--bg-app);;
   z-index: 1;
 }
 
@@ -49,7 +49,7 @@
   width: 100%;
   padding: 34px 34px 28px;
   border-radius: 28px;
-  background: rgba(20, 20, 22, 0.72);
+  background: var(--border-strong);
   border: 1px solid rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(10px);
   box-shadow:
@@ -66,7 +66,7 @@
 
 .login-input-group h3 {
   margin: 0 0 10px !important;
-  color: #a7a7a7 !important;
+  color: var(--text-secondary) !important;
   font-size: 0.9rem !important;
   letter-spacing: 2px !important;
   font-weight: 700 !important;
@@ -79,7 +79,7 @@
   min-height: 58px !important;
   height: 58px !important;
   border-radius: 18px !important;
-  background: rgba(0, 0, 0, 0.68) !important;
+  background: var(--fill-hover) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   display: flex !important;
   flex-direction: row !important;
@@ -104,7 +104,7 @@
   top: 50% !important;
   transform: translateY(-50%) !important;
   font-size: 1.35rem !important;
-  color: #9a9a9a !important;
+  color: var(--text-muted) !important;
   pointer-events: none;
   z-index: 2;
 }
@@ -115,14 +115,14 @@
   top: 50% !important;
   transform: translateY(-50%) !important;
   font-size: 1.4rem !important;
-  color: #9a9a9a !important;
+  color: var(--text-muted) !important;
   cursor: pointer !important;
   transition: color 0.25s ease, transform 0.25s ease;
   z-index: 2;
 }
 
 .login-input-eye:hover {
-  color: #ffffff !important;
+  color: var(--text-primary) !important;
 }
 
 .login-input-box input {
@@ -133,7 +133,7 @@
   background: transparent !important;
   border: none !important;
   outline: none !important;
-  color: #ffffff !important;
+  color: var(--text-primary) !important;
   font-size: 1.05rem !important;
   display: block !important;
   text-align: left !important;
@@ -141,7 +141,7 @@
 }
 
 .login-input-box input::placeholder {
-  color: #7f7f7f !important;
+  color: var(--text-muted) !important;
 }
 
 /* Remover coloração amarela de autofill mantendo a curvatura transparente */
@@ -160,7 +160,7 @@
   margin: 12px 2px 0 !important;
   text-align: right !important;
   font-size: 0.95rem !important;
-  color: #d2d2d2 !important;
+  color: var(--text-secondary) !important;
   cursor: pointer !important;
   transition: color 0.25s ease, transform 0.25s ease;
 }
@@ -171,7 +171,7 @@
 
 .login-error {
   margin: 6px 0 16px !important;
-  color: #ff5d5d !important;
+  color: var(--danger) !important;
   font-size: 0.92rem !important;
   text-align: center !important;
   animation: loginFadeIn 0.3s ease;
@@ -184,7 +184,7 @@
   height: 62px !important;
   border: none !important;
   border-radius: 18px !important;
-  background: linear-gradient(90deg, #8ff3df, #39f0d0) !important;
+  background: var(--accent) !important;
   color: #045547 !important;
   font-size: 1.35rem !important;
   font-weight: 800 !important;
@@ -220,11 +220,11 @@
 .login-divider div {
   flex: 1;
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--text-muted);
 }
 
 .login-divider span {
-  color: #9f9f9f;
+  color: var(--text-muted);
   font-size: 0.82rem;
   letter-spacing: 3px;
   white-space: nowrap;
@@ -236,8 +236,8 @@
   height: 58px !important;
   border-radius: 18px !important;
   border: 1px solid rgba(255, 255, 255, 0.07) !important;
-  background: rgba(20, 20, 22, 0.72) !important;
-  color: #ffffff !important;
+  background: var(--surface) !important;
+  color: var(--text-primary) !important;
   font-size: 2rem !important;
   cursor: pointer !important;
   display: flex !important;
@@ -257,13 +257,13 @@
 .login-register-text {
   margin-top: 26px !important;
   text-align: center !important;
-  color: #d6d6d6 !important;
+  color: var(--text-secondary) !important;
   font-size: 1rem !important;
   animation: loginFadeIn 1.4s ease;
 }
 
 .login-register-text span {
-  color: #39f0d0 !important;
+  color: var(--accent-text) !important;
   font-weight: 700 !important;
   cursor: pointer !important;
   transition: opacity 0.25s ease;
