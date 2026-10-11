@@ -6,23 +6,25 @@ neste texto identificam tarefas do Taiga acadêmico, não GitHub Issues.
 
 ## 1. Objetivo e escopo
 
-A integração tem como objetivo oferecer recursos do Deefy dentro de uma guild
-do Discord, inicialmente por comandos de interação e, em incrementos futuros,
-por presença, voz e reprodução. O incremento disponível no código conecta um
-cliente JDA ao processo do backend Spring, restringe a operação a uma guild de
-teste e responde ao comando `/deefy ping`.
+A integração tem como objetivo oferecer recursos do Deefy dentro de guilds do
+Discord por comandos de interação. O código atual conecta um cliente JDA ao
+processo do backend Spring e oferece `/deefy ping`, `/entrar` e `/sair`.
+Nesta etapa, os três comandos são registrados somente na guild de teste;
+`/entrar` e `/sair` conectam e desconectam o bot de canais de voz comuns.
+Cada guild mantém estado de conexão independente, e uma conexão existente não
+é movida silenciosamente para outro canal.
 
 Esta arquitetura cobre:
 
 - os componentes Discord existentes e seus limites;
 - o ciclo de vida da conexão JDA;
 - a convenção para comandos e eventos futuros;
-- os pontos de extensão para permissões, voz, reprodução, fila e presença;
+- os pontos de extensão para reprodução, fila e presença;
 - a fronteira entre a integração Discord e os serviços de aplicação do Deefy;
 - segurança, configuração, observabilidade e estratégia de testes.
 
-Ficam fora do escopo desta tarefa a implementação de novos comandos, voz,
-reprodução, controles, presença, permissões e fila, bem como alterações de
+Ficam fora do escopo desta tarefa Stage Channels, reprodução, player, controles,
+presença, fila e a ampliação da política de permissões, bem como alterações de
 infraestrutura, banco, Supabase, cliente web ou configuração operacional.
 
 As responsabilidades das partes são distintas:
@@ -42,15 +44,15 @@ As responsabilidades das partes são distintas:
 ## 2. Componentes atuais
 
 A implementação está concentrada em `backend/src/main/java/br/com/deefy/discord`.
-Não existe hoje uma camada de aplicação específica para comandos Discord, uma
-abstração de fila ou um componente de voz.
+Não existe hoje uma abstração de fila ou um componente de reprodução de áudio.
 
 | Componente | Responsabilidade | Entradas | Saídas e efeitos | Dependências e limites |
 |---|---|---|---|---|
 | `DiscordBotProperties` | Mapear e validar a configuração `deefy.discord` | Propriedades Spring derivadas do ambiente | Estado de configuração e lista de erros de validação | Não inicia conexões nem conhece comandos. Valida token não vazio e guild como inteiro sem sinal |
 | `DiscordBotLifecycle` | Integrar o cliente JDA ao ciclo de vida Spring | Propriedades, listener, registrar e `ReadyEvent` | Criação do JDA, estado `running` e shutdown | Usa `JDABuilder`; não registra comandos nem trata regras de negócio |
-| `DiscordCommandRegistrar` | Registrar o comando disponível na guild de teste | `ReadyEvent` e guild configurada | `upsertCommand` assíncrono para `/deefy ping` e logs do resultado | Não executa comandos. Se a guild não for encontrada, registra erro e encerra o processamento do evento |
-| `DiscordCommandListener` | Filtrar e responder à interação suportada | `SlashCommandInteractionEvent` | Resposta assíncrona `pong` | Aceita apenas evento de guild, guild configurada, comando `deefy` e subcomando `ping`; demais contextos são ignorados |
+| `DiscordCommandRegistrar` | Registrar os comandos disponíveis na guild de teste | `ReadyEvent` e guild configurada | `upsertCommand` assíncrono para `/deefy ping`, `/entrar` e `/sair`, com logs do resultado | Não executa comandos nem registra globalmente. Se a guild não for encontrada, registra erro e encerra o processamento do evento |
+| `DiscordCommandListener` | Filtrar e rotear as interações suportadas | `SlashCommandInteractionEvent` | Resposta `pong` ou resposta efêmera do caso de voz | Aceita apenas eventos da guild configurada; mantém `/deefy ping` e delega `/entrar` e `/sair` ao serviço de voz |
+| `DiscordVoiceConnectionService` | Aplicar as regras de entrada e saída de voz por guild | Guild, membro solicitante e estado JDA do canal | Abertura ou fechamento da conexão de voz e resultado controlado | Suporta apenas canais de voz comuns; não move conexão existente, não reproduz áudio e não possui fila nem proprietário exclusivo |
 | JDA 6.7.0 | Adaptar Gateway, eventos e operações da API Discord | Token, listeners e chamadas assíncronas | Eventos JDA e ações remotas | Dependência declarada em `backend/pom.xml`; não substitui as regras de aplicação do Deefy |
 
 A configuração é ligada por:
@@ -63,16 +65,18 @@ Os nomes são mapeados em `backend/src/main/resources/application.properties` e
 repassados pelo `docker-compose.local.yml`. Quando não informada, a ativação é
 `false` e os dois valores textuais são vazios.
 
-Há oito testes unitários distribuídos entre:
+Há 31 testes unitários distribuídos entre:
 
 - `DiscordBotPropertiesTest`: configuração completa, campos ausentes e guild
   inválida;
 - `DiscordBotLifecycleTest`: integração desativada, configuração incompleta e
   transição para `running` após o evento de pronto;
-- `DiscordCommandListenerTest`: resposta ao comando válido e descarte de guild
-  não autorizada.
-
-Não há teste específico do registro assíncrono de comandos.
+- `DiscordCommandListenerTest`: resposta ao ping, descarte de guild não
+  autorizada e roteamento de `/entrar` e `/sair`;
+- `DiscordCommandRegistrarTest`: registro dos três comandos somente na guild de
+  teste;
+- `DiscordVoiceConnectionServiceTest`: canal e permissão, idempotência,
+  concorrência por guild, isolamento entre guilds e saída controlada.
 
 ## 3. Diagrama textual
 
@@ -84,9 +88,11 @@ Discord (guild de teste)
         v
 JDA client -- ciclo de vida --> DiscordBotLifecycle
         |
-        +--> DiscordCommandRegistrar -- registra --> /deefy ping
+        +--> DiscordCommandRegistrar -- registra --> /deefy ping, /entrar, /sair
         |
         +--> DiscordCommandListener  -- responde --> pong
+                         |
+                         +--> DiscordVoiceConnectionService --> conexão de voz por guild
 
                     evolução incremental planejada
 
@@ -287,7 +293,7 @@ Nenhum teste unitário deve conectar ao Discord real.
 | #56 | Entregue por este documento | Código atual das tarefas iniciais | Arquitetura, contratos e limites registrados | Sem implementação funcional |
 | #74 | Parcialmente entregue | Configuração Spring e ambiente | Configuração operacional completa, segura e documentada | Sem comandos, voz ou reprodução |
 | #75 | Parcialmente entregue | #74 e JDA | Ciclo de conexão e comando básico testável | Sem player ou fila |
-| #76 | Não implementada | #74, #75 e revisão de intents/permissões | Entrada e saída de canal de voz | Sem reprodução |
+| #76 | Implementada | #74, #75 e intents padrão do JDA | Entrada e saída de canal de voz comum por guild | Sem reprodução, fila ou Stage Channel |
 | #77 | Não implementada | #76 e contrato compatível com #79 | Serviço de reprodução desacoplado | Sem possuir a fila |
 | #78 | Não implementada | #77 e #81 | Controles de reprodução autorizados | Sem mutação direta da fila |
 | #79 | Não implementada; responsabilidade de outro colega | Contrato alinhado com #77/#78 | Fila e suas semânticas | Sem JDA ou reprodução de áudio |
@@ -303,8 +309,8 @@ Nenhum teste unitário deve conectar ao Discord real.
   Supabase, repositórios ou estruturas internas de reprodução diretamente.
 - A reconexão não está explicitamente implementada nem testada.
 - Intents não estão explicitamente definidos no código atual.
-- Presença, voz, reprodução, controles, permissões e fila não estão
-  implementados.
+- Presença, reprodução, controles, política ampla de permissões e fila não estão
+  implementados. A voz cobre somente entrada e saída na guild de teste.
 - A guild configurada pode não ser encontrada depois do JDA ficar pronto; esse
   caso impede o registro do comando, mas não muda o estado `running` do
   lifecycle.
@@ -312,7 +318,7 @@ Nenhum teste unitário deve conectar ao Discord real.
   registrar possui callback de erro, enquanto a resposta `pong` não possui.
 - Os templates `.env.example` e `.env.production.example` estão incompletos para
   a configuração Discord.
-- Não há documentação operacional completa nem teste dedicado do registrar.
+- Não há documentação operacional completa.
 - Números `#56` e `#74` a `#82` são tarefas Taiga. Um PR futuro deve usar a
   descrição explícita da tarefa e não usar palavras-chave de encerramento
   automático sem uma GitHub Issue correspondente confirmada.

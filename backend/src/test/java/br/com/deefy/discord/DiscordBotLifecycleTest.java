@@ -14,7 +14,7 @@ class DiscordBotLifecycleTest {
 
         DiscordBotLifecycle lifecycle = new DiscordBotLifecycle(
                 properties,
-                new DiscordCommandListener(properties),
+                new DiscordCommandListener(properties, mock(DiscordVoiceConnectionService.class)),
                 new DiscordCommandRegistrar(properties)
         );
 
@@ -31,7 +31,7 @@ class DiscordBotLifecycleTest {
 
         DiscordBotLifecycle lifecycle = new DiscordBotLifecycle(
                 properties,
-                new DiscordCommandListener(properties),
+                new DiscordCommandListener(properties, mock(DiscordVoiceConnectionService.class)),
                 new DiscordCommandRegistrar(properties)
         );
 
@@ -46,7 +46,7 @@ class DiscordBotLifecycleTest {
         DiscordBotProperties properties = new DiscordBotProperties();
         DiscordBotLifecycle lifecycle = new DiscordBotLifecycle(
                 properties,
-                new DiscordCommandListener(properties),
+                new DiscordCommandListener(properties, mock(DiscordVoiceConnectionService.class)),
                 new DiscordCommandRegistrar(properties)
         );
 
