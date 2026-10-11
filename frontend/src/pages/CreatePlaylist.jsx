@@ -3,6 +3,8 @@ import './CreatePlaylist.css'
 
 import Sidebar from '../components/Sidebar.jsx'
 import { musicService } from '../services/musicService'
+import { SERVER_TIMEOUT_MESSAGE, SERVER_UNREACHABLE_MESSAGE } from '../services/api'
+import { getApiErrorMessage } from '../utils/apiError'
 import { showMusicError, showMusicSuccess } from '../utils/musicToast'
 import { useNavigate, useParams } from 'react-router-dom'
 import { MdAddPhotoAlternate, MdClose } from 'react-icons/md'
@@ -47,7 +49,7 @@ function CreatePlaylistContent() {
       })
       .catch((err) => {
         if (!isMounted) return
-        showMusicError(err?.response?.data?.message || "Erro ao carregar playlist.")
+        showMusicError(getApiErrorMessage(err, "Não foi possível carregar a playlist. Tente novamente."))
         navigate('/playlists')
       })
       .finally(() => {
@@ -111,6 +113,11 @@ function CreatePlaylistContent() {
         try {
           uploadedCoverUrl = await musicService.uploadPlaylistCoverImage(coverFile)
         } catch (uploadError) {
+          const uploadMessage = getApiErrorMessage(uploadError, "")
+          const serverUnavailable = uploadMessage === SERVER_UNREACHABLE_MESSAGE || uploadMessage === SERVER_TIMEOUT_MESSAGE
+          if (serverUnavailable) {
+            throw uploadError
+          }
           console.warn("Não foi possível enviar a capa da playlist. Salvando sem capa manual.", uploadError)
           showMusicError("Não foi possível enviar a capa agora. Vou salvar a playlist sem capa manual.")
           uploadedCoverUrl = ''
@@ -138,8 +145,10 @@ function CreatePlaylistContent() {
       showMusicSuccess("Playlist criada com sucesso!")
       navigate(`/user-playlist-detail/${created.id}`)
     } catch (err) {
-      const fallbackMessage = isEditing ? "Erro ao editar playlist." : "Erro ao criar playlist."
-      showMusicError(err?.response?.data?.message || fallbackMessage)
+      const fallbackMessage = isEditing
+        ? "Não foi possível editar a playlist. Tente novamente."
+        : "Não foi possível criar a playlist. Tente novamente."
+      showMusicError(getApiErrorMessage(err, fallbackMessage))
     } finally {
       setIsSubmitting(false)
     }

@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
@@ -31,4 +33,6 @@ public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
             order by p.dataCriacao desc
             """)
     List<Playlist> findGlobalPlaylists(@Param("globalOwnerEmail") String globalOwnerEmail);
+
+    Optional<Playlist> findByTokenCompartilhamentoAndLinkCompartilhamentoTrue(UUID tokenCompartilhamento);
 }

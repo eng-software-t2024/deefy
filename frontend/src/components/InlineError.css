@@ -1,0 +1,78 @@
+.inline-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 48px 24px;
+  text-align: center;
+  animation: inlineErrorFadeIn 0.5s ease;
+}
+
+.inline-error-icon {
+  width: 96px;
+  height: 96px;
+  margin-bottom: 24px;
+  animation: inlineErrorFloat 2.5s ease-in-out infinite;
+}
+
+.inline-error-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.inline-error-heading {
+  margin: 0 0 10px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #e0e0e0;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: -0.2px;
+  text-transform: none;
+  line-height: 1.3;
+}
+
+.inline-error-body {
+  max-width: 420px;
+  margin: 0;
+  font-size: 0.92rem;
+  color: #6a6a6a;
+  line-height: 1.6;
+}
+
+.inline-error-retry {
+  margin-top: 22px;
+  padding: 10px 18px;
+  color: #39f0d0;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid rgba(57, 240, 208, 0.35);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.inline-error-retry:hover {
+  background: rgba(57, 240, 208, 0.08);
+}
+
+@keyframes inlineErrorFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes inlineErrorFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}

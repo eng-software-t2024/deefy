@@ -174,12 +174,16 @@ export const musicService = {
     }
   },
 
-  async getCatalogMusics(size = 400) {
-    if (musicCatalogCache && musicCatalogSize >= size) {
+  async getCatalogMusics(size = 400, { refresh = false } = {}) {
+    if (!refresh && musicCatalogCache && musicCatalogSize >= size) {
       return musicCatalogCache;
     }
 
-    if (!musicCatalogPromise || musicCatalogSize < size) {
+    if (!refresh && musicCatalogPromise && musicCatalogSize >= size) {
+      return musicCatalogPromise;
+    }
+
+    if (!musicCatalogPromise || musicCatalogSize < size || refresh) {
       musicCatalogSize = size;
       musicCatalogPromise = api.get('/musics', { params: { size } })
         .then((response) => {
@@ -207,7 +211,7 @@ export const musicService = {
     if (!sanitizedQuery) return [];
 
     const fields = options.fields || ['title', 'artist', 'album', 'genre'];
-    const catalog = await this.getCatalogMusics(options.size || 400);
+    const catalog = await this.getCatalogMusics(options.size || 400, { refresh: Boolean(options.refresh) });
     return filterBySearch(catalog, sanitizedQuery, (music) => getMusicSearchText(music, fields));
   },
 
@@ -219,11 +223,15 @@ export const musicService = {
 
     try {
       return await this.searchCatalogMusics(sanitizedQuery, { ...options, fields });
-    } catch {
+    } catch (catalogError) {
       const requests = getFallbackSearchRequests(this, sanitizedQuery, fields);
-      if (!requests.length) return [];
+      if (!requests.length) throw catalogError;
 
       const results = await Promise.allSettled(requests);
+      if (results.every((result) => result.status === 'rejected')) {
+        throw results[0].reason || catalogError;
+      }
+
       return dedupeByIdentity(
         results
           .filter((result) => result.status === 'fulfilled' && Array.isArray(result.value))
@@ -496,6 +504,16 @@ export const musicService = {
     }
   },
 
+  async getSharedPlaylist(token) {
+    const response = await api.get(`/shared-playlists/${token}`);
+    return normalizePlaylist(response.data) || response.data;
+  },
+
+  async acceptSharedPlaylist(token) {
+    const response = await api.post(`/shared-playlists/${token}/accept`);
+    return response.data;
+  },
+
   /**
    * Create a new playlist
    * @param {Object} data - { name, publica, description, descricao, coverUrl, capaUrl }
@@ -566,6 +584,42 @@ export const musicService = {
       console.error(`Failed to delete playlist ${id}:`, error);
       throw error;
     }
+  },
+
+  async getPlaylistSharing(playlistId) {
+    const response = await api.get(`/playlists/${playlistId}/sharing`);
+    return response.data;
+  },
+
+  async sharePlaylist(playlistId, data) {
+    const response = await api.post(`/playlists/${playlistId}/sharing`, data);
+    return response.data;
+  },
+
+  async updatePlaylistSharePermission(playlistId, userId, permission) {
+    const response = await api.patch(`/playlists/${playlistId}/sharing/${userId}`, { permissao: permission });
+    return response.data;
+  },
+
+  async revokePlaylistShare(playlistId, userId) {
+    await api.delete(`/playlists/${playlistId}/sharing/${userId}`);
+  },
+
+  async configurePlaylistLink(playlistId, permission) {
+    const response = await api.post(`/playlists/${playlistId}/sharing/link`, {
+      linkCompartilhamento: true,
+      permissaoLink: permission,
+    });
+    return response.data;
+  },
+
+  async updatePlaylistLinkPermission(playlistId, permission) {
+    const response = await api.patch(`/playlists/${playlistId}/sharing/link`, { permissaoLink: permission });
+    return response.data;
+  },
+
+  async deactivatePlaylistLink(playlistId) {
+    await api.delete(`/playlists/${playlistId}/sharing/link`);
   },
 
   /**

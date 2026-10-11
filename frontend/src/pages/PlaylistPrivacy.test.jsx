@@ -19,6 +19,9 @@ vi.mock('../services/musicService', () => ({
     getPlaylistById: vi.fn(), getPublicPlaylists: vi.fn(), getUserPlaylists: vi.fn(), getGlobalPlaylists: vi.fn(),
     getFavoriteMusics: vi.fn(), getHomeMusics: vi.fn(), deletePlaylist: vi.fn(), updatePlaylist: vi.fn(),
     addMusicToPlaylist: vi.fn(), removeMusicFromPlaylist: vi.fn(), createPlaylist: vi.fn(),
+    getPlaylistSharing: vi.fn(), sharePlaylist: vi.fn(), updatePlaylistSharePermission: vi.fn(),
+    revokePlaylistShare: vi.fn(), configurePlaylistLink: vi.fn(), updatePlaylistLinkPermission: vi.fn(),
+    deactivatePlaylistLink: vi.fn(),
   },
 }))
 const track = { id: 10, title: 'Faixa teste', artist: 'Artista', audioUrl: 'https://example.com/audio.mp3' }
@@ -47,6 +50,12 @@ beforeEach(() => {
   musicService.getGlobalPlaylists.mockResolvedValue([])
   musicService.getFavoriteMusics.mockResolvedValue([])
   musicService.getHomeMusics.mockResolvedValue([])
+  musicService.getPlaylistSharing.mockResolvedValue({
+    proprietarioNome: 'Lucas',
+    proprietarioEmail: 'lucas@test.com',
+    linkCompartilhamento: false,
+    compartilhamentos: [],
+  })
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
@@ -98,6 +107,16 @@ it('retains owner management and removal, and labels private playlists correctly
   expect(screen.getByText('Excluir playlist')).toBeTruthy()
   fireEvent.click(container.querySelector('.song-options-button'))
   expect(screen.getByText('Remover da playlist')).toBeTruthy()
+})
+
+it('opens the playlist sharing modal from the owner actions menu', async () => {
+  musicService.getPlaylistById.mockResolvedValue(ownPlaylist)
+  open(UserPlaylistDetail, '/details/2')
+  await screen.findByText(ownPlaylist.name)
+  fireEvent.click(screen.getByRole('button', { name: 'Mais ações da playlist' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Compartilhar playlist' }))
+  expect(await screen.findByRole('heading', { name: /Compartilhar/ })).toBeTruthy()
+  expect(musicService.getPlaylistSharing).toHaveBeenCalledWith(2)
 })
 
 it('connects global detail play and shuffle without mutating tracks', async () => {

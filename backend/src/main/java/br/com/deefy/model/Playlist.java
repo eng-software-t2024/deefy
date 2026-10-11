@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Entity
 @Table(name = "playlist")
@@ -29,6 +30,15 @@ public class Playlist {
 
     @Column(name = "publica", nullable = false)
     private boolean publica;
+
+    @Column(name = "link_compartilhamento", nullable = false)
+    private boolean linkCompartilhamento;
+
+    @Column(name = "token_compartilhamento", unique = true)
+    private UUID tokenCompartilhamento;
+
+    @Column(name = "permissao_link", length = 6)
+    private String permissaoLink;
 
     @Column(name = "datacriacao", nullable = false, updatable = false)
     private LocalDateTime dataCriacao;
@@ -100,6 +110,30 @@ public class Playlist {
 
     public void setPublica(boolean publica) {
         this.publica = publica;
+    }
+
+    public boolean isLinkCompartilhamento() {
+        return linkCompartilhamento;
+    }
+
+    public void setLinkCompartilhamento(boolean linkCompartilhamento) {
+        this.linkCompartilhamento = linkCompartilhamento;
+    }
+
+    public UUID getTokenCompartilhamento() {
+        return tokenCompartilhamento;
+    }
+
+    public void setTokenCompartilhamento(UUID tokenCompartilhamento) {
+        this.tokenCompartilhamento = tokenCompartilhamento;
+    }
+
+    public String getPermissaoLink() {
+        return permissaoLink;
+    }
+
+    public void setPermissaoLink(String permissaoLink) {
+        this.permissaoLink = permissaoLink;
     }
 
     public LocalDateTime getDataCriacao() {

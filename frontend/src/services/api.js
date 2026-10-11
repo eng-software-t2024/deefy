@@ -25,6 +25,9 @@ const api = axios.create({
   },
 });
 
+export const SERVER_TIMEOUT_MESSAGE = 'O servidor demorou para responder. Tente novamente.';
+export const SERVER_UNREACHABLE_MESSAGE = 'Não foi possível conectar ao servidor. Tente novamente.';
+
 export const normalizeApiError = (error) => {
   const isLoginRequest = error.config?.url?.includes('/auth/login');
   const customError = {
@@ -51,11 +54,11 @@ export const normalizeApiError = (error) => {
     }
   } else if (error.request) {
     if (error.code === 'ECONNABORTED') {
-      customError.message = 'O servidor demorou para responder. Tente novamente.';
+      customError.message = SERVER_TIMEOUT_MESSAGE;
     } else if (isLoginRequest) {
       customError.message = 'Não foi possível entrar agora. Tente novamente.';
     } else {
-      customError.message = 'Não foi possível conectar ao servidor. Tente novamente.';
+      customError.message = SERVER_UNREACHABLE_MESSAGE;
     }
   } else {
     customError.message = error.message;
