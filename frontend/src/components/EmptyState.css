@@ -24,7 +24,7 @@
   margin: 0 0 10px;
   font-size: 1.25rem;
   font-weight: 700;
-  color: #e0e0e0;
+  color: var(--bg-app);
   font-family: 'Inter', sans-serif;
   /* override h3 in index.css */
   letter-spacing: -0.2px;
@@ -35,12 +35,12 @@
 .empty-state-body {
   margin: 0;
   font-size: 0.92rem;
-  color: #6a6a6a;
+  color: var(--text-muted);
   line-height: 1.6;
 }
 
 .empty-state-query {
-  color: #39f0d0;
+  color: var(--accent-text);
   font-weight: 600;
 }
 

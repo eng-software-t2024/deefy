@@ -16,9 +16,12 @@ import ButtonSpinner from "../components/ButtonSpinner";
 import { getApiErrorMessage } from "../utils/apiError";
 import { showMusicError } from "../utils/musicToast";
 import { removeToken } from "../utils/auth";
+import { MdOutlineDarkMode, MdOutlineLightMode } from "react-icons/md";
+import { useTheme } from "../contexts/ThemeContext";
 
 function Configuration() {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -67,34 +70,34 @@ function Configuration() {
   };
 
   return (
-    <div className="configuration-page">
-      <div className="configuration-overlay"></div>
+      <div className="configuration-page">
+        <div className="configuration-overlay"></div>
 
-      <section className="configuration-wrapper">
-        {/* Back button */}
-        <div className="custom-profile-back-login custom-profile-back-top" onClick={() => navigate(-1)}>
-          <IoChevronBack />
-          <span>Voltar</span>
-        </div>
-        <div className="configuration-user">
-          <div className="configuration-avatar-wrapper">
-            <div className="configuration-user-img">
-              {loadingProfile ? (
-                <div className="configuration-avatar-spinner">
-                  <ButtonSpinner color="#02FFD4" />
-                </div>
-              ) : profile?.fotoPerfilUrl ? (
-                <img
-                  src={profile.fotoPerfilUrl}
-                  alt="Foto de perfil"
-                  className="configuration-avatar-img"
-                />
-              ) : (
-                <div className="configuration-avatar-initials">
-                  {getInitials(profile?.nome)}
-                </div>
-              )}
-            </div>
+        <section className="configuration-wrapper">
+          {/* Back button */}
+          <div className="custom-profile-back-login custom-profile-back-top" onClick={() => navigate(-1)}>
+            <IoChevronBack />
+            <span>Voltar</span>
+          </div>
+          <div className="configuration-user">
+            <div className="configuration-avatar-wrapper">
+              <div className="configuration-user-img">
+                {loadingProfile ? (
+                    <div className="configuration-avatar-spinner">
+                      <ButtonSpinner color="#02FFD4" />
+                    </div>
+                ) : profile?.fotoPerfilUrl ? (
+                    <img
+                        src={profile.fotoPerfilUrl}
+                        alt="Foto de perfil"
+                        className="configuration-avatar-img"
+                    />
+                ) : (
+                    <div className="configuration-avatar-initials">
+                      {getInitials(profile?.nome)}
+                    </div>
+                )}
+              </div>
 
             <div className="configuration-edit-photo-btn" onClick={() => navigate("/edit-profile")}>
               <div className="configuration-edit-photo-icon-wrapper">
@@ -124,6 +127,26 @@ function Configuration() {
               Alterar senha
             </div>
             <IoIosArrowForward className="configuration-input-arrow" />
+          </div>
+        </div>
+
+
+        <div className="configuration-input-group">
+          <h3>APARÊNCIA</h3>
+          <div
+              className="configuration-input-box"
+              role="switch"
+              aria-checked={theme === "light"}
+              tabIndex={0}
+              onClick={toggleTheme}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleTheme()}
+          >
+            {theme === "light"
+                ? <MdOutlineLightMode className="configuration-input-icon" />
+                : <MdOutlineDarkMode className="configuration-input-icon" />}
+            <div className="configuration-input-content">
+              Tema {theme === "light" ? "claro" : "escuro"}
+            </div>
           </div>
         </div>
 

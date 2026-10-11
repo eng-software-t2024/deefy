@@ -8,7 +8,7 @@
   margin: 0 0 16px;
   font-size: 1.15rem;
   font-weight: 700;
-  color: #e0e0e0;
+  color: var(--text-secondary);
   letter-spacing: -0.2px;
 }
 
@@ -40,7 +40,7 @@
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 1.5px;
-  color: #5a5a5a;
+  color: var(--text-muted);
   text-transform: uppercase;
 }
 
@@ -75,14 +75,14 @@
 }
 
 .song-row--favorite .song-title {
-  color: #f0f0f0;
+  color: var(--text-primary);
 }
 
 .song-col-num {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #5a5a5a;
+  color: var(--text-muted);
   font-size: 0.88rem;
 }
 
@@ -103,7 +103,7 @@
   width: 3px;
   height: 7px;
   border-radius: 999px;
-  background: #39f0d0;
+  background: var(--accent);
   animation: soundWave 0.86s ease-in-out infinite;
 }
 
@@ -149,7 +149,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #39f0d0;
+  color: var(--accent);
   background:
     radial-gradient(circle at 35% 20%, rgba(57, 240, 208, 0.18), transparent 42%),
     #1a1a1e;
@@ -200,7 +200,7 @@
   width: 100%;
   font-size: 0.93rem;
   font-weight: 500;
-  color: #e4e4e4;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -208,13 +208,13 @@
 }
 
 .song-title--active {
-  color: #39f0d0 !important;
+  color: var(--accent-text) !important;
 }
 
 .song-artist {
   width: 100%;
   font-size: 0.78rem;
-  color: #6a6a6a;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -222,7 +222,7 @@
 
 .song-col-album {
   font-size: 0.85rem;
-  color: #6a6a6a;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -230,7 +230,7 @@
 
 .song-col-dur {
   font-size: 0.85rem;
-  color: #5a5a5a;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   text-align: right;
   padding-right: 4px;

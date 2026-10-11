@@ -6,7 +6,7 @@
   margin: 0 0 16px;
   font-size: 1.15rem;
   font-weight: 700;
-  color: #e0e0e0;
+  color: var(--bg-app);
   letter-spacing: -0.2px;
 }
 
@@ -115,7 +115,7 @@
 
 .featured-card-count {
   font-size: 0.78rem;
-  color: #6a6a6a;
+  color: var(--text-muted);
 }
 
 /* ── Responsive ── */

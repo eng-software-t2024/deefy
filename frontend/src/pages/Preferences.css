@@ -1,13 +1,3 @@
-:root {
-  --accent: #39f0d0;
-  --accent-soft: #8ff3df;
-  --text: #ffffff;
-  --text-muted: #b9b9b9;
-  --panel: rgba(15, 15, 18, 0.72);
-  --panel-border: rgba(255, 255, 255, 0.08);
-  --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-}
-
 * {
   box-sizing: border-box;
 }

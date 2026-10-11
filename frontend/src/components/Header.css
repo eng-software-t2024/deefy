@@ -15,7 +15,7 @@
 .home-header-sub {
   margin: 0;
   font-size: 0.9rem;
-  color: #7a7a7a;
+  color: var(--text-secondary);
   letter-spacing: 0.4px;
 }
 
@@ -24,7 +24,7 @@
   font-size: 1.65rem;
   font-weight: 700;
   letter-spacing: -0.4px;
-  color: #ffffff;
+  color: var(--text-primary);
   font-family: 'Inter', sans-serif;
 }
 
@@ -39,7 +39,7 @@
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  color: #a0a0a0;
+  color: var(--bg-app);
   font-size: 1.4rem;
   transition: background 0.22s ease, color 0.22s ease, transform 0.22s ease;
   flex-shrink: 0;
@@ -47,7 +47,7 @@
 
 .home-header-settings:hover {
   background: rgba(57, 240, 208, 0.1);
-  color: #39f0d0;
+  color: var(--accent);
   transform: rotate(22deg) scale(1.06);
 }
 
