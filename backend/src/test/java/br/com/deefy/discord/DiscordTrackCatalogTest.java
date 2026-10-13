@@ -5,15 +5,11 @@ import br.com.deefy.model.Music;
 import br.com.deefy.repository.MusicRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -29,8 +25,8 @@ class DiscordTrackCatalogTest {
     }
 
     @Test
-    void shouldFindTrackByExactPositiveId() {
-        Music music = music(13L, "Faixa local");
+    void shouldFindTrackByExactPositiveIdAsTechnicalAlternative() {
+        Music music = music(13L, "Faixa local", "Artista");
         when(repository.findWithArtistById(13L)).thenReturn(Optional.of(music));
 
         DiscordTrackCatalog.TrackLookupResult result = catalog.find("13");
@@ -41,49 +37,74 @@ class DiscordTrackCatalogTest {
     }
 
     @Test
-    void shouldNormalizeWhitespaceAndCaseForTitleLookup() {
-        Music music = music(7L, "Nome exato");
-        when(repository.findByTitleIgnoreCase("nome exato")).thenReturn(List.of(music));
+    void shouldNormalizeAccentsCaseAndWhitespaceForTitle() {
+        Music music = music(7L, "Matuê - ÍCONE FASHION", "30PRAUM");
+        when(repository.findAllByOrderByIdAsc()).thenReturn(List.of(music));
 
-        DiscordTrackCatalog.TrackLookupResult result = catalog.find("  nome   exato  ");
+        DiscordTrackCatalog.TrackLookupResult result = catalog.find("  icone   fashion  ");
 
         assertThat(result.status()).isEqualTo(DiscordTrackCatalog.TrackLookupStatus.FOUND);
         assertThat(result.track().id()).isEqualTo(7L);
     }
 
     @Test
-    void shouldFindSinglePartialTitleMatch() {
-        Music music = music(4L, "Uma faixa local");
-        when(repository.findByTitleIgnoreCase("faixa")).thenReturn(List.of());
-        when(repository.findByTitleContainingIgnoreCase(eq("faixa"), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(music)));
+    void shouldResolveRealImportedTitleAndCreditedArtistContract() {
+        Music xtranho = music(369L, "Matuê, BRANDÃO85 - XTRANHO", "30PRAUM");
+        Music another = music(370L, "Outro Artista - XTRANHO", "30PRAUM");
+        when(repository.findAllByOrderByIdAsc()).thenReturn(List.of(xtranho, another));
 
-        assertThat(catalog.find("faixa").status())
-                .isEqualTo(DiscordTrackCatalog.TrackLookupStatus.FOUND);
+        DiscordTrackCatalog.TrackLookupResult result = catalog.find("XTRANHO - Matue");
+
+        assertThat(result.status()).isEqualTo(DiscordTrackCatalog.TrackLookupStatus.FOUND);
+        assertThat(result.track().id()).isEqualTo(369L);
     }
 
     @Test
-    void shouldRejectMissingAndAmbiguousTracks() {
-        Music first = music(1L, "Faixa");
-        Music second = music(2L, "Faixa");
+    void shouldNotTreatEveryHyphenInsideTitleAsMandatoryArtistSeparator() {
+        Music music = music(8L, "Amor - Ódio", "Banda");
+        when(repository.findAllByOrderByIdAsc()).thenReturn(List.of(music));
+
+        DiscordTrackCatalog.TrackLookupResult result = catalog.find("AMOR - odio");
+
+        assertThat(result.status()).isEqualTo(DiscordTrackCatalog.TrackLookupStatus.FOUND);
+        assertThat(result.track().id()).isEqualTo(8L);
+    }
+
+    @Test
+    void shouldReturnClearChoicesInsteadOfSelectingAmbiguousTitle() {
+        Music first = music(1L, "Artista A - Luz", "Coletivo");
+        Music second = music(2L, "Artista B - Luz", "Coletivo");
+        when(repository.findAllByOrderByIdAsc()).thenReturn(List.of(first, second));
+
+        DiscordTrackCatalog.TrackLookupResult result = catalog.find("Luz");
+
+        assertThat(result.status()).isEqualTo(DiscordTrackCatalog.TrackLookupStatus.AMBIGUOUS);
+        assertThat(result.track()).isNull();
+        assertThat(result.choices())
+                .extracting(DiscordTrackCatalog.TrackChoice::label)
+                .containsExactly("Artista A - Luz — Coletivo", "Artista B - Luz — Coletivo");
+    }
+
+    @Test
+    void shouldReportMissingTrackAndInvalidQuery() {
         when(repository.findWithArtistById(999L)).thenReturn(Optional.empty());
-        when(repository.findByTitleIgnoreCase("Faixa")).thenReturn(List.of(first, second));
+        when(repository.findAllByOrderByIdAsc()).thenReturn(List.of());
 
         assertThat(catalog.find("999").status())
                 .isEqualTo(DiscordTrackCatalog.TrackLookupStatus.NOT_FOUND);
-        assertThat(catalog.find("Faixa").status())
-                .isEqualTo(DiscordTrackCatalog.TrackLookupStatus.AMBIGUOUS);
+        assertThat(catalog.find("Faixa inexistente").status())
+                .isEqualTo(DiscordTrackCatalog.TrackLookupStatus.NOT_FOUND);
         assertThat(catalog.find("  ").status())
                 .isEqualTo(DiscordTrackCatalog.TrackLookupStatus.INVALID_QUERY);
     }
 
     @Test
     void shouldRejectMissingAudioUrlAndSourcesOutsideSelfHostedOrigin() {
-        Music missingUrl = music(5L, "Sem arquivo");
+        Music missingUrl = music(5L, "Sem arquivo", "Artista");
         missingUrl.setFileUrl(" ");
-        Music external = music(6L, "Origem externa");
+        Music external = music(6L, "Origem externa", "Artista");
         external.setFileUrl("https://outro-host.example/media/faixa.mp3");
-        Music legacy = music(7L, "Origem antiga");
+        Music legacy = music(7L, "Origem antiga", "Artista");
         legacy.setFileUrl(
                 "https://prqdlbsazlodierobswv.supabase.co/storage/v1/object/public/musicas/faixa.mp3"
         );
@@ -99,8 +120,24 @@ class DiscordTrackCatalogTest {
                 .isEqualTo(DiscordTrackCatalog.TrackLookupStatus.UNSAFE_SOURCE);
     }
 
-    private Music music(long id, String title) {
-        Music music = new Music(id, title, "Rock", 180, new Artist(1L, "Artista"));
+    @Test
+    void shouldAutocompleteUsingTitleOrCreditedArtistWithoutLeakingAudioUrl() {
+        Music xtranho = music(369L, "Matuê, BRANDÃO85 - XTRANHO", "30PRAUM");
+        Music another = music(370L, "Matuê - REI TUÊ", "30PRAUM");
+        when(repository.findAllByOrderByIdAsc()).thenReturn(List.of(xtranho, another));
+
+        List<DiscordTrackCatalog.TrackChoice> suggestions = catalog.suggest("matue");
+
+        assertThat(suggestions).hasSize(2);
+        assertThat(suggestions)
+                .extracting(DiscordTrackCatalog.TrackChoice::value)
+                .containsExactly("369", "370");
+        assertThat(suggestions)
+                .allSatisfy(choice -> assertThat(choice.label()).doesNotContain("https://"));
+    }
+
+    private Music music(long id, String title, String artist) {
+        Music music = new Music(id, title, "Rock", 180, new Artist(1L, artist));
         music.setFileUrl("https://deefy.olua.me/media/musicas/" + id + ".mp3");
         return music;
     }

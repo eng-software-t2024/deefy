@@ -21,7 +21,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?configure the protected application secret}
       DEEFY_DISCORD_ENABLED: "true"
       DEEFY_DISCORD_TOKEN_FILE: /run/secrets/deefy_discord_token
-      DEEFY_DISCORD_TEST_GUILD_ID: ${DEEFY_DISCORD_TEST_GUILD_ID:?configure the test guild}
+      DEEFY_DISCORD_TEST_MODE: ${DEEFY_DISCORD_TEST_MODE:-false}
+      DEEFY_DISCORD_TEST_GUILD_ID: ${DEEFY_DISCORD_TEST_GUILD_ID:-}
       DEEFY_API_URL: ${DEEFY_API_URL:?configure the self-hosted Deefy origin}
     secrets:
       - deefy_discord_token

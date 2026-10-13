@@ -1,12 +1,18 @@
 package br.com.deefy.discord;
 
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.interactions.AutoCompleteQuery;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -55,7 +61,30 @@ class DiscordCommandListenerTest {
     }
 
     @Test
-    void shouldIgnoreCommandsOutsideTheSupportedGuildCommand() {
+    void shouldAcceptCommandsFromAnyGuildInNormalModeWithoutConfiguredGuild() {
+        DiscordBotProperties properties = new DiscordBotProperties();
+        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
+        Guild guild = mock(Guild.class);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
+        when(event.isFromGuild()).thenReturn(true);
+        when(event.getGuild()).thenReturn(guild);
+        when(guild.getId()).thenReturn("987654321098765432");
+        when(event.getName()).thenReturn("deefy");
+        when(event.getSubcommandName()).thenReturn("ping");
+        when(event.reply("pong")).thenReturn(replyAction);
+
+        new DiscordCommandListener(
+                properties,
+                mock(DiscordVoiceConnectionService.class),
+                mock(DiscordPlaybackService.class)
+        ).onSlashCommandInteraction(event);
+
+        verify(event).reply("pong");
+        verify(replyAction).queue();
+    }
+
+    @Test
+    void shouldIgnoreCommandsOutsideTheConfiguredGuildOnlyInTestMode() {
         DiscordBotProperties properties = configuredProperties();
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
         Guild guild = mock(Guild.class);
@@ -197,8 +226,41 @@ class DiscordCommandListenerTest {
         verify(replyAction).queue();
     }
 
+    @Test
+    void shouldReturnSelfHostedCatalogSuggestionsForPlayAutocomplete() {
+        DiscordBotProperties properties = new DiscordBotProperties();
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        CommandAutoCompleteInteractionEvent event = mock(CommandAutoCompleteInteractionEvent.class);
+        Guild guild = mock(Guild.class);
+        AutoCompleteQuery focusedOption = mock(AutoCompleteQuery.class);
+        AutoCompleteCallbackAction action = mock(AutoCompleteCallbackAction.class);
+
+        when(event.isFromGuild()).thenReturn(true);
+        when(event.getGuild()).thenReturn(guild);
+        when(guild.getId()).thenReturn("987654321098765432");
+        when(event.getName()).thenReturn("tocar");
+        when(event.getFocusedOption()).thenReturn(focusedOption);
+        when(focusedOption.getName()).thenReturn("musica");
+        when(focusedOption.getValue()).thenReturn("xtranho");
+        when(playbackService.suggest("xtranho")).thenReturn(List.of(
+                new DiscordPlaybackService.PlaybackSuggestion("Matuê, BRANDÃO85 - XTRANHO", "369")
+        ));
+        when(event.replyChoices(anyList())).thenReturn(action);
+
+        new DiscordCommandListener(
+                properties,
+                mock(DiscordVoiceConnectionService.class),
+                playbackService
+        ).onCommandAutoCompleteInteraction(event);
+
+        verify(playbackService).suggest("xtranho");
+        verify(event).replyChoices(anyList());
+        verify(action).queue();
+    }
+
     private DiscordBotProperties configuredProperties() {
         DiscordBotProperties properties = new DiscordBotProperties();
+        properties.setTestMode(true);
         properties.setTestGuildId("123456789012345678");
         return properties;
     }

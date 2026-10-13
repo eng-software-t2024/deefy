@@ -5,12 +5,15 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.interactions.commands.build.OptionData;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 public class DiscordCommandRegistrar extends ListenerAdapter {
@@ -26,37 +29,55 @@ public class DiscordCommandRegistrar extends ListenerAdapter {
     @Override
     public void onReady(ReadyEvent event) {
         JDA jda = event.getJDA();
-        String guildId = properties.getTestGuildId().trim();
-        Guild guild = jda.getGuildById(guildId);
+        List<CommandData> commands = commands();
 
-        if (guild == null) {
-            LOGGER.error("Discord bot connected, but configured test guild {} was not found", guildId);
+        if (!properties.isTestMode()) {
+            commands.forEach(command -> registerGlobally(jda, command));
+            LOGGER.info("Discord bot connected; global command registration requested");
             return;
         }
 
-        register(guild, guildId, Commands.slash("deefy", "Comandos do Deefy")
-                .addSubcommands(new SubcommandData("ping", "Verifica se o bot está conectado")));
-        register(guild, guildId, Commands.slash("entrar", "Conecta o bot ao seu canal de voz"));
-        register(guild, guildId, Commands.slash("sair", "Desconecta o bot do canal de voz"));
-        register(guild, guildId, Commands.slash("tocar", "Toca uma faixa do catálogo Deefy")
-                .addOption(OptionType.STRING, "musica", "ID ou título da faixa", true));
+        String guildId = properties.getTestGuildId().trim();
+        Guild guild = jda.getGuildById(guildId);
+        if (guild == null) {
+            LOGGER.error("Discord bot connected, but the configured test guild was not found");
+            return;
+        }
 
-        LOGGER.info("Discord bot connected and ready in test guild {}", guildId);
+        commands.forEach(command -> registerInTestGuild(guild, command));
+        LOGGER.info("Discord bot connected; test-guild command registration requested");
     }
 
-    private void register(Guild guild, String guildId, CommandData command) {
+    private List<CommandData> commands() {
+        OptionData music = new OptionData(
+                OptionType.STRING,
+                "musica",
+                "Título ou título - artista (ID também é aceito)",
+                true
+        ).setAutoComplete(true);
+
+        return List.of(
+                Commands.slash("deefy", "Comandos do Deefy")
+                        .addSubcommands(new SubcommandData("ping", "Verifica se o bot está conectado")),
+                Commands.slash("entrar", "Conecta o bot ao seu canal de voz"),
+                Commands.slash("sair", "Desconecta o bot do canal de voz"),
+                Commands.slash("tocar", "Toca uma faixa do catálogo Deefy").addOptions(music)
+        );
+    }
+
+    private void registerGlobally(JDA jda, CommandData command) {
+        jda.upsertCommand(command)
+                .queue(
+                        registered -> LOGGER.info("Discord global command /{} registered", command.getName()),
+                        error -> LOGGER.error("Could not register Discord global command /{}", command.getName())
+                );
+    }
+
+    private void registerInTestGuild(Guild guild, CommandData command) {
         guild.upsertCommand(command)
                 .queue(
-                        registered -> LOGGER.info(
-                                "Discord command /{} registered in test guild {}",
-                                command.getName(),
-                                guildId
-                        ),
-                        error -> LOGGER.error(
-                                "Could not register Discord command /{} in test guild {}",
-                                command.getName(),
-                                guildId
-                        )
+                        registered -> LOGGER.info("Discord command /{} registered in test guild", command.getName()),
+                        error -> LOGGER.error("Could not register Discord command /{} in test guild", command.getName())
                 );
     }
 }
