@@ -14,8 +14,13 @@ class DiscordBotLifecycleTest {
 
         DiscordBotLifecycle lifecycle = new DiscordBotLifecycle(
                 properties,
-                new DiscordCommandListener(properties, mock(DiscordVoiceConnectionService.class)),
-                new DiscordCommandRegistrar(properties)
+                new DiscordCommandListener(
+                        properties,
+                        mock(DiscordVoiceConnectionService.class),
+                        mock(DiscordPlaybackService.class)
+                ),
+                new DiscordCommandRegistrar(properties),
+                mock(DiscordPlaybackSessionService.class)
         );
 
         lifecycle.start();
@@ -31,8 +36,13 @@ class DiscordBotLifecycleTest {
 
         DiscordBotLifecycle lifecycle = new DiscordBotLifecycle(
                 properties,
-                new DiscordCommandListener(properties, mock(DiscordVoiceConnectionService.class)),
-                new DiscordCommandRegistrar(properties)
+                new DiscordCommandListener(
+                        properties,
+                        mock(DiscordVoiceConnectionService.class),
+                        mock(DiscordPlaybackService.class)
+                ),
+                new DiscordCommandRegistrar(properties),
+                mock(DiscordPlaybackSessionService.class)
         );
 
         lifecycle.start();
@@ -46,8 +56,13 @@ class DiscordBotLifecycleTest {
         DiscordBotProperties properties = new DiscordBotProperties();
         DiscordBotLifecycle lifecycle = new DiscordBotLifecycle(
                 properties,
-                new DiscordCommandListener(properties, mock(DiscordVoiceConnectionService.class)),
-                new DiscordCommandRegistrar(properties)
+                new DiscordCommandListener(
+                        properties,
+                        mock(DiscordVoiceConnectionService.class),
+                        mock(DiscordPlaybackService.class)
+                ),
+                new DiscordCommandRegistrar(properties),
+                mock(DiscordPlaybackSessionService.class)
         );
 
         assertThat(lifecycle.isRunning()).isFalse();

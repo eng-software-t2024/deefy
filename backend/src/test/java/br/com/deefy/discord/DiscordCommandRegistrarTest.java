@@ -20,7 +20,7 @@ class DiscordCommandRegistrarTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void shouldRegisterPingJoinAndLeaveOnlyInTheConfiguredGuild() {
+    void shouldRegisterPingJoinLeaveAndPlayOnlyInTheConfiguredGuild() {
         DiscordBotProperties properties = new DiscordBotProperties();
         properties.setTestGuildId("123456789012345678");
         DiscordCommandRegistrar registrar = new DiscordCommandRegistrar(properties);
@@ -36,9 +36,9 @@ class DiscordCommandRegistrarTest {
         registrar.onReady(event);
 
         ArgumentCaptor<CommandData> commands = ArgumentCaptor.forClass(CommandData.class);
-        verify(guild, times(3)).upsertCommand(commands.capture());
+        verify(guild, times(4)).upsertCommand(commands.capture());
         assertThat(commands.getAllValues())
                 .extracting(CommandData::getName)
-                .containsExactly("deefy", "entrar", "sair");
+                .containsExactly("deefy", "entrar", "sair", "tocar");
     }
 }

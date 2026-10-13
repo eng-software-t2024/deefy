@@ -1,0 +1,12 @@
+# Non-secret deployment inputs for docker-compose.discord-bot.yml.
+# Keep all secret values in protected deployment sources.
+DEEFY_DISCORD_BOT_IMAGE_TAG=local
+DEEFY_DISCORD_TEST_GUILD_ID=
+DEEFY_API_URL=
+DEEFY_SELFHOST_NETWORK=
+DEEFY_DISCORD_TOKEN_SOURCE_FILE=
+
+SPRING_DATASOURCE_URL=
+SPRING_DATASOURCE_USERNAME=
+SPRING_DATASOURCE_PASSWORD=
+JWT_SECRET=

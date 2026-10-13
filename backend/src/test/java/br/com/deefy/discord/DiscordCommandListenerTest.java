@@ -3,6 +3,7 @@ package br.com.deefy.discord;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.Test;
 
@@ -19,12 +20,15 @@ class DiscordCommandListenerTest {
     void shouldIgnoreJoinCommandFromDirectMessage() {
         DiscordBotProperties properties = configuredProperties();
         DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
         when(event.isFromGuild()).thenReturn(false);
 
-        new DiscordCommandListener(properties, voiceConnectionService).onSlashCommandInteraction(event);
+        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
+                .onSlashCommandInteraction(event);
 
         verifyNoInteractions(voiceConnectionService);
+        verifyNoInteractions(playbackService);
         verify(event, never()).reply(anyString());
     }
 
@@ -42,7 +46,7 @@ class DiscordCommandListenerTest {
         when(event.reply("pong")).thenReturn(replyAction);
 
         DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
-        new DiscordCommandListener(properties, voiceConnectionService)
+        new DiscordCommandListener(properties, voiceConnectionService, mock(DiscordPlaybackService.class))
                 .onSlashCommandInteraction(event);
 
         verify(event).reply("pong");
@@ -62,7 +66,8 @@ class DiscordCommandListenerTest {
         when(event.getSubcommandName()).thenReturn("ping");
 
         DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
-        new DiscordCommandListener(properties, voiceConnectionService).onSlashCommandInteraction(event);
+        new DiscordCommandListener(properties, voiceConnectionService, mock(DiscordPlaybackService.class))
+                .onSlashCommandInteraction(event);
 
         verify(event, never()).reply("pong");
         verifyNoInteractions(voiceConnectionService);
@@ -88,7 +93,8 @@ class DiscordCommandListenerTest {
         when(event.reply(response)).thenReturn(replyAction);
         when(replyAction.setEphemeral(true)).thenReturn(replyAction);
 
-        new DiscordCommandListener(properties, voiceConnectionService).onSlashCommandInteraction(event);
+        new DiscordCommandListener(properties, voiceConnectionService, mock(DiscordPlaybackService.class))
+                .onSlashCommandInteraction(event);
 
         verify(voiceConnectionService).join(guild, member);
         verify(replyAction).setEphemeral(true);
@@ -115,9 +121,12 @@ class DiscordCommandListenerTest {
         when(event.reply(response)).thenReturn(replyAction);
         when(replyAction.setEphemeral(true)).thenReturn(replyAction);
 
-        new DiscordCommandListener(properties, voiceConnectionService).onSlashCommandInteraction(event);
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
+                .onSlashCommandInteraction(event);
 
         verify(voiceConnectionService).leave(guild, member);
+        verify(playbackService).stop(guild);
         verify(replyAction).setEphemeral(true);
         verify(replyAction).queue();
     }
@@ -143,12 +152,47 @@ class DiscordCommandListenerTest {
         when(event.reply(failureResponse)).thenReturn(replyAction);
         when(replyAction.setEphemeral(true)).thenReturn(replyAction);
 
-        new DiscordCommandListener(properties, voiceConnectionService).onSlashCommandInteraction(event);
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
+                .onSlashCommandInteraction(event);
 
         verify(event).reply(failureResponse);
         verify(event, never()).reply(
                 DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED.responseMessage()
         );
+        verify(replyAction).setEphemeral(true);
+        verify(replyAction).queue();
+        verify(playbackService, never()).stop(guild);
+    }
+
+    @Test
+    void shouldRoutePlayCommandWithRequiredMusicOption() {
+        DiscordBotProperties properties = configuredProperties();
+        DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
+        Guild guild = mock(Guild.class);
+        Member member = mock(Member.class);
+        OptionMapping option = mock(OptionMapping.class);
+        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
+        String response = "Faixa preparada para reprodução.";
+
+        when(event.isFromGuild()).thenReturn(true);
+        when(event.getGuild()).thenReturn(guild);
+        when(event.getMember()).thenReturn(member);
+        when(guild.getId()).thenReturn(properties.getTestGuildId());
+        when(event.getName()).thenReturn("tocar");
+        when(event.getOption("musica")).thenReturn(option);
+        when(option.getAsString()).thenReturn("13");
+        when(playbackService.play(guild, member, "13"))
+                .thenReturn(new DiscordPlaybackService.PlaybackCommandResult(response));
+        when(event.reply(response)).thenReturn(replyAction);
+        when(replyAction.setEphemeral(true)).thenReturn(replyAction);
+
+        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
+                .onSlashCommandInteraction(event);
+
+        verify(playbackService).play(guild, member, "13");
         verify(replyAction).setEphemeral(true);
         verify(replyAction).queue();
     }

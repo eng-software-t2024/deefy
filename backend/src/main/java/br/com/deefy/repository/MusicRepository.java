@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface MusicRepository extends JpaRepository<Music, Long> {
@@ -21,6 +22,9 @@ public interface MusicRepository extends JpaRepository<Music, Long> {
 
     @EntityGraph(attributePaths = "artist")
     Page<Music> findByTitleContainingIgnoreCase(String title, Pageable pageable);
+
+    @EntityGraph(attributePaths = "artist")
+    List<Music> findByTitleIgnoreCase(String title);
 
     @EntityGraph(attributePaths = "artist")
     @Query("SELECT m FROM Music m JOIN m.artist a WHERE LOWER(a.nome) LIKE LOWER(CONCAT('%', :artistName, '%'))")
