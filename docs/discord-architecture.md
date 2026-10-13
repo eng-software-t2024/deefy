@@ -9,11 +9,14 @@ neste texto identificam tarefas do Taiga acadêmico, não GitHub Issues.
 A integração tem como objetivo oferecer recursos do Deefy dentro de guilds do
 Discord por comandos de interação. O código atual conecta um cliente JDA ao
 processo Spring e oferece `/deefy ping`, `/entrar`, `/sair` e
-`/tocar musica:<id-ou-titulo>`. Nesta etapa, os quatro comandos são registrados
-somente na guild de teste. `/entrar` e `/sair` conectam e desconectam o bot de
-canais de voz comuns; `/tocar` reproduz uma única faixa do catálogo self-hosted.
-Cada guild mantém estado de conexão independente, e uma conexão existente não
-é movida silenciosamente para outro canal.
+`/tocar musica:<titulo-ou-titulo-artista>`. No modo normal, os quatro comandos
+são registrados globalmente e podem ser usados em qualquer guild na qual o bot
+tenha sido convidado com as permissões necessárias. Um modo de teste explícito
+e desativado por padrão pode restringir registro e execução a uma única guild.
+`/entrar` e `/sair` conectam e desconectam o bot de canais de voz comuns;
+`/tocar` reproduz uma única faixa do catálogo self-hosted. Cada guild mantém
+estado de conexão independente, e uma conexão existente não é movida
+silenciosamente para outro canal.
 
 Esta arquitetura cobre:
 
@@ -50,12 +53,12 @@ fila.
 
 | Componente | Responsabilidade | Entradas | Saídas e efeitos | Dependências e limites |
 |---|---|---|---|---|
-| `DiscordBotProperties` | Mapear e validar a configuração `deefy.discord` | Propriedades Spring derivadas do ambiente | Estado de configuração e lista de erros de validação | Aceita token legado em ambiente ou arquivo protegido, sem registrar o valor; valida guild como inteiro sem sinal |
+| `DiscordBotProperties` | Mapear e validar a configuração `deefy.discord` | Propriedades Spring derivadas do ambiente | Estado de configuração, política de guild e lista de erros de validação | Aceita token legado em ambiente ou arquivo protegido, sem registrar o valor; a guild só é obrigatória no modo de teste explícito |
 | `DiscordBotLifecycle` | Integrar o cliente JDA ao ciclo de vida Spring | Propriedades, listener, registrar e `ReadyEvent` | Criação do JDA, estado `running` e shutdown | Usa `JDABuilder`; não registra comandos nem trata regras de negócio |
-| `DiscordCommandRegistrar` | Registrar os comandos disponíveis na guild de teste | `ReadyEvent` e guild configurada | `upsertCommand` assíncrono para `/deefy ping`, `/entrar`, `/sair` e `/tocar`, com logs do resultado | Não executa comandos nem registra globalmente. Se a guild não for encontrada, registra erro e encerra o processamento do evento |
-| `DiscordCommandListener` | Filtrar e rotear as interações suportadas | `SlashCommandInteractionEvent` | Resposta `pong` ou respostas efêmeras dos casos de voz/reprodução | Aceita apenas eventos da guild configurada e não acessa repositórios nem FFmpeg diretamente |
+| `DiscordCommandRegistrar` | Registrar os comandos disponíveis | `ReadyEvent` e política de guild | `upsertCommand` individual e assíncrono para `/deefy ping`, `/entrar`, `/sair` e `/tocar`, com logs do resultado | Registra globalmente por padrão sem substituir comandos não relacionados; no modo de teste, registra somente na guild configurada |
+| `DiscordCommandListener` | Filtrar e rotear as interações e o autocomplete suportados | Eventos slash/autocomplete | Resposta `pong`, sugestões ou respostas efêmeras dos casos de voz/reprodução | Aceita qualquer guild no modo normal e somente a configurada no modo de teste; não acessa repositórios nem FFmpeg diretamente |
 | `DiscordVoiceConnectionService` | Aplicar as regras de entrada e saída de voz por guild | Guild, membro solicitante e estado JDA do canal | Abertura ou fechamento da conexão de voz e resultado controlado | Suporta apenas canais de voz comuns; não move conexão existente, não reproduz áudio e não possui fila nem proprietário exclusivo |
-| `DiscordTrackCatalog` | Resolver ID ou título no catálogo | Entrada textual e `MusicRepository` | Faixa normalizada ou erro de ausência, ambiguidade ou origem | Somente leitura; recusa URL fora do origin de `DEEFY_API_URL`, assinada ou do Supabase antigo |
+| `DiscordTrackCatalog` | Resolver título, título + artista ou ID técnico no catálogo | Entrada textual e `MusicRepository` | Faixa normalizada, sugestões ou erro de ausência, ambiguidade ou origem | Normaliza caixa, acentos e espaços; entende créditos importados; recusa URL fora do origin de `DEEFY_API_URL`, assinada ou do Supabase antigo |
 | `DiscordPlaybackSessionService` | Possuir uma sessão ativa por guild | Guild, membro e faixa resolvida | Fonte JDA, estado e cleanup restritos à guild | Uma segunda faixa é recusada; não implementa fila nem troca silenciosa de canal |
 | `DiscordFfmpegAudioSource` | Converter mídia self-hosted em PCM de 20 ms | Processo FFmpeg sem shell | Frames PCM para `AudioSendHandler` | Não registra URL e libera stream/processo no término, erro ou saída |
 | JDA 6.7.0 | Adaptar Gateway, eventos e operações da API Discord | Token, listeners e chamadas assíncronas | Eventos JDA e ações remotas | Dependência declarada em `backend/pom.xml`; não substitui as regras de aplicação do Deefy |
@@ -65,13 +68,15 @@ A configuração é ligada por:
 - `DEEFY_DISCORD_ENABLED`;
 - `DEEFY_DISCORD_TOKEN`;
 - `DEEFY_DISCORD_TOKEN_FILE` (preferido para Docker secret);
+- `DEEFY_DISCORD_TEST_MODE` (opcional, `false` por padrão);
 - `DEEFY_DISCORD_TEST_GUILD_ID`;
 - `DEEFY_API_URL` (origin self-hosted permitido para áudio).
 
 Os nomes são mapeados em `backend/src/main/resources/application.properties`.
 Quando não informada, a ativação é `false`. O modelo futuro
 `docker-compose.discord-bot.yml` usa arquivo protegido para o token, não publica
-portas e exige configuração explícita da guild e da origem self-hosted.
+portas e exige a origem self-hosted. A guild só é exigida quando
+`DEEFY_DISCORD_TEST_MODE=true`.
 
 A cobertura Discord inclui:
 
@@ -79,10 +84,10 @@ A cobertura Discord inclui:
   inválida;
 - `DiscordBotLifecycleTest`: integração desativada, configuração incompleta e
   transição para `running` após o evento de pronto;
-- `DiscordCommandListenerTest`: resposta ao ping, descarte de guild não
-  autorizada e roteamento de `/entrar`, `/sair` e `/tocar`;
-- `DiscordCommandRegistrarTest`: registro dos quatro comandos somente na guild
-  de teste;
+- `DiscordCommandListenerTest`: resposta ao ping, modo global, descarte de guild
+  no modo de teste, autocomplete e roteamento de `/entrar`, `/sair` e `/tocar`;
+- `DiscordCommandRegistrarTest`: registro global individual ou registro
+  restrito quando o modo de teste está explicitamente habilitado;
 - `DiscordVoiceConnectionServiceTest`: canal e permissão, idempotência,
   concorrência por guild, isolamento entre guilds e saída controlada;
 - testes de catálogo/origem, sessões por guild e fonte PCM/FFmpeg, todos com
@@ -93,7 +98,7 @@ A cobertura Discord inclui:
 ```text
                          estado atual
 
-Discord (guild de teste)
+Discord (qualquer guild autorizada pela instalação do bot)
         | eventos e interactions
         v
 JDA client -- ciclo de vida --> DiscordBotLifecycle
@@ -140,15 +145,15 @@ controlados pela aplicação.
 2. Como `SmartLifecycle`, `DiscordBotLifecycle` recebe o início do contexto.
 3. Se `enabled` for `false`, registra que a integração está desativada e não
    cria o JDA.
-4. Se ativada, valida token e guild. Configuração ausente ou guild que não seja
-   um inteiro sem sinal impede o início sem encerrar o backend.
+4. Se ativada, valida o token. A guild só é obrigatória e validada quando o modo
+   de teste explícito está ativo; no modo normal sua ausência é válida.
 5. Com configuração válida, `JDABuilder.createDefault` cria o cliente e recebe
    como listeners `DiscordCommandListener`, `DiscordCommandRegistrar` e o
    próprio lifecycle.
 6. A construção solicita a inicialização de forma assíncrona. O estado só muda
    para `running` quando `DiscordBotLifecycle` recebe `ReadyEvent`.
-7. No mesmo tipo de evento, `DiscordCommandRegistrar` procura a guild de teste
-   e solicita o registro de `/deefy ping`.
+7. No mesmo tipo de evento, `DiscordCommandRegistrar` faz `upsert` individual
+   dos quatro comandos globais ou, no modo de teste, na guild configurada.
 8. Na parada do contexto, o lifecycle zera suas referências e chama
    `shutdownNow()` no cliente existente. Na variante com callback, o callback é
    executado mesmo após a tentativa de shutdown.
@@ -157,9 +162,10 @@ O comportamento seguro atual é:
 
 - bot desativado: backend segue ativo sem cliente Discord;
 - token ausente: inicialização do JDA não é tentada;
-- guild ausente ou inválida: inicialização não é tentada;
-- guild válida na configuração, mas não encontrada após a conexão: o JDA pode
-  estar pronto, porém o comando não é registrado;
+- guild ausente no modo normal: não impede a inicialização;
+- guild ausente ou inválida no modo de teste: inicialização não é tentada;
+- guild de teste válida, mas não encontrada após a conexão: o JDA pode estar
+  pronto, porém os comandos restritos não são registrados;
 - falha síncrona ao construir o JDA: referência e estado são limpos, o erro é
   registrado e o backend permanece em execução;
 - encerramento da aplicação: o cliente existente recebe shutdown imediato.
@@ -172,12 +178,20 @@ ser confundido com uma política implementada e testada pelo Deefy.
 
 O fluxo atual de `/deefy ping` é:
 
-1. após `ReadyEvent`, o registrar localiza a guild configurada;
-2. solicita `upsert` do comando raiz `deefy` com o subcomando `ping`;
+1. após `ReadyEvent`, o registrar escolhe o escopo global ou a guild de teste;
+2. solicita `upsert` individual dos comandos, sem limpar comandos não
+   relacionados da aplicação;
 3. o listener recebe uma `SlashCommandInteractionEvent`;
-4. descarta eventos fora de guild e valida guild, comando e subcomando;
+4. descarta eventos fora de guild e aplica a restrição apenas no modo de teste;
 5. para a combinação suportada, responde `pong` por uma ação assíncrona;
 6. interações de outro contexto são ignoradas, sem resposta de erro.
+
+Em `/tocar`, o campo `musica` oferece autocomplete do catálogo self-hosted e
+aceita título, `título - artista` ou ID como alternativa técnica. O resolvedor
+normaliza caixa, acentos e espaços e prioriza título + artista exatos, título
+exato e só então correspondências parciais. Hífens internos permanecem parte do
+título quando essa for a correspondência correta. Resultados ambíguos retornam
+opções para refinamento e nunca iniciam uma faixa arbitrária.
 
 Para comandos futuros, o registro permanece na borda JDA, mas a execução deve
 ser incrementalmente separada por caso de uso:
@@ -258,7 +272,8 @@ As regras de integração são:
 | `DEEFY_DISCORD_ENABLED` | Habilitar explicitamente a integração | Permanecer `false` por padrão |
 | `DEEFY_DISCORD_TOKEN` | Autenticar o cliente bot no Discord | Segredo externo ao Git, nunca registrado ou exibido |
 | `DEEFY_DISCORD_TOKEN_FILE` | Ler o token por arquivo protegido | Preferido no serviço Docker; `/run/secrets/deefy_discord_token` |
-| `DEEFY_DISCORD_TEST_GUILD_ID` | Restringir registro e execução à guild controlada | Valor validado e diferente de uma permissão global |
+| `DEEFY_DISCORD_TEST_MODE` | Ativar restrição temporária para teste controlado | `false` por padrão; não é necessário no uso normal |
+| `DEEFY_DISCORD_TEST_GUILD_ID` | Guild permitida quando o modo de teste está ativo | Obrigatória somente com `DEEFY_DISCORD_TEST_MODE=true` |
 | `DEEFY_API_URL` | Definir o origin self-hosted aceito para as mídias | URL sem credenciais; outro origin, URL assinada e Supabase antigo são recusados |
 
 Regras de segurança:
@@ -266,7 +281,8 @@ Regras de segurança:
 - o token não entra no Git, logs, exceções reproduzidas, mensagens ou capturas;
 - o `.env` real permanece ignorado; templates contêm somente nomes e
   placeholders sem valor real;
-- a guild de teste é obrigatória enquanto a validação estiver controlada;
+- a restrição por guild é opcional, explicitamente ativada e desabilitada por
+  padrão; o modo normal atende todas as guilds em que o bot foi autorizado;
 - intents futuros devem ser mínimos, declarados explicitamente e revisados antes
   da ativação; hoje não há configuração explícita de intents no projeto;
 - permissões do bot e OAuth seguem menor privilégio por comando, canal e guild;
@@ -289,8 +305,8 @@ evolução deve adotar a seguinte pirâmide:
    interfaces simuladas, sem exigir a implementação da #79.
 3. **Componente:** lifecycle com fábrica/cliente controlável, incluindo falha de
    início, evento pronto, desconexão e shutdown.
-4. **Integração controlada:** registro e conexão somente em guild de teste, com
-   credenciais fornecidas fora do repositório e execução explicitamente opt-in.
+4. **Integração controlada:** o modo de teste restringe registro e execução a
+   uma guild, com credenciais fora do repositório e execução opt-in.
 5. **Cenários de voz:** preferir simulação de canal, fonte e envio de áudio;
    testes reais ficam isolados, controlados e não fazem parte da suíte comum.
 
@@ -326,10 +342,10 @@ Nenhum teste unitário deve conectar ao Discord real.
 - A reconexão não está explicitamente implementada nem testada.
 - Intents não estão explicitamente definidos no código atual.
 - Presença, controles, política ampla de permissões e fila não estão
-  implementados. A reprodução cobre uma única faixa por guild na guild de teste.
-- A guild configurada pode não ser encontrada depois do JDA ficar pronto; esse
-  caso impede o registro do comando, mas não muda o estado `running` do
-  lifecycle.
+  implementados. A reprodução cobre uma única faixa independente por guild.
+- No modo de teste, a guild configurada pode não ser encontrada depois do JDA
+  ficar pronto; esse caso impede o registro dos comandos restritos, mas não muda
+  o estado `running` do lifecycle.
 - Falhas assíncronas de resposta e registro são tratadas de forma limitada; o
   registrar possui callback de erro, enquanto a resposta `pong` não possui.
 - Os templates `.env.example` e `.env.production.example` estão incompletos para

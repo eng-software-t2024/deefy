@@ -18,6 +18,9 @@ public interface MusicRepository extends JpaRepository<Music, Long> {
     Page<Music> findAll(Pageable pageable);
 
     @EntityGraph(attributePaths = "artist")
+    List<Music> findAllByOrderByIdAsc();
+
+    @EntityGraph(attributePaths = "artist")
     Optional<Music> findWithArtistById(Long id);
 
     @EntityGraph(attributePaths = "artist")

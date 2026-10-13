@@ -1,9 +1,13 @@
 package br.com.deefy.discord;
 
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 
 @Component
 public class DiscordCommandListener extends ListenerAdapter {
@@ -35,7 +39,7 @@ public class DiscordCommandListener extends ListenerAdapter {
             return;
         }
 
-        if (!isConfiguredGuild(event)) {
+        if (!isAllowedGuild(event.getGuild() == null ? null : event.getGuild().getId())) {
             return;
         }
 
@@ -76,6 +80,21 @@ public class DiscordCommandListener extends ListenerAdapter {
         }
     }
 
+    @Override
+    public void onCommandAutoCompleteInteraction(CommandAutoCompleteInteractionEvent event) {
+        if (!event.isFromGuild()
+                || !isAllowedGuild(event.getGuild() == null ? null : event.getGuild().getId())
+                || !PLAY_COMMAND.equals(event.getName())
+                || !MUSIC_OPTION.equals(event.getFocusedOption().getName())) {
+            return;
+        }
+
+        List<Command.Choice> choices = playbackService.suggest(event.getFocusedOption().getValue()).stream()
+                .map(suggestion -> new Command.Choice(suggestion.label(), suggestion.value()))
+                .toList();
+        event.replyChoices(choices).queue();
+    }
+
     private void replyWithVoiceResult(
             SlashCommandInteractionEvent event,
             DiscordVoiceConnectionService.VoiceCommandResult result
@@ -85,9 +104,7 @@ public class DiscordCommandListener extends ListenerAdapter {
                 .queue();
     }
 
-    private boolean isConfiguredGuild(SlashCommandInteractionEvent event) {
-        return event.getGuild() != null
-                && properties.getTestGuildId() != null
-                && event.getGuild().getId().equals(properties.getTestGuildId().trim());
+    private boolean isAllowedGuild(String guildId) {
+        return properties.isGuildAllowed(guildId);
     }
 }

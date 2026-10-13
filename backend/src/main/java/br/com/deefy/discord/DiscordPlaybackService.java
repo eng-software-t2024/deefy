@@ -4,6 +4,9 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 public class DiscordPlaybackService {
 
@@ -18,12 +21,12 @@ public class DiscordPlaybackService {
         this.sessionService = sessionService;
     }
 
-    public PlaybackCommandResult play(Guild guild, Member requester, String idOrTitle) {
-        DiscordTrackCatalog.TrackLookupResult lookup = trackCatalog.find(idOrTitle);
+    public PlaybackCommandResult play(Guild guild, Member requester, String titleArtistOrId) {
+        DiscordTrackCatalog.TrackLookupResult lookup = trackCatalog.find(titleArtistOrId);
         if (lookup.status() != DiscordTrackCatalog.TrackLookupStatus.FOUND) {
             return switch (lookup.status()) {
-                case INVALID_QUERY -> result("Informe o ID ou o título da faixa.");
-                case AMBIGUOUS -> result("Encontrei mais de uma faixa. Use o ID para escolher uma delas.");
+                case INVALID_QUERY -> result("Informe o título ou título - artista da faixa.");
+                case AMBIGUOUS -> result(ambiguousMessage(lookup.choices()));
                 case MISSING_AUDIO_URL -> result("Essa faixa não possui um áudio disponível.");
                 case UNSAFE_SOURCE -> result("A faixa não usa uma origem self-hosted autorizada.");
                 default -> result("Não encontrei essa faixa no catálogo Deefy.");
@@ -48,6 +51,12 @@ public class DiscordPlaybackService {
         };
     }
 
+    public List<PlaybackSuggestion> suggest(String query) {
+        return trackCatalog.suggest(query).stream()
+                .map(choice -> new PlaybackSuggestion(choice.label(), choice.value()))
+                .toList();
+    }
+
     public void stop(Guild guild) {
         sessionService.stop(guild);
     }
@@ -56,6 +65,16 @@ public class DiscordPlaybackService {
         return new PlaybackCommandResult(responseMessage);
     }
 
+    private String ambiguousMessage(List<DiscordTrackCatalog.TrackChoice> choices) {
+        String options = choices.stream()
+                .map(DiscordTrackCatalog.TrackChoice::label)
+                .collect(Collectors.joining("; "));
+        return "Encontrei mais de uma faixa: %s. Refine usando título - artista.".formatted(options);
+    }
+
     public record PlaybackCommandResult(String responseMessage) {
+    }
+
+    public record PlaybackSuggestion(String label, String value) {
     }
 }
