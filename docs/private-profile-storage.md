@@ -27,6 +27,31 @@ O endpoint legado que aceitava uma URL arbitrária por `PATCH /me/photo` deixa d
 fazer parte do contrato seguro. Valores legados de `fotoperfilurl` não são
 apagados automaticamente por estas migrations.
 
+## Compatibilidade temporária do frontend
+
+O frontend possui dois modos controlados por
+`VITE_PRIVATE_PROFILE_PHOTO_ENABLED`, cujo valor padrão é `false` quando a
+variável está ausente:
+
+- `false`: não chama o proxy privado, continua exibindo `fotoPerfilUrl` ou o
+  avatar por iniciais e mantém upload/delete privados indisponíveis;
+- `true`: tenta primeiro `GET /users/me/photo`; somente um `404` usa
+  `fotoPerfilUrl` como fallback. Falhas operacionais permanecem distinguíveis
+  de ausência de foto.
+
+O inventário atual possui 9 referências legadas, todas em URLs externas da
+origem Supabase hospedada anterior, enquanto o Storage self-hosted não possui
+esses objetos. Este patch não faz backfill automático, não copia objetos e não
+reescreve essas URLs. O fallback existe apenas para evitar regressão visual
+durante a transição.
+
+Backend e frontend deste contrato devem entrar no mesmo release. A sequência
+planejada é: validar migrations e bucket privado em homologação; validar proxy,
+upload e delete com a flag ainda desabilitada; publicar backend e frontend
+juntos; habilitar a flag somente após essas guardas; reconciliar as 9
+referências em uma tarefa separada; e remover o fallback apenas depois de o
+inventário legado chegar a zero. Não deve haver ativação isolada do frontend.
+
 ## Ownership e paths
 
 O backend gera `profiles/<usuario-id>/<uuid>.<ext>`. O cliente nunca fornece

@@ -1,31 +1,54 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import api from "../services/api";
 
-export function usePrivateProfilePhoto(identityKey) {
-  const [photoUrl, setPhotoUrl] = useState(null);
+export const PRIVATE_PROFILE_PHOTO_ENABLED =
+  import.meta.env.VITE_PRIVATE_PROFILE_PHOTO_ENABLED === "true";
+
+const normalizeLegacyUrl = (legacyUrl) => (
+  typeof legacyUrl === "string" && legacyUrl.trim() ? legacyUrl.trim() : null
+);
+
+export function usePrivateProfilePhoto({
+  identityKey,
+  legacyUrl = null,
+  enabled = false,
+} = {}) {
+  const normalizedLegacyUrl = normalizeLegacyUrl(legacyUrl);
+  const [photoUrl, setPhotoUrl] = useState(normalizedLegacyUrl);
+  const [hasPrivatePhoto, setHasPrivatePhoto] = useState(false);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState(null);
   const objectUrlRef = useRef(null);
+  const legacyUrlRef = useRef(normalizedLegacyUrl);
+  const legacySuppressedRef = useRef(false);
   const requestSequenceRef = useRef(0);
 
-  const replaceObjectUrl = useCallback((nextUrl) => {
-    const previousUrl = objectUrlRef.current;
-    if (previousUrl && previousUrl !== nextUrl) {
-      URL.revokeObjectURL(previousUrl);
+  const replacePhoto = useCallback((nextUrl, isPrivate) => {
+    const previousObjectUrl = objectUrlRef.current;
+    if (previousObjectUrl && previousObjectUrl !== nextUrl) {
+      URL.revokeObjectURL(previousObjectUrl);
     }
 
-    objectUrlRef.current = nextUrl;
+    objectUrlRef.current = isPrivate ? nextUrl : null;
     setPhotoUrl(nextUrl);
+    setHasPrivatePhoto(isPrivate);
   }, []);
 
-  const clearPhoto = useCallback(() => {
-    requestSequenceRef.current += 1;
-    replaceObjectUrl(null);
-    setLoadingPhoto(false);
-  }, [replaceObjectUrl]);
+  const showLegacyPhoto = useCallback(() => {
+    const fallbackUrl = legacySuppressedRef.current ? null : legacyUrlRef.current;
+    replacePhoto(fallbackUrl, false);
+  }, [replacePhoto]);
 
   const loadPhoto = useCallback(async () => {
+    if (!enabled || identityKey === null || identityKey === undefined) {
+      setPhotoError(null);
+      showLegacyPhoto();
+      return false;
+    }
+
     const requestSequence = ++requestSequenceRef.current;
     setLoadingPhoto(true);
+    setPhotoError(null);
 
     try {
       const response = await api.get("/users/me/photo", {
@@ -38,8 +61,7 @@ export function usePrivateProfilePhoto(identityKey) {
 
       const photoBlob = response.data;
       if (!(photoBlob instanceof Blob) || photoBlob.size === 0) {
-        replaceObjectUrl(null);
-        return false;
+        throw new Error("A API retornou uma foto privada vazia ou inválida.");
       }
 
       const nextUrl = URL.createObjectURL(photoBlob);
@@ -48,7 +70,7 @@ export function usePrivateProfilePhoto(identityKey) {
         return false;
       }
 
-      replaceObjectUrl(nextUrl);
+      replacePhoto(nextUrl, true);
       return true;
     } catch (error) {
       if (requestSequence !== requestSequenceRef.current) {
@@ -56,19 +78,25 @@ export function usePrivateProfilePhoto(identityKey) {
       }
 
       if (error?.status === 404) {
-        replaceObjectUrl(null);
+        setPhotoError(null);
+        showLegacyPhoto();
         return false;
       }
 
+      setPhotoError("operational");
       throw error;
     } finally {
       if (requestSequence === requestSequenceRef.current) {
         setLoadingPhoto(false);
       }
     }
-  }, [replaceObjectUrl]);
+  }, [enabled, identityKey, replacePhoto, showLegacyPhoto]);
 
   const uploadPhoto = useCallback(async (file) => {
+    if (!enabled) {
+      throw new Error("A foto de perfil privada ainda não está habilitada.");
+    }
+
     const formData = new FormData();
     formData.append("file", file);
 
@@ -77,30 +105,48 @@ export function usePrivateProfilePhoto(identityKey) {
       throw new Error("A API não confirmou a disponibilidade da foto enviada.");
     }
 
+    // O backend elimina a referência legada quando uma nova foto privada é salva.
+    // Evita que um valor antigo reapareça após a mutação nesta sessão.
+    legacySuppressedRef.current = true;
     await loadPhoto();
     return response.data;
-  }, [loadPhoto]);
+  }, [enabled, loadPhoto]);
 
   const deletePhoto = useCallback(async () => {
+    if (!enabled) {
+      throw new Error("A foto de perfil privada ainda não está habilitada.");
+    }
+    if (!hasPrivatePhoto) {
+      throw new Error("Não existe foto privada para remover.");
+    }
+
     await api.delete("/users/me/photo");
-    clearPhoto();
-  }, [clearPhoto]);
+    requestSequenceRef.current += 1;
+    showLegacyPhoto();
+    setPhotoError(null);
+    setLoadingPhoto(false);
+  }, [enabled, hasPrivatePhoto, showLegacyPhoto]);
 
   useEffect(() => {
-    clearPhoto();
+    requestSequenceRef.current += 1;
+    legacyUrlRef.current = normalizedLegacyUrl;
+    legacySuppressedRef.current = false;
+    setPhotoError(null);
+    setLoadingPhoto(false);
+    replacePhoto(normalizedLegacyUrl, false);
 
-    if (identityKey === null || identityKey === undefined) {
+    if (!enabled || identityKey === null || identityKey === undefined) {
       return undefined;
     }
 
     loadPhoto().catch(() => {
-      // 401/403 seguem o interceptor compartilhado; outros erros mantêm o avatar padrão.
+      // O erro operacional fica disponível em photoError; o interceptor trata 401/403.
     });
 
     return () => {
       requestSequenceRef.current += 1;
     };
-  }, [clearPhoto, identityKey, loadPhoto]);
+  }, [enabled, identityKey, loadPhoto, normalizedLegacyUrl, replacePhoto]);
 
   useEffect(() => () => {
     requestSequenceRef.current += 1;
@@ -113,7 +159,10 @@ export function usePrivateProfilePhoto(identityKey) {
   return {
     photoUrl,
     hasPhoto: Boolean(photoUrl),
+    hasPrivatePhoto,
     loadingPhoto,
+    photoError,
+    mutationsEnabled: enabled,
     loadPhoto,
     uploadPhoto,
     deletePhoto,
