@@ -10,6 +10,7 @@ import { showMusicError, showMusicSuccess } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
 import BreadcrumbNav from "../components/BreadcrumbNav";
 import api from "../services/api";
+import { usePrivateProfilePhoto } from "../hooks/usePrivateProfilePhoto";
 
 function CustomProfile() {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ function CustomProfile() {
   const [fullName, setFullName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const { photoUrl, hasPhoto, loadingPhoto } = usePrivateProfilePhoto(profile?.id);
 
   // ── Load current profile ──────────────────────────────────────────
   useEffect(() => {
@@ -111,13 +113,13 @@ function CustomProfile() {
 
           {/* Avatar circle */}
           <div className="custom-profile-icon-circle">
-            {loadingProfile ? (
+            {loadingProfile || loadingPhoto ? (
               <div className="custom-profile-avatar-spinner">
                 <ButtonSpinner color="#02FFD4" />
               </div>
-            ) : profile?.fotoPerfilUrl ? (
+            ) : hasPhoto ? (
               <img
-                src={profile.fotoPerfilUrl}
+                src={photoUrl}
                 alt="Foto de perfil"
                 className="custom-profile-avatar-img"
               />
