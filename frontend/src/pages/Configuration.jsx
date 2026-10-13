@@ -16,6 +16,7 @@ import ButtonSpinner from "../components/ButtonSpinner";
 import { getApiErrorMessage } from "../utils/apiError";
 import { showMusicError } from "../utils/musicToast";
 import { removeToken } from "../utils/auth";
+import { usePrivateProfilePhoto } from "../hooks/usePrivateProfilePhoto";
 
 function Configuration() {
   const navigate = useNavigate();
@@ -23,6 +24,13 @@ function Configuration() {
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState(false);
+  const { photoUrl, hasPhoto, loadingPhoto } = usePrivateProfilePhoto(
+    profile?.id,
+    {
+      identityKey: profile?.id,
+      legacyUrl: profile?.fotoPerfilUrl,
+    }
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -79,13 +87,13 @@ function Configuration() {
         <div className="configuration-user">
           <div className="configuration-avatar-wrapper">
             <div className="configuration-user-img">
-              {loadingProfile ? (
+              {loadingProfile || loadingPhoto ? (
                 <div className="configuration-avatar-spinner">
                   <ButtonSpinner color="#02FFD4" />
                 </div>
-              ) : profile?.fotoPerfilUrl ? (
+              ) : hasPhoto ? (
                 <img
-                  src={profile.fotoPerfilUrl}
+                  src={photoUrl}
                   alt="Foto de perfil"
                   className="configuration-avatar-img"
                 />

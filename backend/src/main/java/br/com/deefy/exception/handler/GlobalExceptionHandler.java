@@ -123,6 +123,54 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidProfilePhotoException.class)
+    public ResponseEntity<ErrorDetails> handleInvalidProfilePhoto(
+            InvalidProfilePhotoException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ProfilePhotoTooLargeException.class)
+    public ResponseEntity<ErrorDetails> handleProfilePhotoTooLarge(
+            ProfilePhotoTooLargeException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ProfilePhotoNotFoundException.class)
+    public ResponseEntity<ErrorDetails> handleProfilePhotoNotFound(
+            ProfilePhotoNotFoundException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ProfilePhotoStorageOperationException.class)
+    public ResponseEntity<ErrorDetails> handleProfilePhotoStorageOperation(
+            ProfilePhotoStorageOperationException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_GATEWAY,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
     @ExceptionHandler(MusicNotFoundException.class)
     public ResponseEntity<ErrorDetails> handleMusicaNaoEncontradaException(
             MusicNotFoundException ex,

@@ -7,6 +7,7 @@ import "./EditProfile.css";
 import api from "../services/api";
 import { showMusicError, showMusicSuccess } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
+import { usePrivateProfilePhoto } from "../hooks/usePrivateProfilePhoto";
 
 function EditProfile() {
   const navigate = useNavigate();
@@ -16,6 +17,13 @@ function EditProfile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const {
+    photoUrl,
+    hasPhoto,
+    loadingPhoto,
+    uploadPhoto,
+    deletePhoto,
+  } = usePrivateProfilePhoto(profile?.id);
 
   // ── Fetch current user profile on mount ─────────────────────────
   useEffect(() => {
@@ -55,18 +63,11 @@ function EditProfile() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     setIsUploading(true);
     try {
-      const res = await api.post('/users/me/photo/upload', formData, {
-        headers: { 'Content-Type': undefined },
-      });
-      setProfile(res.data);
+      await uploadPhoto(file);
       showMusicSuccess('Foto de perfil atualizada com sucesso!');
     } catch (err) {
-      console.error('Erro no upload de foto:', err);
       showMusicError(err?.message || 'Falha ao atualizar a foto de perfil.');
     } finally {
       setIsUploading(false);
@@ -76,25 +77,22 @@ function EditProfile() {
 
   // ── Remove via DELETE /users/me/photo ────────────────────────────
   const handleRemovePhoto = async () => {
-    if (!profile?.fotoPerfilUrl) {
+    if (!hasPhoto) {
       showMusicError('Você não possui nenhuma foto de perfil para remover.');
       return;
     }
     setIsUploading(true);
     try {
-      const res = await api.delete('/users/me/photo');
-      setProfile(res.data);
+      await deletePhoto();
       showMusicSuccess('Foto de perfil removida com sucesso!');
     } catch (err) {
-      console.error('Erro ao remover foto:', err);
       showMusicError(err?.message || 'Falha ao remover a foto de perfil.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  const busy = loading || isUploading;
-  const hasPhoto = !!profile?.fotoPerfilUrl;
+  const busy = loading || loadingPhoto || isUploading;
 
   return (
     <div
@@ -133,13 +131,13 @@ function EditProfile() {
         <div className="edit-profile-user">
           <div className="edit-profile-avatar-wrapper">
             <div className="edit-profile-user-img">
-              {loading ? (
+              {loading || loadingPhoto ? (
                 <div className="edit-profile-avatar-spinner">
                   <ButtonSpinner color="#02FFD4" />
                 </div>
               ) : hasPhoto ? (
                 <img
-                  src={profile.fotoPerfilUrl}
+                  src={photoUrl}
                   alt="Foto de perfil"
                   className="edit-profile-avatar-img"
                 />

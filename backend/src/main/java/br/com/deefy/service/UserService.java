@@ -2,6 +2,7 @@ package br.com.deefy.service;
 
 import br.com.deefy.dto.request.*;
 import br.com.deefy.dto.response.RegisterResponseDTO;
+import br.com.deefy.dto.response.ProfilePhotoResponseDTO;
 import br.com.deefy.dto.response.UserResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,11 +23,11 @@ public interface UserService {
 
     UserResponseDTO updateMyName(String email, UpdateNameRequestDTO request);
 
-    UserResponseDTO updateMyProfilePhoto(String email, UpdateProfilePhotoRequestDTO request);
+    ProfilePhotoResponseDTO uploadMyProfilePhoto(String email, MultipartFile file);
 
-    UserResponseDTO uploadMyProfilePhoto(String email, MultipartFile file);
+    ProfilePhotoDownload getMyProfilePhoto(String email);
 
-    UserResponseDTO removeMyProfilePhoto(String email);
+    void removeMyProfilePhoto(String email);
 
     void changeMyPassword(String email, ChangePasswordRequestDTO request);
 

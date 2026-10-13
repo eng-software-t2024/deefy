@@ -2,17 +2,22 @@ package br.com.deefy.service.impl;
 
 
 import br.com.deefy.dto.request.*;
+import br.com.deefy.dto.response.ProfilePhotoResponseDTO;
 import br.com.deefy.dto.response.RegisterResponseDTO;
 import br.com.deefy.dto.response.UserResponseDTO;
 import br.com.deefy.exception.EmailJaCadastradoException;
+import br.com.deefy.exception.ProfilePhotoNotFoundException;
 import br.com.deefy.exception.SenhaAtualIncorretaException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.mapper.UserMapper;
 import br.com.deefy.model.Tipo;
 import br.com.deefy.model.User;
 import br.com.deefy.model.PendingRegistration;
+import br.com.deefy.model.UserProfilePhoto;
 import br.com.deefy.repository.UserRepository;
 import br.com.deefy.repository.PendingRegistrationRepository;
+import br.com.deefy.repository.UserProfilePhotoRepository;
+import br.com.deefy.service.ProfilePhotoDownload;
 import br.com.deefy.service.ProfilePhotoStorageService;
 import br.com.deefy.service.UserService;
 import jakarta.transaction.Transactional;
@@ -37,12 +42,14 @@ public class UserServiceImpl implements UserService {
     private final EmailService emailService;
     private final JwtUtil jwtUtil;
     private final ProfilePhotoStorageService profilePhotoStorageService;
+    private final UserProfilePhotoRepository userProfilePhotoRepository;
 
     public UserServiceImpl(UserRepository userRepository, PendingRegistrationRepository pendingRegistrationRepository,
                            UserMapper userMapper, PasswordEncoder passwordEncoder,
                            EmailService emailService,
                            JwtUtil jwtUtil,
-                           ProfilePhotoStorageService profilePhotoStorageService){
+                           ProfilePhotoStorageService profilePhotoStorageService,
+                           UserProfilePhotoRepository userProfilePhotoRepository){
         this.userRepository = userRepository;
         this.pendingRegistrationRepository = pendingRegistrationRepository;
         this.userMapper = userMapper;
@@ -50,6 +57,7 @@ public class UserServiceImpl implements UserService {
         this.emailService = emailService;
         this.jwtUtil = jwtUtil;
         this.profilePhotoStorageService = profilePhotoStorageService;
+        this.userProfilePhotoRepository = userProfilePhotoRepository;
     }
 
     @Override
@@ -222,36 +230,142 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserResponseDTO updateMyProfilePhoto(String email, UpdateProfilePhotoRequestDTO request) {
-        User user = userRepository.findByEmail(email).orElseThrow(
+    public ProfilePhotoResponseDTO uploadMyProfilePhoto(String email, MultipartFile file) {
+        User user = userRepository.findByEmailForUpdate(email).orElseThrow(
                 () -> new UsuarioNaoEncontradoException("Usuário não encontrado na base de dados.")
         );
 
-        user.setFotoPerfilUrl(request.fotoPerfilUrl());
-        return userMapper.toDTO(userRepository.save(user));
+        UserProfilePhoto previous = userProfilePhotoRepository.findById(user.getId()).orElse(null);
+        ProfilePhotoStorageService.StoredProfilePhoto previousReference = toStoredPhoto(previous);
+        ProfilePhotoStorageService.StoredProfilePhoto uploaded =
+                profilePhotoStorageService.uploadProfilePhoto(user.getId(), file);
+
+        try {
+            UserProfilePhoto reference = previous == null
+                    ? new UserProfilePhoto(
+                    user.getId(),
+                    uploaded.bucket(),
+                    uploaded.objectPath(),
+                    uploaded.contentType(),
+                    uploaded.sizeBytes()
+            )
+                    : previous;
+            if (previous != null) {
+                reference.replaceWith(
+                        uploaded.bucket(),
+                        uploaded.objectPath(),
+                        uploaded.contentType(),
+                        uploaded.sizeBytes()
+                );
+            }
+
+            UserProfilePhoto saved = userProfilePhotoRepository.saveAndFlush(reference);
+            user.setFotoPerfilUrl(null);
+            userRepository.saveAndFlush(user);
+
+            if (previousReference != null) {
+                profilePhotoStorageService.deleteProfilePhoto(
+                        user.getId(),
+                        previousReference.bucket(),
+                        previousReference.objectPath()
+                );
+            }
+            return toResponse(saved);
+        } catch (RuntimeException operationFailure) {
+            compensateUploadedPhoto(user.getId(), uploaded, operationFailure);
+            throw operationFailure;
+        }
+    }
+
+    @Override
+    public ProfilePhotoDownload getMyProfilePhoto(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow(
+                () -> new UsuarioNaoEncontradoException("Usuário não encontrado na base de dados.")
+        );
+        UserProfilePhoto reference = userProfilePhotoRepository.findById(user.getId()).orElseThrow(
+                () -> new ProfilePhotoNotFoundException("O usuário autenticado não possui foto de perfil.")
+        );
+
+        ProfilePhotoStorageService.ProfilePhotoContent content = profilePhotoStorageService.downloadProfilePhoto(
+                user.getId(),
+                reference.getBucket(),
+                reference.getObjectPath()
+        );
+        return new ProfilePhotoDownload(content.bytes(), reference.getContentType());
     }
 
     @Override
     @Transactional
-    public UserResponseDTO uploadMyProfilePhoto(String email, MultipartFile file) {
-        User user = userRepository.findByEmail(email).orElseThrow(
+    public void removeMyProfilePhoto(String email) {
+        User user = userRepository.findByEmailForUpdate(email).orElseThrow(
                 () -> new UsuarioNaoEncontradoException("Usuário não encontrado na base de dados.")
         );
+        UserProfilePhoto reference = userProfilePhotoRepository.findById(user.getId()).orElseThrow(
+                () -> new ProfilePhotoNotFoundException("O usuário autenticado não possui foto de perfil.")
+        );
 
-        String publicUrl = profilePhotoStorageService.uploadProfilePhoto(user, file);
-        user.setFotoPerfilUrl(publicUrl);
-        return userMapper.toDTO(userRepository.save(user));
+        ProfilePhotoStorageService.StoredProfilePhoto stored = toStoredPhoto(reference);
+        ProfilePhotoStorageService.ProfilePhotoContent backup = profilePhotoStorageService.downloadProfilePhoto(
+                user.getId(),
+                reference.getBucket(),
+                reference.getObjectPath()
+        );
+        profilePhotoStorageService.deleteProfilePhoto(
+                user.getId(),
+                reference.getBucket(),
+                reference.getObjectPath()
+        );
+
+        try {
+            userProfilePhotoRepository.delete(reference);
+            userProfilePhotoRepository.flush();
+            user.setFotoPerfilUrl(null);
+            userRepository.saveAndFlush(user);
+        } catch (RuntimeException databaseFailure) {
+            try {
+                profilePhotoStorageService.restoreProfilePhoto(user.getId(), stored, backup.bytes());
+            } catch (RuntimeException compensationFailure) {
+                databaseFailure.addSuppressed(compensationFailure);
+            }
+            throw databaseFailure;
+        }
     }
 
-    @Override
-    @Transactional
-    public UserResponseDTO removeMyProfilePhoto(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(
-                () -> new UsuarioNaoEncontradoException("Usuário não encontrado na base de dados.")
+    private ProfilePhotoStorageService.StoredProfilePhoto toStoredPhoto(UserProfilePhoto reference) {
+        if (reference == null) {
+            return null;
+        }
+        return new ProfilePhotoStorageService.StoredProfilePhoto(
+                reference.getBucket(),
+                reference.getObjectPath(),
+                reference.getContentType(),
+                reference.getSizeBytes()
         );
+    }
 
-        user.setFotoPerfilUrl(null);
-        return userMapper.toDTO(userRepository.save(user));
+    private ProfilePhotoResponseDTO toResponse(UserProfilePhoto reference) {
+        return new ProfilePhotoResponseDTO(
+                true,
+                reference.getContentType(),
+                reference.getSizeBytes(),
+                reference.getUpdatedAt()
+        );
+    }
+
+    private void compensateUploadedPhoto(
+            Long userId,
+            ProfilePhotoStorageService.StoredProfilePhoto uploaded,
+            RuntimeException operationFailure
+    ) {
+        try {
+            profilePhotoStorageService.deleteProfilePhoto(
+                    userId,
+                    uploaded.bucket(),
+                    uploaded.objectPath()
+            );
+        } catch (RuntimeException compensationFailure) {
+            operationFailure.addSuppressed(compensationFailure);
+        }
     }
 
     @Override
