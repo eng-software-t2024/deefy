@@ -19,6 +19,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -110,6 +111,26 @@ class DiscordVoiceConnectionServiceTest {
         assertThat(service.join(fixture.guild, fixture.requester))
                 .isEqualTo(DiscordVoiceConnectionService.VoiceCommandResult.ALREADY_IN_CHANNEL);
 
+        verify(fixture.audioManager, never()).openAudioConnection(fixture.voiceChannel);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldObserveDisconnectWhenPlaybackStartsInExistingConnection() {
+        VoiceFixture fixture = fixture(1L, 10L);
+        AudioChannelUnion connectedChannel = mock(AudioChannelUnion.class);
+        Consumer<ConnectionStatus> observer = mock(Consumer.class);
+        ArgumentCaptor<ConnectionListener> listener = ArgumentCaptor.forClass(ConnectionListener.class);
+        when(connectedChannel.getIdLong()).thenReturn(10L);
+        when(fixture.audioManager.getConnectedChannel()).thenReturn(connectedChannel);
+
+        assertThat(service.join(fixture.guild, fixture.requester, observer))
+                .isEqualTo(DiscordVoiceConnectionService.VoiceCommandResult.ALREADY_IN_CHANNEL);
+        verify(fixture.audioManager).setConnectionListener(listener.capture());
+
+        listener.getValue().onStatusChange(ConnectionStatus.DISCONNECTED_KICKED_FROM_CHANNEL);
+
+        verify(observer).accept(ConnectionStatus.DISCONNECTED_KICKED_FROM_CHANNEL);
         verify(fixture.audioManager, never()).openAudioConnection(fixture.voiceChannel);
     }
 

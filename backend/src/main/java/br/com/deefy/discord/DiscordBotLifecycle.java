@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.util.List;
 
 @Component
@@ -19,6 +20,7 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
     private final DiscordBotProperties properties;
     private final DiscordCommandListener commandListener;
     private final DiscordCommandRegistrar commandRegistrar;
+    private final DiscordPlaybackSessionService playbackSessionService;
 
     private volatile JDA jda;
     private volatile boolean running;
@@ -26,11 +28,13 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
     public DiscordBotLifecycle(
             DiscordBotProperties properties,
             DiscordCommandListener commandListener,
-            DiscordCommandRegistrar commandRegistrar
+            DiscordCommandRegistrar commandRegistrar,
+            DiscordPlaybackSessionService playbackSessionService
     ) {
         this.properties = properties;
         this.commandListener = commandListener;
         this.commandRegistrar = commandRegistrar;
+        this.playbackSessionService = playbackSessionService;
     }
 
     @Override
@@ -47,14 +51,24 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
         }
 
         try {
-            jda = JDABuilder.createDefault(properties.getToken())
+            String token = properties.resolveToken();
+            if (token.isBlank()) {
+                LOGGER.error("Discord integration is enabled but the configured token source is empty");
+                return;
+            }
+
+            jda = JDABuilder.createDefault(token)
                     .addEventListeners(commandListener, commandRegistrar, this)
                     .build();
             LOGGER.info("Discord bot startup requested");
+        } catch (IOException exception) {
+            jda = null;
+            running = false;
+            LOGGER.error("Could not read the configured Discord bot token source");
         } catch (RuntimeException exception) {
             jda = null;
             running = false;
-            LOGGER.error("Could not initialize Discord bot", exception);
+            LOGGER.error("Could not initialize Discord bot");
         }
     }
 
@@ -78,6 +92,8 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
     }
 
     private void shutdownJda() {
+        playbackSessionService.closeAll();
+
         JDA currentJda = jda;
         jda = null;
         running = false;

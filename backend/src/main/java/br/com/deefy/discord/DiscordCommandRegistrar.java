@@ -7,6 +7,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.interactions.commands.build.SubcommandData;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,8 @@ public class DiscordCommandRegistrar extends ListenerAdapter {
                 .addSubcommands(new SubcommandData("ping", "Verifica se o bot está conectado")));
         register(guild, guildId, Commands.slash("entrar", "Conecta o bot ao seu canal de voz"));
         register(guild, guildId, Commands.slash("sair", "Desconecta o bot do canal de voz"));
+        register(guild, guildId, Commands.slash("tocar", "Toca uma faixa do catálogo Deefy")
+                .addOption(OptionType.STRING, "musica", "ID ou título da faixa", true));
 
         LOGGER.info("Discord bot connected and ready in test guild {}", guildId);
     }

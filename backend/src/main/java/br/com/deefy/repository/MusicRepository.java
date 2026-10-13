@@ -25,6 +25,9 @@ public interface MusicRepository extends JpaRepository<Music, Long> {
     Page<Music> findByTitleContainingIgnoreCase(String title, Pageable pageable);
 
     @EntityGraph(attributePaths = "artist")
+    List<Music> findByTitleIgnoreCase(String title);
+
+    @EntityGraph(attributePaths = "artist")
     @Query("SELECT m FROM Music m JOIN m.artist a WHERE LOWER(a.nome) LIKE LOWER(CONCAT('%', :artistName, '%'))")
     Page<Music> findByArtistName(@Param("artistName") String artistName, Pageable pageable);
 

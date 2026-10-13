@@ -1,0 +1,38 @@
+services:
+  deefy-discord-bot:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: deefy-discord-bot:${DEEFY_DISCORD_BOT_IMAGE_TAG:-local}
+    container_name: deefy-discord-bot
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    environment:
+      SPRING_MAIN_WEB_APPLICATION_TYPE: none
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?configure the self-hosted catalog database}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?configure a catalog role}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?configure the protected database password}
+      JWT_SECRET: ${JWT_SECRET:?configure the protected application secret}
+      DEEFY_DISCORD_ENABLED: "true"
+      DEEFY_DISCORD_TOKEN_FILE: /run/secrets/deefy_discord_token
+      DEEFY_DISCORD_TEST_GUILD_ID: ${DEEFY_DISCORD_TEST_GUILD_ID:?configure the test guild}
+      DEEFY_API_URL: ${DEEFY_API_URL:?configure the self-hosted Deefy origin}
+    secrets:
+      - deefy_discord_token
+    networks:
+      - deefy-selfhost
+
+secrets:
+  deefy_discord_token:
+    file: ${DEEFY_DISCORD_TOKEN_SOURCE_FILE:?configure a protected token file}
+
+networks:
+  deefy-selfhost:
+    external: true
+    name: ${DEEFY_SELFHOST_NETWORK:?configure the existing self-hosted internal network}
