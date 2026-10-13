@@ -7,7 +7,10 @@ import "./EditProfile.css";
 import api from "../services/api";
 import { showMusicError, showMusicSuccess } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
-import { usePrivateProfilePhoto } from "../hooks/usePrivateProfilePhoto";
+import {
+  PRIVATE_PROFILE_PHOTO_ENABLED,
+  usePrivateProfilePhoto,
+} from "../hooks/usePrivateProfilePhoto";
 
 function EditProfile() {
   const navigate = useNavigate();
@@ -20,10 +23,16 @@ function EditProfile() {
   const {
     photoUrl,
     hasPhoto,
+    hasPrivatePhoto,
     loadingPhoto,
+    mutationsEnabled,
     uploadPhoto,
     deletePhoto,
-  } = usePrivateProfilePhoto(profile?.id);
+  } = usePrivateProfilePhoto({
+    identityKey: profile?.id,
+    legacyUrl: profile?.fotoPerfilUrl,
+    enabled: PRIVATE_PROFILE_PHOTO_ENABLED,
+  });
 
   // ── Fetch current user profile on mount ─────────────────────────
   useEffect(() => {
@@ -51,6 +60,11 @@ function EditProfile() {
 
   // ── Upload via POST /users/me/photo/upload (multipart/form-data) ─
   const handleFileChange = async (e) => {
+    if (!mutationsEnabled) {
+      e.target.value = '';
+      return;
+    }
+
     const file = e.target.files[0];
     if (!file) return;
 
@@ -77,8 +91,8 @@ function EditProfile() {
 
   // ── Remove via DELETE /users/me/photo ────────────────────────────
   const handleRemovePhoto = async () => {
-    if (!hasPhoto) {
-      showMusicError('Você não possui nenhuma foto de perfil para remover.');
+    if (!mutationsEnabled || !hasPrivatePhoto) {
+      showMusicError('Você não possui nenhuma foto privada para remover.');
       return;
     }
     setIsUploading(true);
@@ -93,6 +107,7 @@ function EditProfile() {
   };
 
   const busy = loading || loadingPhoto || isUploading;
+  const privatePhotoActionsDisabled = busy || !mutationsEnabled;
 
   return (
     <div
@@ -108,7 +123,7 @@ function EditProfile() {
         accept="image/jpeg,image/png,image/webp,image/gif"
         style={{ display: 'none' }}
         onChange={handleFileChange}
-        disabled={busy}
+        disabled={privatePhotoActionsDisabled}
       />
       <input
         ref={cameraInputRef}
@@ -117,7 +132,7 @@ function EditProfile() {
         capture="user"
         style={{ display: 'none' }}
         onChange={handleFileChange}
-        disabled={busy}
+        disabled={privatePhotoActionsDisabled}
       />
 
       <section className="edit-profile-wrapper">
@@ -171,9 +186,9 @@ function EditProfile() {
           {/* Gallery upload card */}
           <button
             type="button"
-            className={`edit-profile-card${busy ? ' edit-profile-card--disabled' : ''}`}
-            onClick={() => !busy && galleryInputRef.current.click()}
-            disabled={busy}
+            className={`edit-profile-card${privatePhotoActionsDisabled ? ' edit-profile-card--disabled' : ''}`}
+            onClick={() => !privatePhotoActionsDisabled && galleryInputRef.current.click()}
+            disabled={privatePhotoActionsDisabled}
           >
             <div className="edit-profile-input-icon-box">
               <MdOutlineUploadFile className="edit-profile-input-icon" />
@@ -187,9 +202,9 @@ function EditProfile() {
           {/* Camera capture card */}
           <button
             type="button"
-            className={`edit-profile-card${busy ? ' edit-profile-card--disabled' : ''}`}
-            onClick={() => !busy && cameraInputRef.current.click()}
-            disabled={busy}
+            className={`edit-profile-card${privatePhotoActionsDisabled ? ' edit-profile-card--disabled' : ''}`}
+            onClick={() => !privatePhotoActionsDisabled && cameraInputRef.current.click()}
+            disabled={privatePhotoActionsDisabled}
           >
             <div className="edit-profile-input-icon-box">
               <IoCameraOutline className="edit-profile-input-icon" />
@@ -203,9 +218,9 @@ function EditProfile() {
           {/* Remove photo card */}
           <button
             type="button"
-            className={`edit-profile-card trash-card${(busy || !hasPhoto) ? ' edit-profile-card--disabled' : ''}`}
-            onClick={() => !busy && hasPhoto && handleRemovePhoto()}
-            disabled={busy || !hasPhoto}
+            className={`edit-profile-card trash-card${(privatePhotoActionsDisabled || !hasPrivatePhoto) ? ' edit-profile-card--disabled' : ''}`}
+            onClick={() => !privatePhotoActionsDisabled && hasPrivatePhoto && handleRemovePhoto()}
+            disabled={privatePhotoActionsDisabled || !hasPrivatePhoto}
           >
             <div className="edit-profile-input-icon-box">
               <IoTrashOutline className="edit-profile-input-icon" />

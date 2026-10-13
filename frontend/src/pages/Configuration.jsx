@@ -24,13 +24,11 @@ function Configuration() {
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState(false);
-  const { photoUrl, hasPhoto, loadingPhoto } = usePrivateProfilePhoto(
-    profile?.id,
-    {
-      identityKey: profile?.id,
-      legacyUrl: profile?.fotoPerfilUrl,
-    }
-  );
+  const { photoUrl, hasPhoto, loadingPhoto } = usePrivateProfilePhoto({
+    identityKey: profile?.id,
+    legacyUrl: profile?.fotoPerfilUrl,
+    enabled: import.meta.env.VITE_PRIVATE_PROFILE_PHOTO_ENABLED === "true",
+  });
 
   useEffect(() => {
     let isMounted = true;
