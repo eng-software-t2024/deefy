@@ -3,6 +3,7 @@ package br.com.deefy.controller.docs;
 import br.com.deefy.dto.request.*;
 import br.com.deefy.dto.response.AdminUserResponseDTO;
 import br.com.deefy.dto.response.AdminUserStatsResponseDTO;
+import br.com.deefy.dto.response.ProfilePhotoResponseDTO;
 import br.com.deefy.dto.response.UserResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -108,37 +109,26 @@ public interface UserControllerDocs {
     ResponseEntity<Void> changeMyPassword(Principal principal, ChangePasswordRequestDTO request);
 
     @Operation(
-            summary = "Atualizar minha foto de perfil (por URL)",
-            description = "Salva a URL pública de uma foto de perfil já hospedada para o usuário autenticado."
+            summary = "Ler minha foto de perfil",
+            description = "Entrega por proxy a foto privada pertencente ao usuário autenticado."
     )
     @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Foto de perfil atualizada com sucesso",
-                    content = @Content(schema = @Schema(implementation = UserResponseDTO.class))
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Erro de validação — URL ausente ou em formato inválido",
-                    content = @Content(schema = @Schema(hidden = true))
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "Não autenticado — token JWT ausente ou inválido",
-                    content = @Content(schema = @Schema(hidden = true))
-            )
+            @ApiResponse(responseCode = "200", description = "Conteúdo da foto retornado"),
+            @ApiResponse(responseCode = "401", description = "Não autenticado"),
+            @ApiResponse(responseCode = "404", description = "Foto não cadastrada"),
+            @ApiResponse(responseCode = "502", description = "Falha no Storage")
     })
-    ResponseEntity<UserResponseDTO> updateMyProfilePhoto(Principal principal, UpdateProfilePhotoRequestDTO request);
+    ResponseEntity<byte[]> getMyProfilePhoto(Principal principal);
 
     @Operation(
             summary = "Enviar minha foto de perfil (upload)",
-            description = "Faz upload de uma imagem para o Storage e salva a URL pública em fotoperfilurl do usuário autenticado."
+            description = "Faz upload privado e salva uma referência de Storage vinculada ao usuário autenticado."
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
                     description = "Foto enviada e perfil atualizado com sucesso",
-                    content = @Content(schema = @Schema(implementation = UserResponseDTO.class))
+                    content = @Content(schema = @Schema(implementation = ProfilePhotoResponseDTO.class))
             ),
             @ApiResponse(
                     responseCode = "400",
@@ -154,27 +144,41 @@ public interface UserControllerDocs {
                     responseCode = "413",
                     description = "Arquivo excede o tamanho máximo permitido",
                     content = @Content(schema = @Schema(hidden = true))
+            ),
+            @ApiResponse(
+                    responseCode = "502",
+                    description = "Falha no Storage",
+                    content = @Content(schema = @Schema(hidden = true))
             )
     })
-    ResponseEntity<UserResponseDTO> uploadMyProfilePhoto(Principal principal, MultipartFile file);
+    ResponseEntity<ProfilePhotoResponseDTO> uploadMyProfilePhoto(Principal principal, MultipartFile file);
 
     @Operation(
             summary = "Remover minha foto de perfil",
-            description = "Remove a URL da foto de perfil do usuário autenticado, deixando o campo vazio."
+            description = "Remove fisicamente o objeto privado antes de excluir a referência do usuário autenticado."
     )
     @ApiResponses(value = {
             @ApiResponse(
-                    responseCode = "200",
-                    description = "Foto removida com sucesso",
-                    content = @Content(schema = @Schema(implementation = UserResponseDTO.class))
+                    responseCode = "204",
+                    description = "Foto removida com sucesso"
             ),
             @ApiResponse(
                     responseCode = "401",
                     description = "Não autenticado — token JWT ausente ou inválido",
                     content = @Content(schema = @Schema(hidden = true))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Foto não cadastrada",
+                    content = @Content(schema = @Schema(hidden = true))
+            ),
+            @ApiResponse(
+                    responseCode = "502",
+                    description = "Falha no Storage; a referência não é marcada como removida",
+                    content = @Content(schema = @Schema(hidden = true))
             )
     })
-    ResponseEntity<UserResponseDTO> removeMyProfilePhoto(Principal principal);
+    ResponseEntity<Void> removeMyProfilePhoto(Principal principal);
 
     @Operation(
             summary = "Listar usuários",
