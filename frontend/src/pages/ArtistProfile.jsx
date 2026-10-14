@@ -6,6 +6,7 @@ import { usePlayer } from '../contexts/PlayerContext.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 import SongList from '../components/SongList.jsx'
 import SongListSkeleton from '../components/SongListSkeleton.jsx'
+import BreadcrumbNav from '../components/BreadcrumbNav.jsx'
 import { musicService } from '../services/musicService.js'
 import { resolveMediaUrl } from '../utils/musicNormalizer.js'
 
@@ -80,8 +81,15 @@ function ArtistProfileContent() {
     playTrack(queue[0], queue)
   }
 
-  const closeButton = (
+  const renderNavRow = (currentLabel) => (
     <div className="artist-profile-close-row">
+      <BreadcrumbNav
+        items={[
+          { label: 'Início', to: '/home' },
+          { label: 'Artistas', to: '/artists' },
+          { label: currentLabel },
+        ]}
+      />
       <Link
         to="/artists"
         className="artist-profile-close-btn"
@@ -98,7 +106,7 @@ function ArtistProfileContent() {
       <div className="artist-profile-page">
         <Sidebar />
         <main className="artist-profile-main">
-          {closeButton}
+          {renderNavRow('Carregando...')}
           <section className="artist-profile-hero artist-profile-hero--loading" aria-busy="true">
             <div className="artist-profile-hero-card">
               <span className="artist-profile-label">Carregando...</span>
@@ -118,7 +126,7 @@ function ArtistProfileContent() {
       <div className="artist-profile-page">
         <Sidebar />
         <main className="artist-profile-main">
-          {closeButton}
+          {renderNavRow('Artista não encontrado')}
           <div className="artist-profile-message" role="status">
             <h2>{notFound ? 'Artista não encontrado' : 'Não foi possível carregar o artista'}</h2>
             <p>
@@ -143,7 +151,7 @@ function ArtistProfileContent() {
       <Sidebar />
 
       <main className="artist-profile-main">
-        {closeButton}
+        {renderNavRow(name)}
 
         <section
           className="artist-profile-hero"

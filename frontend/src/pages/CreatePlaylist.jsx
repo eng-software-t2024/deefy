@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import './CreatePlaylist.css'
 
 import Sidebar from '../components/Sidebar.jsx'
+import BreadcrumbNav from '../components/BreadcrumbNav.jsx'
 import { musicService } from '../services/musicService'
 import { SERVER_TIMEOUT_MESSAGE, SERVER_UNREACHABLE_MESSAGE } from '../services/api'
 import { getApiErrorMessage } from '../utils/apiError'
@@ -160,6 +161,14 @@ function CreatePlaylistContent() {
         <Sidebar />
 
         <main className="create-playlist-main">
+          <BreadcrumbNav
+            items={[
+              { label: 'Início', to: '/home' },
+              { label: 'Playlists', to: '/playlists' },
+              { label: isEditing ? 'Editar playlist' : 'Criar playlist' },
+            ]}
+          />
+
           <section className="create-playlist-card">
             <div className="create-playlist-header">
               <span>CARREGANDO...</span>
@@ -177,6 +186,14 @@ function CreatePlaylistContent() {
       <Sidebar />
 
       <main className="create-playlist-main">
+        <BreadcrumbNav
+          items={[
+            { label: 'Início', to: '/home' },
+            { label: 'Playlists', to: '/playlists' },
+            { label: isEditing ? 'Editar playlist' : 'Criar playlist' },
+          ]}
+        />
+
         <section className="create-playlist-card">
           <div className="create-playlist-header">
             <span>{isEditing ? 'EDITAR PLAYLIST' : 'NOVA PLAYLIST'}</span>
