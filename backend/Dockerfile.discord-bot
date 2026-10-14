@@ -6,13 +6,23 @@ COPY backend/src backend/src
 
 RUN mvn -f backend/pom.xml -Pdiscord-bot clean package -DskipTests \
     && JDAVE_VERSION="$(mvn -q -f backend/pom.xml help:evaluate -Dexpression=jdave.version -DforceStdout)" \
+    && JNA_VERSION="$(mvn -q -f backend/pom.xml help:evaluate -Dexpression=jna.version -DforceStdout)" \
+    && OPUS_VERSION="$(mvn -q -f backend/pom.xml help:evaluate -Dexpression=opus-java.version -DforceStdout)" \
     && mkdir -p /app/native \
     && cd /app/native \
     && jar -xf "/root/.m2/repository/club/minnced/jdave-native-linux-x86-64/${JDAVE_VERSION}/jdave-native-linux-x86-64-${JDAVE_VERSION}.jar" \
         natives/linux-x86-64/libdave.so \
     && mv natives/linux-x86-64/libdave.so /app/native/libdave.so \
     && rm -rf /app/native/natives \
-    && chmod 0444 /app/native/libdave.so
+    && jar -xf "/root/.m2/repository/club/minnced/opus-java-natives/${OPUS_VERSION}/opus-java-natives-${OPUS_VERSION}.jar" \
+        natives/linux-x86-64/libopus.so \
+    && mv natives/linux-x86-64/libopus.so /app/native/libopus.so \
+    && rm -rf /app/native/natives \
+    && jar -xf "/root/.m2/repository/net/java/dev/jna/jna/${JNA_VERSION}/jna-${JNA_VERSION}.jar" \
+        com/sun/jna/linux-x86-64/libjnidispatch.so \
+    && mv com/sun/jna/linux-x86-64/libjnidispatch.so /app/native/libjnidispatch.so \
+    && rm -rf /app/native/com \
+    && chmod 0444 /app/native/libdave.so /app/native/libjnidispatch.so /app/native/libopus.so
 
 FROM eclipse-temurin:25.0.4.1_1-jre-noble@sha256:d9a39a23634650173f1e2bbc176227af9728587ecf0f4b62d53e9355cd7a19ab
 WORKDIR /app
@@ -23,5 +33,7 @@ RUN apt-get update \
 
 COPY --from=build /app/backend/target/*.jar app.jar
 COPY --from=build /app/native/libdave.so native/libdave.so
+COPY --from=build /app/native/libjnidispatch.so native/libjnidispatch.so
+COPY --from=build /app/native/libopus.so native/libopus.so
 
-ENTRYPOINT ["java", "--enable-native-access=ALL-UNNAMED", "-Djdave.library.path=/app/native/libdave.so", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "--enable-native-access=ALL-UNNAMED", "-Djna.boot.library.path=/app/native", "-Djna.nounpack=true", "-Djdave.library.path=/app/native/libdave.so", "-Ddeefy.discord.opus-library-path=/app/native/libopus.so", "-jar", "/app/app.jar"]

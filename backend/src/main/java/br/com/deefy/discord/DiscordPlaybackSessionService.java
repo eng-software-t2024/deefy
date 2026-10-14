@@ -12,31 +12,69 @@ import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 import net.dv8tion.jda.api.managers.AudioManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 @Service
 public class DiscordPlaybackSessionService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DiscordPlaybackSessionService.class);
+    private static final Duration STARTUP_TIMEOUT = Duration.ofSeconds(20);
 
     private final DiscordVoiceConnectionService voiceConnectionService;
     private final DiscordAudioSourceFactory audioSourceFactory;
+    private final ScheduledExecutorService scheduler;
+    private final Duration startupTimeout;
     private final ConcurrentMap<Long, DiscordGuildPlaybackSession> sessionsByGuild = new ConcurrentHashMap<>();
 
+    @Autowired
     public DiscordPlaybackSessionService(
             DiscordVoiceConnectionService voiceConnectionService,
             DiscordAudioSourceFactory audioSourceFactory
     ) {
+        this(
+                voiceConnectionService,
+                audioSourceFactory,
+                Executors.newSingleThreadScheduledExecutor(runnable -> Thread.ofPlatform()
+                        .daemon(true)
+                        .name("deefy-discord-playback-timeout")
+                        .unstarted(runnable)),
+                STARTUP_TIMEOUT
+        );
+    }
+
+    DiscordPlaybackSessionService(
+            DiscordVoiceConnectionService voiceConnectionService,
+            DiscordAudioSourceFactory audioSourceFactory,
+            ScheduledExecutorService scheduler,
+            Duration startupTimeout
+    ) {
         this.voiceConnectionService = voiceConnectionService;
         this.audioSourceFactory = audioSourceFactory;
+        this.scheduler = scheduler;
+        this.startupTimeout = startupTimeout;
     }
 
     public PlaybackStartResult start(Guild guild, Member requester, DiscordTrack track) {
+        return start(guild, requester, track, ignored -> { });
+    }
+
+    public PlaybackStartResult start(
+            Guild guild,
+            Member requester,
+            DiscordTrack track,
+            Consumer<PlaybackProgress> progressObserver
+    ) {
         VoiceChannel requestedChannel = getStandardVoiceChannel(requester);
         if (requestedChannel == null) {
             return requesterHasAudioChannel(requester)
@@ -53,7 +91,8 @@ public class DiscordPlaybackSessionService {
                 guildId,
                 requestedChannel,
                 audioManager,
-                track
+                track,
+                progressObserver
         );
         if (sessionsByGuild.putIfAbsent(guildId, session) != null) {
             return PlaybackStartResult.ALREADY_PLAYING;
@@ -65,6 +104,10 @@ public class DiscordPlaybackSessionService {
                 guild,
                 requester,
                 status -> {
+                    if (status == ConnectionStatus.CONNECTED
+                            && sessionsByGuild.get(session.getGuildId()) == session) {
+                        session.notifyProgress(PlaybackProgress.VOICE_CONNECTED);
+                    }
                     if (isTerminalVoiceStatus(status)) {
                         removeAndClose(
                                 session,
@@ -89,6 +132,16 @@ public class DiscordPlaybackSessionService {
             );
             session.attach(source);
             audioManager.setSendingHandler(source);
+            session.setStartupTimeout(scheduler.schedule(
+                    () -> removeAndClose(
+                            session,
+                            true,
+                            CleanupReason.PLAYBACK_START_TIMEOUT,
+                            null
+                    ),
+                    startupTimeout.toMillis(),
+                    TimeUnit.MILLISECONDS
+            ));
             return PlaybackStartResult.STARTED;
         } catch (IOException | RuntimeException exception) {
             removeAndClose(session, true, CleanupReason.AUDIO_SOURCE_START_FAILED, null);
@@ -133,16 +186,17 @@ public class DiscordPlaybackSessionService {
                 session.close(true);
             }
         });
+        scheduler.shutdownNow();
     }
 
     private void markPlaying(DiscordGuildPlaybackSession session) {
-        if (sessionsByGuild.get(session.getGuildId()) == session) {
-            session.markPlaying();
+        if (sessionsByGuild.get(session.getGuildId()) == session && session.markPlaying()) {
             LOGGER.info(
                     "Discord playback first frame delivered: guildId={}, trackId={}",
                     session.getGuildId(),
                     session.getCurrentTrack().id()
             );
+            session.notifyProgress(PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
         }
     }
 
@@ -153,6 +207,7 @@ public class DiscordPlaybackSessionService {
             String detail
     ) {
         if (sessionsByGuild.remove(session.getGuildId(), session)) {
+            DiscordGuildPlaybackSession.PlaybackState previousState = session.getState();
             LOGGER.info(
                     "Discord playback cleanup: guildId={}, trackId={}, reason={}, detail={}",
                     session.getGuildId(),
@@ -161,7 +216,28 @@ public class DiscordPlaybackSessionService {
                     detail == null ? "none" : detail
             );
             session.close(closeVoiceConnection);
+            notifyCleanupProgress(session, previousState, reason);
         }
+    }
+
+    private void notifyCleanupProgress(
+            DiscordGuildPlaybackSession session,
+            DiscordGuildPlaybackSession.PlaybackState previousState,
+            CleanupReason reason
+    ) {
+        if (reason == CleanupReason.USER_REQUESTED_STOP
+                || reason == CleanupReason.APPLICATION_SHUTDOWN
+                || reason == CleanupReason.VOICE_START_REJECTED) {
+            return;
+        }
+        if (reason == CleanupReason.AUDIO_SOURCE_TERMINATED
+                && previousState == DiscordGuildPlaybackSession.PlaybackState.PLAYING) {
+            session.notifyProgress(PlaybackProgress.COMPLETED);
+            return;
+        }
+        session.notifyProgress(reason == CleanupReason.PLAYBACK_START_TIMEOUT
+                ? PlaybackProgress.START_TIMEOUT
+                : PlaybackProgress.FAILED);
     }
 
     private boolean isTerminalVoiceStatus(ConnectionStatus status) {
@@ -222,7 +298,16 @@ public class DiscordPlaybackSessionService {
         VOICE_START_REJECTED,
         AUDIO_SOURCE_TERMINATED,
         AUDIO_SOURCE_START_FAILED,
+        PLAYBACK_START_TIMEOUT,
         USER_REQUESTED_STOP,
         APPLICATION_SHUTDOWN
+    }
+
+    public enum PlaybackProgress {
+        VOICE_CONNECTED,
+        AUDIO_FRAMES_AVAILABLE,
+        START_TIMEOUT,
+        FAILED,
+        COMPLETED
     }
 }

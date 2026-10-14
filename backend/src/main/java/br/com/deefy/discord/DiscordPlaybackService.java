@@ -5,6 +5,7 @@ import net.dv8tion.jda.api.entities.Member;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,6 +23,15 @@ public class DiscordPlaybackService {
     }
 
     public PlaybackCommandResult play(Guild guild, Member requester, String titleArtistOrId) {
+        return play(guild, requester, titleArtistOrId, ignored -> { });
+    }
+
+    public PlaybackCommandResult play(
+            Guild guild,
+            Member requester,
+            String titleArtistOrId,
+            Consumer<PlaybackProgressUpdate> progressObserver
+    ) {
         DiscordTrackCatalog.TrackLookupResult lookup = trackCatalog.find(titleArtistOrId);
         if (lookup.status() != DiscordTrackCatalog.TrackLookupStatus.FOUND) {
             return switch (lookup.status()) {
@@ -36,10 +46,11 @@ public class DiscordPlaybackService {
         DiscordPlaybackSessionService.PlaybackStartResult start = sessionService.start(
                 guild,
                 requester,
-                lookup.track()
+                lookup.track(),
+                progress -> progressObserver.accept(progressUpdate(progress))
         );
         return switch (start) {
-            case STARTED -> result("Faixa preparada. A reprodução começará quando a conexão de voz estiver pronta.");
+            case STARTED -> pendingResult("Preparando a faixa e a conexão de voz.");
             case ALREADY_PLAYING -> result("Já existe uma faixa em reprodução nesta comunidade.");
             case USER_NOT_IN_VOICE -> result("Entre em um canal de voz comum para usar este comando.");
             case UNSUPPORTED_CHANNEL -> result("Nesta etapa, só posso usar canais de voz comuns.");
@@ -62,7 +73,25 @@ public class DiscordPlaybackService {
     }
 
     private PlaybackCommandResult result(String responseMessage) {
-        return new PlaybackCommandResult(responseMessage);
+        return new PlaybackCommandResult(responseMessage, false);
+    }
+
+    private PlaybackCommandResult pendingResult(String responseMessage) {
+        return new PlaybackCommandResult(responseMessage, true);
+    }
+
+    private PlaybackProgressUpdate progressUpdate(
+            DiscordPlaybackSessionService.PlaybackProgress progress
+    ) {
+        String message = switch (progress) {
+            case VOICE_CONNECTED -> "Conexão de voz pronta. Preparando a transmissão.";
+            case AUDIO_FRAMES_AVAILABLE ->
+                    "O bot começou a fornecer quadros de áudio ao mecanismo de voz; isso não confirma a audição no cliente.";
+            case START_TIMEOUT -> "A reprodução não começou dentro do tempo esperado e foi cancelada.";
+            case FAILED -> "A transmissão de áudio falhou e a sessão foi encerrada.";
+            case COMPLETED -> "Faixa concluída e recursos de áudio liberados.";
+        };
+        return new PlaybackProgressUpdate(message);
     }
 
     private String ambiguousMessage(List<DiscordTrackCatalog.TrackChoice> choices) {
@@ -72,7 +101,14 @@ public class DiscordPlaybackService {
         return "Encontrei mais de uma faixa: %s. Refine usando título - artista.".formatted(options);
     }
 
-    public record PlaybackCommandResult(String responseMessage) {
+    public record PlaybackCommandResult(String responseMessage, boolean awaitingProgress) {
+
+        public PlaybackCommandResult(String responseMessage) {
+            this(responseMessage, false);
+        }
+    }
+
+    public record PlaybackProgressUpdate(String responseMessage) {
     }
 
     public record PlaybackSuggestion(String label, String value) {

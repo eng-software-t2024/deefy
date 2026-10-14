@@ -13,10 +13,13 @@ import net.dv8tion.jda.api.managers.AudioManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -244,6 +247,65 @@ class DiscordPlaybackSessionServiceTest {
 
         assertThat(service.sessionFor(1L)).isEmpty();
         verify(fixture.audioManager).closeAudioConnection();
+    }
+
+    @Test
+    void shouldCancelSilentStartupAndReportTimeoutWithoutAffectingOtherGuilds() throws Exception {
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        DiscordPlaybackSessionService timeoutService = new DiscordPlaybackSessionService(
+                voiceService,
+                sourceFactory,
+                scheduler,
+                java.time.Duration.ZERO
+        );
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordAudioSource source = mock(DiscordAudioSource.class);
+        CountDownLatch timeoutReported = new CountDownLatch(1);
+        when(sourceFactory.open(eq(fixture.track), any(), any())).thenReturn(source);
+
+        try {
+            assertThat(timeoutService.start(
+                    fixture.guild,
+                    fixture.requester,
+                    fixture.track,
+                    progress -> {
+                        if (progress == DiscordPlaybackSessionService.PlaybackProgress.START_TIMEOUT) {
+                            timeoutReported.countDown();
+                        }
+                    }
+            )).isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+
+            assertThat(timeoutReported.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(timeoutService.sessionFor(1L)).isEmpty();
+            verify(source).close();
+            verify(fixture.audioManager).closeAudioConnection();
+        } finally {
+            timeoutService.closeAll();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldReportVoiceReadyAndPcmAvailabilityWithoutClaimingAudioWasHeard() throws Exception {
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordAudioSource source = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Consumer<ConnectionStatus>> voiceObserver = ArgumentCaptor.forClass(Consumer.class);
+        ArgumentCaptor<Runnable> firstFrame = ArgumentCaptor.forClass(Runnable.class);
+        List<DiscordPlaybackSessionService.PlaybackProgress> progress = new CopyOnWriteArrayList<>();
+        when(voiceService.join(eq(fixture.guild), eq(fixture.requester), voiceObserver.capture()))
+                .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED);
+        when(sourceFactory.open(eq(fixture.track), firstFrame.capture(), any())).thenReturn(source);
+
+        assertThat(service.start(fixture.guild, fixture.requester, fixture.track, progress::add))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+
+        voiceObserver.getValue().accept(ConnectionStatus.CONNECTED);
+        firstFrame.getValue().run();
+
+        assertThat(progress).containsExactly(
+                DiscordPlaybackSessionService.PlaybackProgress.VOICE_CONNECTED,
+                DiscordPlaybackSessionService.PlaybackProgress.AUDIO_FRAMES_AVAILABLE
+        );
     }
 
     private PlaybackFixture fixture(long guildId, long channelId) {

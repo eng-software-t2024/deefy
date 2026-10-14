@@ -18,6 +18,7 @@ public class DiscordBotProperties {
     private String tokenFile = "";
     private boolean testMode;
     private String testGuildId = "";
+    private String opusLibraryPath = "/app/native/libopus.so";
 
     public boolean isEnabled() {
         return enabled;
@@ -57,6 +58,14 @@ public class DiscordBotProperties {
 
     public void setTestMode(boolean testMode) {
         this.testMode = testMode;
+    }
+
+    public String getOpusLibraryPath() {
+        return opusLibraryPath;
+    }
+
+    public void setOpusLibraryPath(String opusLibraryPath) {
+        this.opusLibraryPath = opusLibraryPath;
     }
 
     public boolean isGuildAllowed(String guildId) {
