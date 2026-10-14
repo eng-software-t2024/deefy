@@ -9,11 +9,13 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -76,8 +78,13 @@ class DiscordPlaybackServiceTest {
                 track,
                 List.of()
         ));
-        when(sessions.start(eq(guild), eq(member), eq(track), observer.capture()))
-                .thenReturn(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+        when(sessions.startAsync(eq(guild), eq(member), eq(track), isNull(), observer.capture()))
+                .thenReturn(CompletableFuture.completedFuture(
+                        new DiscordPlaybackSessionService.PlaybackStartOutcome(
+                                DiscordPlaybackSessionService.PlaybackStartResult.STARTED,
+                                "session-1"
+                        )
+                ));
         when(member.getEffectiveName()).thenReturn("Pessoa de teste");
         when(member.getVoiceState()).thenReturn(voiceState);
         when(voiceState.getChannel()).thenReturn(voiceChannel);

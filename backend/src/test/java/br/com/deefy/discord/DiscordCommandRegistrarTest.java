@@ -35,7 +35,7 @@ class DiscordCommandRegistrarTest {
         registrar.onReady(event);
 
         ArgumentCaptor<CommandData> commands = ArgumentCaptor.forClass(CommandData.class);
-        verify(jda, times(4)).upsertCommand(commands.capture());
+        verify(jda, times(7)).upsertCommand(commands.capture());
         verify(jda, never()).getGuildById(any(String.class));
         assertCommandSetAndAutocomplete(commands.getAllValues());
     }
@@ -59,7 +59,7 @@ class DiscordCommandRegistrarTest {
         registrar.onReady(event);
 
         ArgumentCaptor<CommandData> commands = ArgumentCaptor.forClass(CommandData.class);
-        verify(guild, times(4)).upsertCommand(commands.capture());
+        verify(guild, times(7)).upsertCommand(commands.capture());
         verify(jda, never()).upsertCommand(any(CommandData.class));
         assertCommandSetAndAutocomplete(commands.getAllValues());
     }
@@ -67,7 +67,7 @@ class DiscordCommandRegistrarTest {
     private void assertCommandSetAndAutocomplete(java.util.List<CommandData> commands) {
         assertThat(commands)
                 .extracting(CommandData::getName)
-                .containsExactly("deefy", "entrar", "sair", "tocar");
+                .containsExactly("deefy", "entrar", "sair", "tocar", "pausar", "retomar", "parar");
         SlashCommandData play = (SlashCommandData) commands.stream()
                 .filter(command -> command.getName().equals("tocar"))
                 .findFirst()
