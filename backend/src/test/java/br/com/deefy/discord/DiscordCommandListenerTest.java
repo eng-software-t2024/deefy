@@ -4,17 +4,24 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.AutoCompleteQuery;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
+import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
@@ -204,7 +211,11 @@ class DiscordCommandListenerTest {
         Member member = mock(Member.class);
         OptionMapping option = mock(OptionMapping.class);
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
-        String response = "Faixa preparada para reprodução.";
+        InteractionHook hook = mock(InteractionHook.class);
+        WebhookMessageEditAction<Message> editAction = mock(WebhookMessageEditAction.class);
+        String preparing = "Preparando a faixa e a conexão de voz.";
+        String progress = "O bot começou a fornecer quadros de áudio ao mecanismo de voz; "
+                + "isso não confirma a audição no cliente.";
 
         when(event.isFromGuild()).thenReturn(true);
         when(event.getGuild()).thenReturn(guild);
@@ -213,17 +224,29 @@ class DiscordCommandListenerTest {
         when(event.getName()).thenReturn("tocar");
         when(event.getOption("musica")).thenReturn(option);
         when(option.getAsString()).thenReturn("13");
-        when(playbackService.play(guild, member, "13"))
-                .thenReturn(new DiscordPlaybackService.PlaybackCommandResult(response));
-        when(event.reply(response)).thenReturn(replyAction);
+        when(playbackService.play(eq(guild), eq(member), eq("13"), any()))
+                .thenAnswer(invocation -> {
+                    @SuppressWarnings("unchecked")
+                    Consumer<DiscordPlaybackService.PlaybackProgressUpdate> observer = invocation.getArgument(3);
+                    observer.accept(new DiscordPlaybackService.PlaybackProgressUpdate(progress));
+                    return new DiscordPlaybackService.PlaybackCommandResult(preparing, true);
+                });
+        when(event.reply(preparing)).thenReturn(replyAction);
         when(replyAction.setEphemeral(true)).thenReturn(replyAction);
+        when(hook.editOriginal(progress)).thenReturn(editAction);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Consumer<InteractionHook> callback = invocation.getArgument(0);
+            callback.accept(hook);
+            return null;
+        }).when(replyAction).queue(any());
 
         new DiscordCommandListener(properties, voiceConnectionService, playbackService)
                 .onSlashCommandInteraction(event);
 
-        verify(playbackService).play(guild, member, "13");
+        verify(playbackService).play(eq(guild), eq(member), eq("13"), any());
         verify(replyAction).setEphemeral(true);
-        verify(replyAction).queue();
+        verify(editAction).queue();
     }
 
     @Test

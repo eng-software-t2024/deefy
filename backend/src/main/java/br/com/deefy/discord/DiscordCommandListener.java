@@ -69,14 +69,23 @@ public class DiscordCommandListener extends ListenerAdapter {
         if (PLAY_COMMAND.equals(event.getName())) {
             OptionMapping option = event.getOption(MUSIC_OPTION);
             String query = option == null ? "" : option.getAsString();
-            DiscordPlaybackService.PlaybackCommandResult result = playbackService.play(
-                    event.getGuild(),
-                    event.getMember(),
-                    query
-            );
-            event.reply(result.responseMessage())
+            event.reply("Preparando a faixa e a conexão de voz.")
                     .setEphemeral(true)
-                    .queue();
+                    .queue(hook -> {
+                        try {
+                            DiscordPlaybackService.PlaybackCommandResult result = playbackService.play(
+                                    event.getGuild(),
+                                    event.getMember(),
+                                    query,
+                                    progress -> hook.editOriginal(progress.responseMessage()).queue()
+                            );
+                            if (!result.awaitingProgress()) {
+                                hook.editOriginal(result.responseMessage()).queue();
+                            }
+                        } catch (RuntimeException ignored) {
+                            hook.editOriginal("Não consegui iniciar a reprodução e a sessão foi cancelada.").queue();
+                        }
+                    });
         }
     }
 

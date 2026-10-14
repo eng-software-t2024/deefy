@@ -33,6 +33,8 @@
 	<properties>
 		<java.version>21</java.version>
 		<jdave.version>0.1.8</jdave.version>
+		<jna.version>5.17.0</jna.version>
+		<opus-java.version>1.1.1</opus-java.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -164,6 +166,11 @@
 		<profile>
 			<id>discord-bot</id>
 			<dependencies>
+				<dependency>
+					<groupId>net.java.dev.jna</groupId>
+					<artifactId>jna</artifactId>
+					<version>${jna.version}</version>
+				</dependency>
 				<dependency>
 					<groupId>club.minnced</groupId>
 					<artifactId>jdave-api</artifactId>

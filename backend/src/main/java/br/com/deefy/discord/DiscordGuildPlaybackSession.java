@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
+import java.util.concurrent.ScheduledFuture;
+import java.util.function.Consumer;
 
 public final class DiscordGuildPlaybackSession implements AutoCloseable {
 
@@ -15,20 +17,24 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
     private final VoiceChannel voiceChannel;
     private final AudioManager voiceConnection;
     private final DiscordTrack currentTrack;
+    private final Consumer<DiscordPlaybackSessionService.PlaybackProgress> progressObserver;
 
     private DiscordAudioSource audioSource;
+    private ScheduledFuture<?> startupTimeout;
     private PlaybackState state = PlaybackState.STARTING;
 
     public DiscordGuildPlaybackSession(
             long guildId,
             VoiceChannel voiceChannel,
             AudioManager voiceConnection,
-            DiscordTrack currentTrack
+            DiscordTrack currentTrack,
+            Consumer<DiscordPlaybackSessionService.PlaybackProgress> progressObserver
     ) {
         this.guildId = guildId;
         this.voiceChannel = Objects.requireNonNull(voiceChannel);
         this.voiceConnection = Objects.requireNonNull(voiceConnection);
         this.currentTrack = Objects.requireNonNull(currentTrack);
+        this.progressObserver = Objects.requireNonNull(progressObserver);
     }
 
     public long getGuildId() {
@@ -59,9 +65,29 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
         audioSource = Objects.requireNonNull(source);
     }
 
-    public synchronized void markPlaying() {
+    public synchronized boolean markPlaying() {
         if (state == PlaybackState.STARTING) {
             state = PlaybackState.PLAYING;
+            cancelStartupTimeout();
+            return true;
+        }
+        return false;
+    }
+
+    public synchronized void setStartupTimeout(ScheduledFuture<?> startupTimeout) {
+        if (state == PlaybackState.STARTING) {
+            this.startupTimeout = startupTimeout;
+        } else {
+            startupTimeout.cancel(false);
+        }
+    }
+
+    public void notifyProgress(DiscordPlaybackSessionService.PlaybackProgress progress) {
+        try {
+            progressObserver.accept(progress);
+        } catch (RuntimeException ignored) {
+            LOGGER.warn("Could not notify Discord playback progress: guildId={}, trackId={}",
+                    guildId, currentTrack.id());
         }
     }
 
@@ -77,6 +103,7 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
                 return;
             }
             state = PlaybackState.CLOSED;
+            cancelStartupTimeout();
             source = audioSource;
             audioSource = null;
         }
@@ -98,6 +125,13 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
                 LOGGER.warn("Could not close Discord voice connection during cleanup: guildId={}, trackId={}",
                         guildId, currentTrack.id());
             }
+        }
+    }
+
+    private void cancelStartupTimeout() {
+        if (startupTimeout != null) {
+            startupTimeout.cancel(false);
+            startupTimeout = null;
         }
     }
 

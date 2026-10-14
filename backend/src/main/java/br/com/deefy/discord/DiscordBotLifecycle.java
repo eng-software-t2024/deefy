@@ -23,6 +23,7 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
     private final DiscordCommandListener commandListener;
     private final DiscordCommandRegistrar commandRegistrar;
     private final DiscordPlaybackSessionService playbackSessionService;
+    private final DiscordOpusNativeProvider opusNativeProvider;
     private final DiscordDaveSessionFactoryProvider daveSessionFactoryProvider;
 
     private volatile JDA jda;
@@ -33,12 +34,14 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
             DiscordCommandListener commandListener,
             DiscordCommandRegistrar commandRegistrar,
             DiscordPlaybackSessionService playbackSessionService,
+            DiscordOpusNativeProvider opusNativeProvider,
             DiscordDaveSessionFactoryProvider daveSessionFactoryProvider
     ) {
         this.properties = properties;
         this.commandListener = commandListener;
         this.commandRegistrar = commandRegistrar;
         this.playbackSessionService = playbackSessionService;
+        this.opusNativeProvider = opusNativeProvider;
         this.daveSessionFactoryProvider = daveSessionFactoryProvider;
     }
 
@@ -62,7 +65,7 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
                 return;
             }
 
-            DaveSessionFactory daveSessionFactory = daveSessionFactoryProvider.createRequired();
+            DaveSessionFactory daveSessionFactory = initializeRequiredAudioNatives();
             jda = JDABuilder.createDefault(token)
                     .setAudioModuleConfig(new AudioModuleConfig()
                             .withDaveSessionFactory(daveSessionFactory))
@@ -78,6 +81,11 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
             running = false;
             LOGGER.error("Could not initialize Discord bot");
         }
+    }
+
+    DaveSessionFactory initializeRequiredAudioNatives() {
+        opusNativeProvider.loadRequired();
+        return daveSessionFactoryProvider.createRequired();
     }
 
     @Override
