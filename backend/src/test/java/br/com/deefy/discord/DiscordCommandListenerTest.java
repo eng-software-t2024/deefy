@@ -235,7 +235,12 @@ class DiscordCommandListenerTest {
         RestAction<Message> retrieve = mock(RestAction.class);
         Message message = mock(Message.class);
         CompletableFuture<Boolean> binding = new CompletableFuture<>();
+        ArgumentCaptor<List<MessageEmbed>> embeds = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<List<? extends MessageTopLevelComponent>> components = ArgumentCaptor.forClass(List.class);
+        DiscordPlaybackService.PlaybackPresentation playing = presentation(
+                DiscordPlaybackService.PlaybackMessageState.PLAYING,
+                "Tocando agora"
+        );
         when(event.getMember()).thenReturn(member);
         when(event.getId()).thenReturn("play-1");
         when(event.getOption("musica")).thenReturn(option);
@@ -250,12 +255,16 @@ class DiscordCommandListenerTest {
         when(playbackService.bindControlMessageAsync(guild.getIdLong(), "session-1", 99L))
                 .thenReturn(binding);
         when(playbackService.playAsync(eq(guild), eq(member), eq("XTRANHO - Matuê"), eq("play-1"), any()))
-                .thenReturn(CompletableFuture.completedFuture(new DiscordPlaybackService.PlaybackCommandResult(
-                        presentation(DiscordPlaybackService.PlaybackMessageState.PREPARING, "Preparando reprodução"),
-                        true,
-                        "session-1"
-                )));
-        when(hook.editOriginalEmbeds(anyList())).thenReturn(edit);
+                .thenAnswer(invocation -> {
+                    Consumer<DiscordPlaybackService.PlaybackProgressUpdate> observer = invocation.getArgument(4);
+                    observer.accept(new DiscordPlaybackService.PlaybackProgressUpdate(playing));
+                    return CompletableFuture.completedFuture(new DiscordPlaybackService.PlaybackCommandResult(
+                            presentation(DiscordPlaybackService.PlaybackMessageState.PREPARING, "Preparando reprodução"),
+                            true,
+                            "session-1"
+                    ));
+                });
+        when(hook.editOriginalEmbeds(embeds.capture())).thenReturn(edit);
         when(edit.setComponents(components.capture())).thenReturn(edit);
         when(edit.setAllowedMentions(anyList())).thenReturn(edit);
         completeEdit(edit);
@@ -267,6 +276,7 @@ class DiscordCommandListenerTest {
         binding.complete(true);
 
         verify(hook).editOriginalEmbeds(anyList());
+        assertThat(embeds.getValue().getFirst().getTitle()).isEqualTo("Tocando agora");
         List<ActionRow> rows = (List<ActionRow>) (List) components.getValue();
         assertThat(rows).singleElement().satisfies(row -> assertThat(row.getButtons())
                 .extracting(button -> button.getLabel())

@@ -58,16 +58,47 @@ public final class DiscordPlaybackMessageCoordinator {
                 complete(update.revision());
             }
         };
-        Consumer<Throwable> failure = ignored -> success.run();
+        Consumer<Throwable> failure = error -> {
+            if (callbackCompleted.compareAndSet(false, true)) {
+                LOGGER.warn(
+                        "Discord playback message edit completed: revision={}, state={}, sessionRef={}, result=failure, errorType={}",
+                        update.revision(),
+                        update.presentation().state(),
+                        DiscordDiagnosticSupport.pseudonymize(update.sessionId()),
+                        error == null ? "unknown" : error.getClass().getSimpleName()
+                );
+                complete(update.revision());
+            }
+        };
+        Runnable completedSuccessfully = () -> {
+            if (callbackCompleted.compareAndSet(false, true)) {
+                LOGGER.info(
+                        "Discord playback message edit completed: revision={}, state={}, sessionRef={}, result=success",
+                        update.revision(),
+                        update.presentation().state(),
+                        DiscordDiagnosticSupport.pseudonymize(update.sessionId())
+                );
+                complete(update.revision());
+            }
+        };
         try {
             transport.edit(
                     update.presentation(),
                     update.sessionId(),
-                    success,
+                    completedSuccessfully,
                     failure
             );
         } catch (RuntimeException exception) {
-            success.run();
+            if (callbackCompleted.compareAndSet(false, true)) {
+                LOGGER.warn(
+                        "Discord playback message edit completed: revision={}, state={}, sessionRef={}, result=failure, errorType={}",
+                        update.revision(),
+                        update.presentation().state(),
+                        DiscordDiagnosticSupport.pseudonymize(update.sessionId()),
+                        exception.getClass().getSimpleName()
+                );
+                complete(update.revision());
+            }
         }
     }
 
