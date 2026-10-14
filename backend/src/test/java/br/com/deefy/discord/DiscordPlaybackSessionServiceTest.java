@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.managers.AudioManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -20,14 +21,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -124,21 +128,182 @@ class DiscordPlaybackSessionServiceTest {
         PlaybackFixture second = fixture(2L, 20L);
         DiscordAudioSource firstSource = mock(DiscordAudioSource.class);
         DiscordAudioSource secondSource = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Runnable> firstFrame = ArgumentCaptor.forClass(Runnable.class);
         ArgumentCaptor<Runnable> firstTermination = ArgumentCaptor.forClass(Runnable.class);
-        when(sourceFactory.open(eq(first.track), any(), firstTermination.capture())).thenReturn(firstSource);
+        when(sourceFactory.open(eq(first.track), firstFrame.capture(), firstTermination.capture()))
+                .thenReturn(firstSource);
         when(sourceFactory.open(eq(second.track), any(), any())).thenReturn(secondSource);
         service.start(first.guild, first.requester, first.track);
         service.start(second.guild, second.requester, second.track);
 
+        firstFrame.getValue().run();
         firstTermination.getValue().run();
         firstTermination.getValue().run();
 
         assertThat(service.sessionFor(1L)).isEmpty();
         assertThat(service.sessionFor(2L)).isPresent();
+        assertThat(service.idleConnectionCount()).isEqualTo(1);
         verify(firstSource, times(1)).close();
-        verify(first.audioManager, times(1)).closeAudioConnection();
+        verify(first.audioManager, never()).closeAudioConnection();
         verify(secondSource, never()).close();
         verify(second.audioManager, never()).closeAudioConnection();
+    }
+
+    @Test
+    void shouldDisconnectAfterControlledTenMinuteIdleDeadline() throws Exception {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> startupFuture = mock(ScheduledFuture.class);
+        ScheduledFuture<?> idleFuture = mock(ScheduledFuture.class);
+        ArgumentCaptor<Runnable> scheduledTasks = ArgumentCaptor.forClass(Runnable.class);
+        doReturn(startupFuture, idleFuture).when(scheduler)
+                .schedule(scheduledTasks.capture(), anyLong(), eq(TimeUnit.MILLISECONDS));
+        DiscordPlaybackSessionService controlledService = new DiscordPlaybackSessionService(
+                voiceService,
+                sourceFactory,
+                scheduler,
+                Duration.ofSeconds(20),
+                Duration.ofMinutes(10)
+        );
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordAudioSource source = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Runnable> firstFrame = ArgumentCaptor.forClass(Runnable.class);
+        ArgumentCaptor<Runnable> termination = ArgumentCaptor.forClass(Runnable.class);
+        when(sourceFactory.open(eq(fixture.track), firstFrame.capture(), termination.capture()))
+                .thenReturn(source);
+
+        assertThat(controlledService.start(fixture.guild, fixture.requester, fixture.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+        firstFrame.getValue().run();
+        termination.getValue().run();
+
+        verify(source).close();
+        verify(fixture.audioManager, never()).closeAudioConnection();
+        assertThat(controlledService.idleConnectionCount()).isEqualTo(1);
+        assertThat(scheduledTasks.getAllValues()).hasSize(2);
+
+        scheduledTasks.getAllValues().get(1).run();
+
+        verify(fixture.audioManager, times(1)).closeAudioConnection();
+        assertThat(controlledService.idleConnectionCount()).isZero();
+    }
+
+    @Test
+    void shouldCancelOldIdleTimerWhenValidPlaybackStarts() throws Exception {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> startupOne = mock(ScheduledFuture.class);
+        ScheduledFuture<?> idleOne = mock(ScheduledFuture.class);
+        ScheduledFuture<?> startupTwo = mock(ScheduledFuture.class);
+        ArgumentCaptor<Runnable> scheduledTasks = ArgumentCaptor.forClass(Runnable.class);
+        doReturn(startupOne, idleOne, startupTwo).when(scheduler)
+                .schedule(scheduledTasks.capture(), anyLong(), eq(TimeUnit.MILLISECONDS));
+        DiscordPlaybackSessionService controlledService = new DiscordPlaybackSessionService(
+                voiceService,
+                sourceFactory,
+                scheduler,
+                Duration.ofSeconds(20),
+                Duration.ofMinutes(10)
+        );
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordAudioSource firstSource = mock(DiscordAudioSource.class);
+        DiscordAudioSource secondSource = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Runnable> firstFrames = ArgumentCaptor.forClass(Runnable.class);
+        ArgumentCaptor<Runnable> terminations = ArgumentCaptor.forClass(Runnable.class);
+        when(sourceFactory.open(eq(fixture.track), firstFrames.capture(), terminations.capture()))
+                .thenReturn(firstSource, secondSource);
+
+        controlledService.start(fixture.guild, fixture.requester, fixture.track);
+        firstFrames.getValue().run();
+        terminations.getValue().run();
+        Runnable oldIdleTimer = scheduledTasks.getAllValues().get(1);
+
+        assertThat(controlledService.start(fixture.guild, fixture.requester, fixture.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+        oldIdleTimer.run();
+
+        assertThat(controlledService.sessionFor(1L)).isPresent();
+        verify(idleOne).cancel(false);
+        verify(fixture.audioManager, never()).closeAudioConnection();
+        verify(secondSource, never()).close();
+    }
+
+    @Test
+    void shouldScheduleIdleDisconnectForJoinAndCancelItOnStop() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> idleFuture = mock(ScheduledFuture.class);
+        doReturn(idleFuture).when(scheduler)
+                .schedule(any(Runnable.class), anyLong(), eq(TimeUnit.MILLISECONDS));
+        DiscordPlaybackSessionService controlledService = new DiscordPlaybackSessionService(
+                voiceService,
+                sourceFactory,
+                scheduler,
+                Duration.ofSeconds(20),
+                Duration.ofMinutes(10)
+        );
+        PlaybackFixture fixture = fixture(1L, 10L);
+
+        assertThat(controlledService.joinIdle(fixture.guild, fixture.requester))
+                .isEqualTo(DiscordVoiceConnectionService.VoiceCommandResult.ALREADY_IN_CHANNEL);
+        assertThat(controlledService.idleConnectionCount()).isEqualTo(1);
+
+        controlledService.stop(fixture.guild);
+
+        assertThat(controlledService.idleConnectionCount()).isZero();
+        verify(idleFuture).cancel(false);
+        verify(fixture.audioManager, never()).closeAudioConnection();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldCancelIdleTimerWhenVoiceDisconnectsExternally() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> idleFuture = mock(ScheduledFuture.class);
+        doReturn(idleFuture).when(scheduler)
+                .schedule(any(Runnable.class), anyLong(), eq(TimeUnit.MILLISECONDS));
+        DiscordPlaybackSessionService controlledService = new DiscordPlaybackSessionService(
+                voiceService,
+                sourceFactory,
+                scheduler,
+                Duration.ofSeconds(20),
+                Duration.ofMinutes(10)
+        );
+        PlaybackFixture fixture = fixture(1L, 10L);
+        ArgumentCaptor<Consumer<ConnectionStatus>> observer = ArgumentCaptor.forClass(Consumer.class);
+        when(voiceService.join(eq(fixture.guild), eq(fixture.requester), observer.capture()))
+                .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED);
+
+        controlledService.joinIdle(fixture.guild, fixture.requester);
+        observer.getValue().accept(ConnectionStatus.DISCONNECTED_KICKED_FROM_CHANNEL);
+
+        assertThat(controlledService.idleConnectionCount()).isZero();
+        verify(idleFuture).cancel(false);
+        verify(fixture.audioManager, never()).closeAudioConnection();
+    }
+
+    @Test
+    void shouldKeepIdleTimersIsolatedByGuild() {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        ScheduledFuture<?> firstFuture = mock(ScheduledFuture.class);
+        ScheduledFuture<?> secondFuture = mock(ScheduledFuture.class);
+        ArgumentCaptor<Runnable> scheduledTasks = ArgumentCaptor.forClass(Runnable.class);
+        doReturn(firstFuture, secondFuture).when(scheduler)
+                .schedule(scheduledTasks.capture(), anyLong(), eq(TimeUnit.MILLISECONDS));
+        DiscordPlaybackSessionService controlledService = new DiscordPlaybackSessionService(
+                voiceService,
+                sourceFactory,
+                scheduler,
+                Duration.ofSeconds(20),
+                Duration.ofMinutes(10)
+        );
+        PlaybackFixture first = fixture(1L, 10L);
+        PlaybackFixture second = fixture(2L, 20L);
+
+        controlledService.joinIdle(first.guild, first.requester);
+        controlledService.joinIdle(second.guild, second.requester);
+        scheduledTasks.getAllValues().get(0).run();
+
+        verify(first.audioManager).closeAudioConnection();
+        verify(second.audioManager, never()).closeAudioConnection();
+        assertThat(controlledService.idleConnectionCount()).isEqualTo(1);
     }
 
     @Test
@@ -246,6 +411,7 @@ class DiscordPlaybackSessionServiceTest {
                 .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.AUDIO_SOURCE_FAILED);
 
         assertThat(service.sessionFor(1L)).isEmpty();
+        assertThat(service.idleConnectionCount()).isZero();
         verify(fixture.audioManager).closeAudioConnection();
     }
 

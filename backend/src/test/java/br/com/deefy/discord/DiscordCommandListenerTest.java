@@ -5,6 +5,7 @@ import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInterac
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.AutoCompleteQuery;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
@@ -12,10 +13,12 @@ import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallback
 import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.function.Consumer;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -57,12 +60,15 @@ class DiscordCommandListenerTest {
         when(event.getName()).thenReturn("deefy");
         when(event.getSubcommandName()).thenReturn("ping");
         when(event.reply("pong")).thenReturn(replyAction);
+        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
+        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
 
         DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
         new DiscordCommandListener(properties, voiceConnectionService, mock(DiscordPlaybackService.class))
                 .onSlashCommandInteraction(event);
 
         verify(event).reply("pong");
+        verify(replyAction).setEphemeral(false);
         verify(replyAction).queue();
         verifyNoInteractions(voiceConnectionService);
     }
@@ -79,6 +85,8 @@ class DiscordCommandListenerTest {
         when(event.getName()).thenReturn("deefy");
         when(event.getSubcommandName()).thenReturn("ping");
         when(event.reply("pong")).thenReturn(replyAction);
+        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
+        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
 
         new DiscordCommandListener(
                 properties,
@@ -110,7 +118,7 @@ class DiscordCommandListenerTest {
     }
 
     @Test
-    void shouldRouteJoinCommandAndReplyEphemerally() {
+    void shouldRouteJoinCommandAndReplyPublicly() {
         DiscordBotProperties properties = configuredProperties();
         DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
@@ -124,21 +132,23 @@ class DiscordCommandListenerTest {
         when(event.getMember()).thenReturn(member);
         when(guild.getId()).thenReturn(properties.getTestGuildId());
         when(event.getName()).thenReturn("entrar");
-        when(voiceConnectionService.join(guild, member))
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        when(playbackService.join(guild, member))
                 .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED);
         when(event.reply(response)).thenReturn(replyAction);
-        when(replyAction.setEphemeral(true)).thenReturn(replyAction);
+        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
+        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
 
-        new DiscordCommandListener(properties, voiceConnectionService, mock(DiscordPlaybackService.class))
+        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
                 .onSlashCommandInteraction(event);
 
-        verify(voiceConnectionService).join(guild, member);
-        verify(replyAction).setEphemeral(true);
+        verify(playbackService).join(guild, member);
+        verify(replyAction).setEphemeral(false);
         verify(replyAction).queue();
     }
 
     @Test
-    void shouldRouteLeaveCommandAndReplyEphemerally() {
+    void shouldRouteLeaveCommandAndReplyPublicly() {
         DiscordBotProperties properties = configuredProperties();
         DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
@@ -152,23 +162,27 @@ class DiscordCommandListenerTest {
         when(event.getMember()).thenReturn(member);
         when(guild.getId()).thenReturn(properties.getTestGuildId());
         when(event.getName()).thenReturn("sair");
-        when(voiceConnectionService.leave(guild, member))
-                .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED);
+        when(voiceConnectionService.leave(eq(guild), eq(member), any(Runnable.class)))
+                .thenAnswer(invocation -> {
+                    invocation.<Runnable>getArgument(2).run();
+                    return DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED;
+                });
         when(event.reply(response)).thenReturn(replyAction);
-        when(replyAction.setEphemeral(true)).thenReturn(replyAction);
+        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
+        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
 
         DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
         new DiscordCommandListener(properties, voiceConnectionService, playbackService)
                 .onSlashCommandInteraction(event);
 
-        verify(voiceConnectionService).leave(guild, member);
+        verify(voiceConnectionService).leave(eq(guild), eq(member), any(Runnable.class));
         verify(playbackService).stop(guild);
-        verify(replyAction).setEphemeral(true);
+        verify(replyAction).setEphemeral(false);
         verify(replyAction).queue();
     }
 
     @Test
-    void shouldReplyEphemerallyWhenLeaveFails() {
+    void shouldReplyPubliclyWhenLeaveFails() {
         DiscordBotProperties properties = configuredProperties();
         DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
@@ -183,10 +197,11 @@ class DiscordCommandListenerTest {
         when(event.getMember()).thenReturn(member);
         when(guild.getId()).thenReturn(properties.getTestGuildId());
         when(event.getName()).thenReturn("sair");
-        when(voiceConnectionService.leave(guild, member))
+        when(voiceConnectionService.leave(eq(guild), eq(member), any(Runnable.class)))
                 .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_FAILED);
         when(event.reply(failureResponse)).thenReturn(replyAction);
-        when(replyAction.setEphemeral(true)).thenReturn(replyAction);
+        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
+        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
 
         DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
         new DiscordCommandListener(properties, voiceConnectionService, playbackService)
@@ -196,7 +211,7 @@ class DiscordCommandListenerTest {
         verify(event, never()).reply(
                 DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED.responseMessage()
         );
-        verify(replyAction).setEphemeral(true);
+        verify(replyAction).setEphemeral(false);
         verify(replyAction).queue();
         verify(playbackService, never()).stop(guild);
     }
@@ -213,9 +228,25 @@ class DiscordCommandListenerTest {
         ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
         InteractionHook hook = mock(InteractionHook.class);
         WebhookMessageEditAction<Message> editAction = mock(WebhookMessageEditAction.class);
-        String preparing = "Preparando a faixa e a conexão de voz.";
-        String progress = "O bot começou a fornecer quadros de áudio ao mecanismo de voz; "
-                + "isso não confirma a audição no cliente.";
+        ArgumentCaptor<List<MessageEmbed>> editedEmbeds = ArgumentCaptor.forClass(List.class);
+        DiscordPlaybackService.PlaybackPresentation preparing = new DiscordPlaybackService.PlaybackPresentation(
+                DiscordPlaybackService.PlaybackMessageState.PREPARING,
+                "Preparando reprodução",
+                "Estou preparando a faixa e a conexão de voz.",
+                "XTRANHO",
+                "Matuê",
+                "Pessoa de teste",
+                "Música"
+        );
+        DiscordPlaybackService.PlaybackPresentation progress = new DiscordPlaybackService.PlaybackPresentation(
+                DiscordPlaybackService.PlaybackMessageState.PLAYING,
+                "Tocando agora",
+                "A reprodução começou.",
+                "XTRANHO",
+                "Matuê",
+                "Pessoa de teste",
+                "Música"
+        );
 
         when(event.isFromGuild()).thenReturn(true);
         when(event.getGuild()).thenReturn(guild);
@@ -231,9 +262,11 @@ class DiscordCommandListenerTest {
                     observer.accept(new DiscordPlaybackService.PlaybackProgressUpdate(progress));
                     return new DiscordPlaybackService.PlaybackCommandResult(preparing, true);
                 });
-        when(event.reply(preparing)).thenReturn(replyAction);
-        when(replyAction.setEphemeral(true)).thenReturn(replyAction);
-        when(hook.editOriginal(progress)).thenReturn(editAction);
+        when(event.replyEmbeds(anyList())).thenReturn(replyAction);
+        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
+        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
+        when(hook.editOriginalEmbeds(editedEmbeds.capture())).thenReturn(editAction);
+        when(editAction.setAllowedMentions(anyList())).thenReturn(editAction);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             Consumer<InteractionHook> callback = invocation.getArgument(0);
@@ -245,8 +278,16 @@ class DiscordCommandListenerTest {
                 .onSlashCommandInteraction(event);
 
         verify(playbackService).play(eq(guild), eq(member), eq("13"), any());
-        verify(replyAction).setEphemeral(true);
+        verify(replyAction).setEphemeral(false);
+        verify(replyAction).setAllowedMentions(anyList());
         verify(editAction).queue();
+        MessageEmbed published = editedEmbeds.getValue().getFirst();
+        assertThat(published.getTitle()).isEqualTo("Tocando agora");
+        assertThat(published.getFields())
+                .extracting(MessageEmbed.Field::getValue)
+                .contains("XTRANHO", "Matuê", "Pessoa de teste", "Música");
+        assertThat(published.toData().toString())
+                .doesNotContain("PCM", "frame", "DAVE", "codec", "audição no cliente");
     }
 
     @Test

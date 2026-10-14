@@ -14,6 +14,8 @@ import net.dv8tion.jda.api.managers.AudioManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -305,6 +307,24 @@ class DiscordVoiceConnectionServiceTest {
                 .isEqualTo(DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED);
 
         verify(fixture.audioManager).closeAudioConnection();
+    }
+
+    @Test
+    void shouldReleasePlaybackBeforeClosingVoiceConnection() {
+        VoiceFixture fixture = fixture(1L, 10L);
+        AudioChannelUnion connectedChannel = mock(AudioChannelUnion.class);
+        List<String> order = new ArrayList<>();
+        when(connectedChannel.getIdLong()).thenReturn(10L);
+        when(fixture.audioManager.getConnectedChannel()).thenReturn(connectedChannel);
+        doAnswer(invocation -> {
+            order.add("disconnect");
+            return null;
+        }).when(fixture.audioManager).closeAudioConnection();
+
+        assertThat(service.leave(fixture.guild, fixture.requester, () -> order.add("cleanup")))
+                .isEqualTo(DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED);
+
+        assertThat(order).containsExactly("cleanup", "disconnect");
     }
 
     @Test

@@ -1,7 +1,9 @@
 package br.com.deefy.discord;
 
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.GuildVoiceState;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -35,30 +37,36 @@ public class DiscordPlaybackService {
         DiscordTrackCatalog.TrackLookupResult lookup = trackCatalog.find(titleArtistOrId);
         if (lookup.status() != DiscordTrackCatalog.TrackLookupStatus.FOUND) {
             return switch (lookup.status()) {
-                case INVALID_QUERY -> result("Informe o título ou título - artista da faixa.");
-                case AMBIGUOUS -> result(ambiguousMessage(lookup.choices()));
-                case MISSING_AUDIO_URL -> result("Essa faixa não possui um áudio disponível.");
-                case UNSAFE_SOURCE -> result("A faixa não usa uma origem self-hosted autorizada.");
-                default -> result("Não encontrei essa faixa no catálogo Deefy.");
+                case INVALID_QUERY -> result(error("Informe o título ou título - artista da faixa."));
+                case AMBIGUOUS -> result(error(ambiguousMessage(lookup.choices())));
+                case MISSING_AUDIO_URL -> result(error("Essa faixa não possui um áudio disponível."));
+                case UNSAFE_SOURCE -> result(error("Essa faixa não está disponível para reprodução."));
+                default -> result(error("Não encontrei essa faixa no catálogo Deefy."));
             };
         }
 
+        PlaybackContext context = playbackContext(lookup.track(), requester);
         DiscordPlaybackSessionService.PlaybackStartResult start = sessionService.start(
                 guild,
                 requester,
                 lookup.track(),
-                progress -> progressObserver.accept(progressUpdate(progress))
+                progress -> progressObserver.accept(progressUpdate(progress, context))
         );
         return switch (start) {
-            case STARTED -> pendingResult("Preparando a faixa e a conexão de voz.");
-            case ALREADY_PLAYING -> result("Já existe uma faixa em reprodução nesta comunidade.");
-            case USER_NOT_IN_VOICE -> result("Entre em um canal de voz comum para usar este comando.");
-            case UNSUPPORTED_CHANNEL -> result("Nesta etapa, só posso usar canais de voz comuns.");
-            case MISSING_PERMISSIONS -> result("Não tenho permissão para conectar e falar nesse canal.");
-            case BOT_IN_ANOTHER_CHANNEL -> result("Já estou em outro canal de voz desta comunidade.");
-            case VOICE_CONNECTION_IN_PROGRESS -> result("A conexão de voz ainda está em andamento. Aguarde.");
-            case AUDIO_SOURCE_FAILED -> result("Não consegui preparar o áudio dessa faixa.");
-            case VOICE_CONNECTION_FAILED -> result("Não consegui iniciar a conexão de voz.");
+            case STARTED -> pendingResult(presentation(
+                    PlaybackMessageState.PREPARING,
+                    "Preparando reprodução",
+                    "Estou preparando a faixa e a conexão de voz.",
+                    context
+            ));
+            case ALREADY_PLAYING -> result(error("Já existe uma faixa em reprodução nesta comunidade."));
+            case USER_NOT_IN_VOICE -> result(error("Entre em um canal de voz comum para usar este comando."));
+            case UNSUPPORTED_CHANNEL -> result(error("Nesta etapa, só posso usar canais de voz comuns."));
+            case MISSING_PERMISSIONS -> result(error("Não tenho permissão para conectar e falar nesse canal."));
+            case BOT_IN_ANOTHER_CHANNEL -> result(error("Já estou em outro canal de voz desta comunidade."));
+            case VOICE_CONNECTION_IN_PROGRESS -> result(error("A conexão de voz ainda está em andamento. Aguarde."));
+            case AUDIO_SOURCE_FAILED -> result(failure(context));
+            case VOICE_CONNECTION_FAILED -> result(error("Não consegui iniciar a conexão de voz."));
         };
     }
 
@@ -72,26 +80,50 @@ public class DiscordPlaybackService {
         sessionService.stop(guild);
     }
 
-    private PlaybackCommandResult result(String responseMessage) {
-        return new PlaybackCommandResult(responseMessage, false);
+    public DiscordVoiceConnectionService.VoiceCommandResult join(Guild guild, Member requester) {
+        return sessionService.joinIdle(guild, requester);
     }
 
-    private PlaybackCommandResult pendingResult(String responseMessage) {
-        return new PlaybackCommandResult(responseMessage, true);
+    private PlaybackCommandResult result(PlaybackPresentation presentation) {
+        return new PlaybackCommandResult(presentation, false);
+    }
+
+    private PlaybackCommandResult pendingResult(PlaybackPresentation presentation) {
+        return new PlaybackCommandResult(presentation, true);
     }
 
     private PlaybackProgressUpdate progressUpdate(
-            DiscordPlaybackSessionService.PlaybackProgress progress
+            DiscordPlaybackSessionService.PlaybackProgress progress,
+            PlaybackContext context
     ) {
-        String message = switch (progress) {
-            case VOICE_CONNECTED -> "Conexão de voz pronta. Preparando a transmissão.";
-            case AUDIO_FRAMES_AVAILABLE ->
-                    "O bot começou a fornecer quadros de áudio ao mecanismo de voz; isso não confirma a audição no cliente.";
-            case START_TIMEOUT -> "A reprodução não começou dentro do tempo esperado e foi cancelada.";
-            case FAILED -> "A transmissão de áudio falhou e a sessão foi encerrada.";
-            case COMPLETED -> "Faixa concluída e recursos de áudio liberados.";
+        PlaybackPresentation presentation = switch (progress) {
+            case VOICE_CONNECTED -> presentation(
+                    PlaybackMessageState.PREPARING,
+                    "Conexão pronta",
+                    "A faixa está sendo preparada para tocar.",
+                    context
+            );
+            case AUDIO_FRAMES_AVAILABLE -> presentation(
+                    PlaybackMessageState.PLAYING,
+                    "Tocando agora",
+                    "A reprodução começou.",
+                    context
+            );
+            case START_TIMEOUT -> presentation(
+                    PlaybackMessageState.FAILED,
+                    "Não foi possível reproduzir",
+                    "A reprodução não começou dentro do tempo esperado.",
+                    context
+            );
+            case FAILED -> failure(context);
+            case COMPLETED -> presentation(
+                    PlaybackMessageState.COMPLETED,
+                    "Reprodução concluída",
+                    "Permanecerei no canal por até 10 minutos aguardando outra faixa.",
+                    context
+            );
         };
-        return new PlaybackProgressUpdate(message);
+        return new PlaybackProgressUpdate(presentation);
     }
 
     private String ambiguousMessage(List<DiscordTrackCatalog.TrackChoice> choices) {
@@ -101,16 +133,99 @@ public class DiscordPlaybackService {
         return "Encontrei mais de uma faixa: %s. Refine usando título - artista.".formatted(options);
     }
 
-    public record PlaybackCommandResult(String responseMessage, boolean awaitingProgress) {
+    private PlaybackContext playbackContext(DiscordTrack track, Member requester) {
+        String requesterName = requester == null ? "Usuário" : requester.getEffectiveName();
+        GuildVoiceState voiceState = requester == null ? null : requester.getVoiceState();
+        AudioChannelUnion channel = voiceState == null ? null : voiceState.getChannel();
+        String voiceChannelName = channel == null ? null : channel.getName();
+        return new PlaybackContext(track, requesterName, voiceChannelName);
+    }
 
-        public PlaybackCommandResult(String responseMessage) {
-            this(responseMessage, false);
+    private PlaybackPresentation failure(PlaybackContext context) {
+        return presentation(
+                PlaybackMessageState.FAILED,
+                "Falha na reprodução",
+                "Não consegui reproduzir essa faixa. A sessão de áudio foi encerrada com segurança.",
+                context
+        );
+    }
+
+    private PlaybackPresentation error(String description) {
+        return new PlaybackPresentation(
+                PlaybackMessageState.FAILED,
+                "Não foi possível atender ao pedido",
+                description,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private PlaybackPresentation presentation(
+            PlaybackMessageState state,
+            String heading,
+            String description,
+            PlaybackContext context
+    ) {
+        return new PlaybackPresentation(
+                state,
+                heading,
+                description,
+                context.track().title(),
+                context.track().artist(),
+                context.requesterName(),
+                context.voiceChannelName()
+        );
+    }
+
+    public static PlaybackPresentation initialPresentation() {
+        return new PlaybackPresentation(
+                PlaybackMessageState.PREPARING,
+                "Preparando reprodução",
+                "Validando a faixa e o canal de voz.",
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
+    private record PlaybackContext(
+            DiscordTrack track,
+            String requesterName,
+            String voiceChannelName
+    ) {
+    }
+
+    public record PlaybackCommandResult(PlaybackPresentation presentation, boolean awaitingProgress) {
+
+        public PlaybackCommandResult(PlaybackPresentation presentation) {
+            this(presentation, false);
         }
     }
 
-    public record PlaybackProgressUpdate(String responseMessage) {
+    public record PlaybackProgressUpdate(PlaybackPresentation presentation) {
     }
 
     public record PlaybackSuggestion(String label, String value) {
+    }
+
+    public record PlaybackPresentation(
+            PlaybackMessageState state,
+            String heading,
+            String description,
+            String trackTitle,
+            String artist,
+            String requester,
+            String voiceChannel
+    ) {
+    }
+
+    public enum PlaybackMessageState {
+        PREPARING,
+        PLAYING,
+        COMPLETED,
+        FAILED
     }
 }

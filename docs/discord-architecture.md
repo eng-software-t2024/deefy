@@ -56,10 +56,10 @@ fila.
 | `DiscordBotProperties` | Mapear e validar a configuração `deefy.discord` | Propriedades Spring derivadas do ambiente | Estado de configuração, política de guild e lista de erros de validação | Aceita token legado em ambiente ou arquivo protegido, sem registrar o valor; a guild só é obrigatória no modo de teste explícito |
 | `DiscordBotLifecycle` | Integrar o cliente JDA ao ciclo de vida Spring | Propriedades, listener, registrar e `ReadyEvent` | Criação do JDA, estado `running` e shutdown | Usa `JDABuilder`; não registra comandos nem trata regras de negócio |
 | `DiscordCommandRegistrar` | Registrar os comandos disponíveis | `ReadyEvent` e política de guild | `upsertCommand` individual e assíncrono para `/deefy ping`, `/entrar`, `/sair` e `/tocar`, com logs do resultado | Registra globalmente por padrão sem substituir comandos não relacionados; no modo de teste, registra somente na guild configurada |
-| `DiscordCommandListener` | Filtrar e rotear as interações e o autocomplete suportados | Eventos slash/autocomplete | Resposta `pong`, sugestões ou respostas efêmeras dos casos de voz/reprodução | Aceita qualquer guild no modo normal e somente a configurada no modo de teste; não acessa repositórios nem FFmpeg diretamente |
+| `DiscordCommandListener` | Filtrar e rotear as interações e o autocomplete suportados | Eventos slash/autocomplete | Respostas públicas e uma mensagem Deefy atualizada durante a reprodução | Aceita qualquer guild no modo normal e somente a configurada no modo de teste; desabilita menções nas respostas e não acessa repositórios nem FFmpeg diretamente |
 | `DiscordVoiceConnectionService` | Aplicar as regras de entrada e saída de voz por guild | Guild, membro solicitante e estado JDA do canal | Abertura ou fechamento da conexão de voz e resultado controlado | Suporta apenas canais de voz comuns; não move conexão existente, não reproduz áudio e não possui fila nem proprietário exclusivo |
 | `DiscordTrackCatalog` | Resolver título, título + artista ou ID técnico no catálogo | Entrada textual e `MusicRepository` | Faixa normalizada, sugestões ou erro de ausência, ambiguidade ou origem | Normaliza caixa, acentos e espaços; entende créditos importados; recusa URL fora do origin de `DEEFY_API_URL`, assinada ou do Supabase antigo |
-| `DiscordPlaybackSessionService` | Possuir uma sessão ativa por guild | Guild, membro e faixa resolvida | Fonte JDA, estado e cleanup restritos à guild | Uma segunda faixa é recusada; não implementa fila nem troca silenciosa de canal |
+| `DiscordPlaybackSessionService` | Possuir uma sessão ativa por guild | Guild, membro e faixa resolvida | Fonte JDA, estado, conexão ociosa e cleanup restritos à guild | Uma segunda faixa é recusada; ao fim natural libera o áudio e mantém a voz por até 10 minutos, sem implementar fila nem troca silenciosa de canal |
 | `DiscordFfmpegAudioSource` | Converter mídia self-hosted em PCM de 20 ms | Processo FFmpeg sem shell | Frames PCM para `AudioSendHandler` | Não registra URL e libera stream/processo no término, erro ou saída |
 | JDA 6.7.0 | Adaptar Gateway, eventos e operações da API Discord | Token, listeners e chamadas assíncronas | Eventos JDA e ações remotas | Dependência declarada em `backend/pom.xml`; não substitui as regras de aplicação do Deefy |
 
@@ -193,6 +193,15 @@ normaliza caixa, acentos e espaços e prioriza título + artista exatos, título
 exato e só então correspondências parciais. Hífens internos permanecem parte do
 título quando essa for a correspondência correta. Resultados ambíguos retornam
 opções para refinamento e nunca iniciam uma faixa arbitrária.
+
+As respostas normais são públicas no canal de texto, com menções desabilitadas.
+`/tocar` cria uma única mensagem com título, créditos, solicitante e canal de
+voz e atualiza esse mesmo registro entre preparação, reprodução, conclusão ou
+falha. Detalhes de FFmpeg, transporte e codecs permanecem somente nos logs
+sanitizados. No fim natural, a fonte e o processo de áudio são liberados, mas a
+conexão fica ociosa por até 10 minutos. Uma reprodução válida no mesmo canal
+cancela o prazo anterior; `/sair`, falha terminal, desconexão externa e shutdown
+encerram imediatamente os recursos da guild correspondente.
 
 Para comandos futuros, o registro permanece na borda JDA, mas a execução deve
 ser incrementalmente separada por caso de uso:

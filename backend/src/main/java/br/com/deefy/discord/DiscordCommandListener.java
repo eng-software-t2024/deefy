@@ -1,13 +1,17 @@
 package br.com.deefy.discord;
 
+import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 public class DiscordCommandListener extends ListenerAdapter {
@@ -44,22 +48,25 @@ public class DiscordCommandListener extends ListenerAdapter {
         }
 
         if (ROOT_COMMAND.equals(event.getName()) && PING_SUBCOMMAND.equals(event.getSubcommandName())) {
-            event.reply("pong").queue();
+            event.reply("pong")
+                    .setEphemeral(false)
+                    .setAllowedMentions(List.of())
+                    .queue();
             return;
         }
 
         if (JOIN_COMMAND.equals(event.getName())) {
-            replyWithVoiceResult(event, voiceConnectionService.join(event.getGuild(), event.getMember()));
+            replyWithVoiceResult(event, playbackService.join(event.getGuild(), event.getMember()));
             return;
         }
 
         if (LEAVE_COMMAND.equals(event.getName())) {
             DiscordVoiceConnectionService.VoiceCommandResult result = voiceConnectionService.leave(
                     event.getGuild(),
-                    event.getMember()
+                    event.getMember(),
+                    () -> playbackService.stop(event.getGuild())
             );
-            if (result == DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED
-                    || result == DiscordVoiceConnectionService.VoiceCommandResult.BOT_NOT_CONNECTED) {
+            if (result == DiscordVoiceConnectionService.VoiceCommandResult.BOT_NOT_CONNECTED) {
                 playbackService.stop(event.getGuild());
             }
             replyWithVoiceResult(event, result);
@@ -69,21 +76,34 @@ public class DiscordCommandListener extends ListenerAdapter {
         if (PLAY_COMMAND.equals(event.getName())) {
             OptionMapping option = event.getOption(MUSIC_OPTION);
             String query = option == null ? "" : option.getAsString();
-            event.reply("Preparando a faixa e a conexão de voz.")
-                    .setEphemeral(true)
+            event.replyEmbeds(List.of(toEmbed(DiscordPlaybackService.initialPresentation())))
+                    .setEphemeral(false)
+                    .setAllowedMentions(List.of())
                     .queue(hook -> {
                         try {
+                            AtomicBoolean progressPublished = new AtomicBoolean(false);
                             DiscordPlaybackService.PlaybackCommandResult result = playbackService.play(
                                     event.getGuild(),
                                     event.getMember(),
                                     query,
-                                    progress -> hook.editOriginal(progress.responseMessage()).queue()
+                                    progress -> {
+                                        progressPublished.set(true);
+                                        editPlaybackMessage(hook, progress.presentation());
+                                    }
                             );
-                            if (!result.awaitingProgress()) {
-                                hook.editOriginal(result.responseMessage()).queue();
+                            if (!progressPublished.get() || !result.awaitingProgress()) {
+                                editPlaybackMessage(hook, result.presentation());
                             }
                         } catch (RuntimeException ignored) {
-                            hook.editOriginal("Não consegui iniciar a reprodução e a sessão foi cancelada.").queue();
+                            editPlaybackMessage(hook, new DiscordPlaybackService.PlaybackPresentation(
+                                    DiscordPlaybackService.PlaybackMessageState.FAILED,
+                                    "Falha na reprodução",
+                                    "Não consegui iniciar a reprodução e a sessão foi encerrada com segurança.",
+                                    null,
+                                    null,
+                                    null,
+                                    null
+                            ));
                         }
                     });
         }
@@ -109,8 +129,61 @@ public class DiscordCommandListener extends ListenerAdapter {
             DiscordVoiceConnectionService.VoiceCommandResult result
     ) {
         event.reply(result.responseMessage())
-                .setEphemeral(true)
+                .setEphemeral(false)
+                .setAllowedMentions(List.of())
                 .queue();
+    }
+
+    private void editPlaybackMessage(
+            InteractionHook hook,
+            DiscordPlaybackService.PlaybackPresentation presentation
+    ) {
+        hook.editOriginalEmbeds(List.of(toEmbed(presentation)))
+                .setAllowedMentions(List.of())
+                .queue();
+    }
+
+    private MessageEmbed toEmbed(DiscordPlaybackService.PlaybackPresentation presentation) {
+        EmbedBuilder embed = new EmbedBuilder()
+                .setColor(colorFor(presentation.state()))
+                .setAuthor("Deefy")
+                .setTitle(sanitize(presentation.heading(), 256))
+                .setDescription(sanitize(presentation.description(), 4_096))
+                .setFooter("Deefy • Reprodução self-hosted");
+
+        addField(embed, "Faixa", presentation.trackTitle());
+        addField(embed, "Artista / créditos", presentation.artist());
+        addField(embed, "Solicitado por", presentation.requester());
+        addField(embed, "Canal de voz", presentation.voiceChannel());
+        return embed.build();
+    }
+
+    private void addField(EmbedBuilder embed, String name, String value) {
+        if (value != null && !value.isBlank()) {
+            embed.addField(name, sanitize(value, 1_024), false);
+        }
+    }
+
+    private int colorFor(DiscordPlaybackService.PlaybackMessageState state) {
+        return switch (state) {
+            case PREPARING -> 0x2DE2C5;
+            case PLAYING -> 0x22C55E;
+            case COMPLETED -> 0x38BDF8;
+            case FAILED -> 0xEF4444;
+        };
+    }
+
+    private String sanitize(String value, int maxLength) {
+        if (value == null || value.isBlank()) {
+            return "—";
+        }
+        String sanitized = value
+                .replaceAll("[\\p{Cntrl}&&[^\\r\\n\\t]]", "")
+                .replace("@", "@\u200B")
+                .strip();
+        return sanitized.length() <= maxLength
+                ? sanitized
+                : sanitized.substring(0, maxLength - 1) + "…";
     }
 
     private boolean isAllowedGuild(String guildId) {
