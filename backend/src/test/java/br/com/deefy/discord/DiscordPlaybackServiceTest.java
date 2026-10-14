@@ -1,7 +1,9 @@
 package br.com.deefy.discord;
 
 import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.GuildVoiceState;
 import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -19,6 +21,23 @@ import static org.mockito.Mockito.when;
 class DiscordPlaybackServiceTest {
 
     @Test
+    void shouldNotTouchPlaybackStateForInvalidRequest() {
+        DiscordTrackCatalog catalog = mock(DiscordTrackCatalog.class);
+        DiscordPlaybackSessionService sessions = mock(DiscordPlaybackSessionService.class);
+        when(catalog.find("desconhecida")).thenReturn(new DiscordTrackCatalog.TrackLookupResult(
+                DiscordTrackCatalog.TrackLookupStatus.NOT_FOUND,
+                null,
+                List.of()
+        ));
+
+        DiscordPlaybackService.PlaybackCommandResult result = new DiscordPlaybackService(catalog, sessions)
+                .play(null, null, "desconhecida");
+
+        assertThat(result.presentation().description()).contains("Não encontrei");
+        verifyNoInteractions(sessions);
+    }
+
+    @Test
     void shouldPresentClearOptionsForAmbiguousTitleWithoutStartingPlayback() {
         DiscordTrackCatalog catalog = mock(DiscordTrackCatalog.class);
         DiscordPlaybackSessionService sessions = mock(DiscordPlaybackSessionService.class);
@@ -34,7 +53,7 @@ class DiscordPlaybackServiceTest {
         DiscordPlaybackService.PlaybackCommandResult result = new DiscordPlaybackService(catalog, sessions)
                 .play(null, null, "Luz");
 
-        assertThat(result.responseMessage())
+        assertThat(result.presentation().description())
                 .contains("Artista A - Luz", "Artista B - Luz")
                 .contains("Refine usando título - artista");
         verifyNoInteractions(sessions);
@@ -42,11 +61,13 @@ class DiscordPlaybackServiceTest {
 
     @SuppressWarnings("unchecked")
     @Test
-    void shouldExposeRealProgressAndTimeoutWithoutClaimingAudioWasHeard() {
+    void shouldExposeReadablePlaybackProgressWithoutTechnicalDetails() {
         DiscordTrackCatalog catalog = mock(DiscordTrackCatalog.class);
         DiscordPlaybackSessionService sessions = mock(DiscordPlaybackSessionService.class);
         Guild guild = mock(Guild.class);
         Member member = mock(Member.class);
+        GuildVoiceState voiceState = mock(GuildVoiceState.class);
+        AudioChannelUnion voiceChannel = mock(AudioChannelUnion.class);
         DiscordTrack track = new DiscordTrack(369L, "XTRANHO", "Matuê", "https://deefy.olua.me/media/369");
         ArgumentCaptor<Consumer<DiscordPlaybackSessionService.PlaybackProgress>> observer =
                 ArgumentCaptor.forClass(Consumer.class);
@@ -57,18 +78,27 @@ class DiscordPlaybackServiceTest {
         ));
         when(sessions.start(eq(guild), eq(member), eq(track), observer.capture()))
                 .thenReturn(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
-        List<String> updates = new ArrayList<>();
+        when(member.getEffectiveName()).thenReturn("Pessoa de teste");
+        when(member.getVoiceState()).thenReturn(voiceState);
+        when(voiceState.getChannel()).thenReturn(voiceChannel);
+        when(voiceChannel.getName()).thenReturn("Música");
+        List<DiscordPlaybackService.PlaybackPresentation> updates = new ArrayList<>();
 
         DiscordPlaybackService.PlaybackCommandResult result = new DiscordPlaybackService(catalog, sessions)
-                .play(guild, member, "XTRANHO - Matuê", update -> updates.add(update.responseMessage()));
+                .play(guild, member, "XTRANHO - Matuê", update -> updates.add(update.presentation()));
         observer.getValue().accept(DiscordPlaybackSessionService.PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
         observer.getValue().accept(DiscordPlaybackSessionService.PlaybackProgress.START_TIMEOUT);
 
         assertThat(result.awaitingProgress()).isTrue();
-        assertThat(updates).containsExactly(
-                "O bot começou a fornecer quadros de áudio ao mecanismo de voz; "
-                        + "isso não confirma a audição no cliente.",
-                "A reprodução não começou dentro do tempo esperado e foi cancelada."
-        );
+        assertThat(result.presentation().trackTitle()).isEqualTo("XTRANHO");
+        assertThat(result.presentation().artist()).isEqualTo("Matuê");
+        assertThat(result.presentation().requester()).isEqualTo("Pessoa de teste");
+        assertThat(result.presentation().voiceChannel()).isEqualTo("Música");
+        assertThat(updates).extracting(DiscordPlaybackService.PlaybackPresentation::heading)
+                .containsExactly("Tocando agora", "Não foi possível reproduzir");
+        assertThat(updates)
+                .extracting(DiscordPlaybackService.PlaybackPresentation::description)
+                .allSatisfy(message -> assertThat(message)
+                        .doesNotContain("PCM", "frame", "DAVE", "codec", "audição no cliente"));
     }
 }

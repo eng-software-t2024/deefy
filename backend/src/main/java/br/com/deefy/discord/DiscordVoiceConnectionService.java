@@ -91,6 +91,10 @@ public class DiscordVoiceConnectionService {
     }
 
     public VoiceCommandResult leave(Guild guild, Member requester) {
+        return leave(guild, requester, () -> { });
+    }
+
+    public VoiceCommandResult leave(Guild guild, Member requester, Runnable beforeDisconnect) {
         VoiceChannel requesterChannel = getStandardVoiceChannel(requester);
         if (requesterChannel == null) {
             return requesterHasAudioChannel(requester)
@@ -116,6 +120,7 @@ public class DiscordVoiceConnectionService {
             }
 
             try {
+                beforeDisconnect.run();
                 audioManager.closeAudioConnection();
                 session.activeAttempt = null;
                 return VoiceCommandResult.DISCONNECTION_STARTED;
