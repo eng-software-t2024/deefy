@@ -1,9 +1,12 @@
 package br.com.deefy.discord;
 
 import net.dv8tion.jda.api.EmbedBuilder;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
+import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.entities.MessageEmbed;
-import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.Command;
@@ -11,7 +14,10 @@ import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 public class DiscordCommandListener extends ListenerAdapter {
@@ -21,10 +27,13 @@ public class DiscordCommandListener extends ListenerAdapter {
     private static final String JOIN_COMMAND = "entrar";
     private static final String LEAVE_COMMAND = "sair";
     private static final String PLAY_COMMAND = "tocar";
+    private static final String PAUSE_COMMAND = "pausar";
+    private static final String RESUME_COMMAND = "retomar";
+    private static final String STOP_COMMAND = "parar";
     private static final String MUSIC_OPTION = "musica";
+    private static final String CONTROL_PREFIX = "deefy:playback:";
 
     private final DiscordBotProperties properties;
-    private final DiscordVoiceConnectionService voiceConnectionService;
     private final DiscordPlaybackService playbackService;
 
     public DiscordCommandListener(
@@ -33,17 +42,12 @@ public class DiscordCommandListener extends ListenerAdapter {
             DiscordPlaybackService playbackService
     ) {
         this.properties = properties;
-        this.voiceConnectionService = voiceConnectionService;
         this.playbackService = playbackService;
     }
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
-        if (!event.isFromGuild()) {
-            return;
-        }
-
-        if (!isAllowedGuild(event.getGuild() == null ? null : event.getGuild().getId())) {
+        if (!event.isFromGuild() || !isAllowedGuild(event.getGuild() == null ? null : event.getGuild().getId())) {
             return;
         }
 
@@ -56,57 +60,58 @@ public class DiscordCommandListener extends ListenerAdapter {
         }
 
         if (JOIN_COMMAND.equals(event.getName())) {
-            replyWithVoiceResult(event, playbackService.join(event.getGuild(), event.getMember()));
+            deferPublicVoiceReply(
+                    event,
+                    playbackService.joinAsync(event.getGuild(), event.getMember(), event.getId())
+            );
             return;
         }
 
         if (LEAVE_COMMAND.equals(event.getName())) {
-            DiscordVoiceConnectionService.VoiceCommandResult result = voiceConnectionService.leave(
-                    event.getGuild(),
-                    event.getMember(),
-                    () -> playbackService.stop(event.getGuild())
+            deferPublicVoiceReply(
+                    event,
+                    playbackService.leaveAsync(event.getGuild(), event.getMember(), event.getId())
             );
-            if (result == DiscordVoiceConnectionService.VoiceCommandResult.BOT_NOT_CONNECTED) {
-                playbackService.stop(event.getGuild());
-            }
-            replyWithVoiceResult(event, result);
             return;
         }
 
         if (PLAY_COMMAND.equals(event.getName())) {
-            OptionMapping option = event.getOption(MUSIC_OPTION);
-            String query = option == null ? "" : option.getAsString();
-            event.replyEmbeds(List.of(toEmbed(DiscordPlaybackService.initialPresentation())))
-                    .setEphemeral(false)
-                    .setAllowedMentions(List.of())
-                    .queue(hook -> {
-                        try {
-                            AtomicBoolean progressPublished = new AtomicBoolean(false);
-                            DiscordPlaybackService.PlaybackCommandResult result = playbackService.play(
-                                    event.getGuild(),
-                                    event.getMember(),
-                                    query,
-                                    progress -> {
-                                        progressPublished.set(true);
-                                        editPlaybackMessage(hook, progress.presentation());
-                                    }
-                            );
-                            if (!progressPublished.get() || !result.awaitingProgress()) {
-                                editPlaybackMessage(hook, result.presentation());
-                            }
-                        } catch (RuntimeException ignored) {
-                            editPlaybackMessage(hook, new DiscordPlaybackService.PlaybackPresentation(
-                                    DiscordPlaybackService.PlaybackMessageState.FAILED,
-                                    "Falha na reprodução",
-                                    "Não consegui iniciar a reprodução e a sessão foi encerrada com segurança.",
-                                    null,
-                                    null,
-                                    null,
-                                    null
-                            ));
-                        }
-                    });
+            startPlayback(event);
+            return;
         }
+
+        DiscordPlaybackSessionService.PlaybackControlAction action = slashControl(event.getName());
+        if (action != null) {
+            handleSlashControl(event, action);
+        }
+    }
+
+    @Override
+    public void onButtonInteraction(ButtonInteractionEvent event) {
+        if (!event.isFromGuild() || !isAllowedGuild(event.getGuild() == null ? null : event.getGuild().getId())) {
+            return;
+        }
+        ParsedControl control = parseControl(event.getComponentId());
+        if (control == null) {
+            return;
+        }
+
+        event.deferEdit().queue(hook -> playbackService.controlAsync(
+                event.getGuild(),
+                event.getMember(),
+                DiscordPlaybackSessionService.PlaybackControlRequest.button(
+                        control.action(),
+                        control.sessionId(),
+                        event.getMessageIdLong(),
+                        event.getId()
+                )
+        ).whenComplete((result, failure) -> {
+            if (failure != null) {
+                sendEphemeral(hook, "Não consegui aplicar esse controle agora.");
+            } else if (!result.applied()) {
+                sendEphemeral(hook, result.responseMessage());
+            }
+        }));
     }
 
     @Override
@@ -124,23 +129,191 @@ public class DiscordCommandListener extends ListenerAdapter {
         event.replyChoices(choices).queue();
     }
 
-    private void replyWithVoiceResult(
-            SlashCommandInteractionEvent event,
-            DiscordVoiceConnectionService.VoiceCommandResult result
-    ) {
-        event.reply(result.responseMessage())
+    private void startPlayback(SlashCommandInteractionEvent event) {
+        OptionMapping option = event.getOption(MUSIC_OPTION);
+        String query = option == null ? "" : option.getAsString();
+        event.replyEmbeds(List.of(toEmbed(DiscordPlaybackService.initialPresentation())))
                 .setEphemeral(false)
+                .setAllowedMentions(List.of())
+                .queue(hook -> {
+                    DiscordPlaybackMessageCoordinator messages = new DiscordPlaybackMessageCoordinator(
+                            (presentation, sessionId, success, failure) -> hook
+                                    .editOriginalEmbeds(List.of(toEmbed(presentation)))
+                                    .setComponents(componentsFor(presentation, sessionId))
+                                    .setAllowedMentions(List.of())
+                                    .queue(ignored -> success.run(), failure)
+                    );
+                    AtomicReference<String> sessionId = new AtomicReference<>();
+                    AtomicReference<DiscordPlaybackService.PlaybackPresentation> bufferedProgress =
+                            new AtomicReference<>();
+                    AtomicBoolean controlsReady = new AtomicBoolean(false);
+                    Object publicationGate = new Object();
+
+                    playbackService.playAsync(
+                            event.getGuild(),
+                            event.getMember(),
+                            query,
+                            event.getId(),
+                            progress -> {
+                                synchronized (publicationGate) {
+                                    String activeSession = sessionId.get();
+                                    if (activeSession == null || !controlsReady.get()) {
+                                        bufferedProgress.set(progress.presentation());
+                                    } else {
+                                        messages.publish(progress.presentation(), activeSession);
+                                    }
+                                }
+                            }
+                    ).whenComplete((result, failure) -> {
+                        if (failure != null) {
+                            messages.publish(unexpectedFailure(), null);
+                            return;
+                        }
+                        sessionId.set(result.sessionId());
+                        if (result.sessionId() == null) {
+                            messages.publish(result.presentation(), null);
+                            return;
+                        }
+                        bindControlMessage(event, hook, result.sessionId()).whenComplete((bound, bindFailure) -> {
+                            synchronized (publicationGate) {
+                                DiscordPlaybackService.PlaybackPresentation buffered = bufferedProgress.getAndSet(null);
+                                DiscordPlaybackService.PlaybackPresentation current = buffered != null
+                                        ? buffered
+                                        : result.presentation();
+                                boolean controlsBound = bindFailure == null && Boolean.TRUE.equals(bound);
+                                messages.publish(current, controlsBound ? result.sessionId() : null);
+                                controlsReady.set(controlsBound);
+                            }
+                        });
+                    });
+                });
+    }
+
+    private CompletableFuture<Boolean> bindControlMessage(
+            SlashCommandInteractionEvent event,
+            InteractionHook hook,
+            String sessionId
+    ) {
+        return hook.retrieveOriginal().submit()
+                .thenCompose(message -> playbackService.bindControlMessageAsync(
+                        event.getGuild().getIdLong(),
+                        sessionId,
+                        message.getIdLong()
+                ))
+                .exceptionally(ignored -> false);
+    }
+
+    private void handleSlashControl(
+            SlashCommandInteractionEvent event,
+            DiscordPlaybackSessionService.PlaybackControlAction action
+    ) {
+        event.deferReply(true).queue(hook -> playbackService.controlAsync(
+                event.getGuild(),
+                event.getMember(),
+                DiscordPlaybackSessionService.PlaybackControlRequest.slash(action, event.getId())
+        ).whenComplete((result, failure) -> {
+            if (failure != null) {
+                hook.editOriginal("Não consegui aplicar esse controle agora.")
+                        .setAllowedMentions(List.of())
+                        .queue();
+            } else if (result.applied()) {
+                hook.deleteOriginal().queue();
+            } else {
+                hook.editOriginal(result.responseMessage())
+                        .setAllowedMentions(List.of())
+                        .queue();
+            }
+        }));
+    }
+
+    private void deferPublicVoiceReply(
+            SlashCommandInteractionEvent event,
+            CompletableFuture<DiscordVoiceConnectionService.VoiceCommandResult> future
+    ) {
+        event.deferReply(false)
+                .setAllowedMentions(List.of())
+                .queue(hook -> future.whenComplete((result, failure) -> hook
+                        .editOriginal(failure == null
+                                ? result.responseMessage()
+                                : "Não consegui concluir o comando agora.")
+                        .setAllowedMentions(List.of())
+                        .queue()));
+    }
+
+    private void sendEphemeral(InteractionHook hook, String message) {
+        hook.sendMessage(message)
+                .setEphemeral(true)
                 .setAllowedMentions(List.of())
                 .queue();
     }
 
-    private void editPlaybackMessage(
-            InteractionHook hook,
-            DiscordPlaybackService.PlaybackPresentation presentation
+    private List<ActionRow> componentsFor(
+            DiscordPlaybackService.PlaybackPresentation presentation,
+            String sessionId
     ) {
-        hook.editOriginalEmbeds(List.of(toEmbed(presentation)))
-                .setAllowedMentions(List.of())
-                .queue();
+        if (sessionId == null) {
+            return List.of();
+        }
+        return switch (presentation.state()) {
+            case PREPARING -> List.of(ActionRow.of(
+                    Button.secondary(controlId("pause", sessionId), "⏸️ Pausar").asDisabled(),
+                    Button.danger(controlId("stop", sessionId), "⏹️ Parar")
+            ));
+            case PLAYING -> List.of(ActionRow.of(
+                    Button.secondary(controlId("pause", sessionId), "⏸️ Pausar"),
+                    Button.danger(controlId("stop", sessionId), "⏹️ Parar")
+            ));
+            case PAUSED -> List.of(ActionRow.of(
+                    Button.success(controlId("resume", sessionId), "▶️ Retomar"),
+                    Button.danger(controlId("stop", sessionId), "⏹️ Parar")
+            ));
+            case COMPLETED, STOPPED, FAILED -> List.of();
+        };
+    }
+
+    private String controlId(String action, String sessionId) {
+        return CONTROL_PREFIX + action + ":" + sessionId;
+    }
+
+    private ParsedControl parseControl(String componentId) {
+        if (componentId == null || !componentId.startsWith(CONTROL_PREFIX)) {
+            return null;
+        }
+        String suffix = componentId.substring(CONTROL_PREFIX.length());
+        int separator = suffix.indexOf(':');
+        if (separator <= 0 || separator == suffix.length() - 1) {
+            return null;
+        }
+        DiscordPlaybackSessionService.PlaybackControlAction action = switch (
+                suffix.substring(0, separator).toLowerCase(Locale.ROOT)
+        ) {
+            case "pause" -> DiscordPlaybackSessionService.PlaybackControlAction.PAUSE;
+            case "resume" -> DiscordPlaybackSessionService.PlaybackControlAction.RESUME;
+            case "stop" -> DiscordPlaybackSessionService.PlaybackControlAction.STOP;
+            default -> null;
+        };
+        return action == null ? null : new ParsedControl(action, suffix.substring(separator + 1));
+    }
+
+    private DiscordPlaybackSessionService.PlaybackControlAction slashControl(String command) {
+        return switch (command) {
+            case PAUSE_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.PAUSE;
+            case RESUME_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.RESUME;
+            case STOP_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.STOP;
+            default -> null;
+        };
+    }
+
+    private DiscordPlaybackService.PlaybackPresentation unexpectedFailure() {
+        return new DiscordPlaybackService.PlaybackPresentation(
+                DiscordPlaybackService.PlaybackMessageState.FAILED,
+                "Falha na reprodução",
+                "Não consegui iniciar a reprodução e a sessão foi encerrada com segurança.",
+                null,
+                null,
+                null,
+                null
+        );
     }
 
     private MessageEmbed toEmbed(DiscordPlaybackService.PlaybackPresentation presentation) {
@@ -168,7 +341,9 @@ public class DiscordCommandListener extends ListenerAdapter {
         return switch (state) {
             case PREPARING -> 0x2DE2C5;
             case PLAYING -> 0x22C55E;
+            case PAUSED -> 0xF59E0B;
             case COMPLETED -> 0x38BDF8;
+            case STOPPED -> 0x94A3B8;
             case FAILED -> 0xEF4444;
         };
     }
@@ -188,5 +363,11 @@ public class DiscordCommandListener extends ListenerAdapter {
 
     private boolean isAllowedGuild(String guildId) {
         return properties.isGuildAllowed(guildId);
+    }
+
+    private record ParsedControl(
+            DiscordPlaybackSessionService.PlaybackControlAction action,
+            String sessionId
+    ) {
     }
 }

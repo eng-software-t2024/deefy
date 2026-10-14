@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -80,19 +81,26 @@ class DiscordPlaybackSessionServiceTest {
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
-            Future<DiscordPlaybackSessionService.PlaybackStartResult> first = executor.submit(
-                    () -> service.start(fixture.guild, fixture.requester, fixture.track)
-            );
-            assertThat(sourceCreationStarted.await(5, TimeUnit.SECONDS)).isTrue();
-            DiscordPlaybackSessionService.PlaybackStartResult second = service.start(
+            CompletableFuture<DiscordPlaybackSessionService.PlaybackStartOutcome> first = service.startAsync(
                     fixture.guild,
                     fixture.requester,
-                    new DiscordTrack(2L, "Outra", "Artista", fixture.track.audioUrl())
+                    fixture.track,
+                    "play-1",
+                    ignored -> { }
+            );
+            assertThat(sourceCreationStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            CompletableFuture<DiscordPlaybackSessionService.PlaybackStartOutcome> second = service.startAsync(
+                    fixture.guild,
+                    fixture.requester,
+                    new DiscordTrack(2L, "Outra", "Artista", fixture.track.audioUrl()),
+                    "play-2",
+                    ignored -> { }
             );
             releaseSourceCreation.countDown();
 
-            assertThat(second).isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.ALREADY_PLAYING);
-            assertThat(first.get(5, TimeUnit.SECONDS))
+            assertThat(second.get(5, TimeUnit.SECONDS).result())
+                    .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.ALREADY_PLAYING);
+            assertThat(first.get(5, TimeUnit.SECONDS).result())
                     .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
         } finally {
             executor.shutdownNow();
@@ -139,6 +147,7 @@ class DiscordPlaybackSessionServiceTest {
         firstFrame.getValue().run();
         firstTermination.getValue().run();
         firstTermination.getValue().run();
+        service.awaitGuild(1L);
 
         assertThat(service.sessionFor(1L)).isEmpty();
         assertThat(service.sessionFor(2L)).isPresent();
@@ -175,6 +184,7 @@ class DiscordPlaybackSessionServiceTest {
                 .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
         firstFrame.getValue().run();
         termination.getValue().run();
+        controlledService.awaitGuild(1L);
 
         verify(source).close();
         verify(fixture.audioManager, never()).closeAudioConnection();
@@ -182,6 +192,7 @@ class DiscordPlaybackSessionServiceTest {
         assertThat(scheduledTasks.getAllValues()).hasSize(2);
 
         scheduledTasks.getAllValues().get(1).run();
+        controlledService.awaitGuild(1L);
 
         verify(fixture.audioManager, times(1)).closeAudioConnection();
         assertThat(controlledService.idleConnectionCount()).isZero();
@@ -214,11 +225,13 @@ class DiscordPlaybackSessionServiceTest {
         controlledService.start(fixture.guild, fixture.requester, fixture.track);
         firstFrames.getValue().run();
         terminations.getValue().run();
+        controlledService.awaitGuild(1L);
         Runnable oldIdleTimer = scheduledTasks.getAllValues().get(1);
 
         assertThat(controlledService.start(fixture.guild, fixture.requester, fixture.track))
                 .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
         oldIdleTimer.run();
+        controlledService.awaitGuild(1L);
 
         assertThat(controlledService.sessionFor(1L)).isPresent();
         verify(idleOne).cancel(false);
@@ -273,6 +286,7 @@ class DiscordPlaybackSessionServiceTest {
 
         controlledService.joinIdle(fixture.guild, fixture.requester);
         observer.getValue().accept(ConnectionStatus.DISCONNECTED_KICKED_FROM_CHANNEL);
+        controlledService.awaitGuild(1L);
 
         assertThat(controlledService.idleConnectionCount()).isZero();
         verify(idleFuture).cancel(false);
@@ -300,6 +314,7 @@ class DiscordPlaybackSessionServiceTest {
         controlledService.joinIdle(first.guild, first.requester);
         controlledService.joinIdle(second.guild, second.requester);
         scheduledTasks.getAllValues().get(0).run();
+        controlledService.awaitGuild(1L);
 
         verify(first.audioManager).closeAudioConnection();
         verify(second.audioManager, never()).closeAudioConnection();
@@ -343,6 +358,7 @@ class DiscordPlaybackSessionServiceTest {
                 .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
 
         observer.getValue().accept(ConnectionStatus.DISCONNECTED_KICKED_FROM_CHANNEL);
+        service.awaitGuild(1L);
 
         assertThat(service.sessionFor(1L)).isEmpty();
         verify(source).close();
@@ -392,6 +408,7 @@ class DiscordPlaybackSessionServiceTest {
         service.start(second.guild, second.requester, second.track);
         firstObserver.getValue().accept(ConnectionStatus.ERROR_CANNOT_RESUME);
         firstObserver.getValue().accept(ConnectionStatus.ERROR_CANNOT_RESUME);
+        service.awaitGuild(1L);
 
         assertThat(service.sessionFor(1L)).isEmpty();
         assertThat(service.sessionFor(2L)).isPresent();
@@ -467,6 +484,7 @@ class DiscordPlaybackSessionServiceTest {
 
         voiceObserver.getValue().accept(ConnectionStatus.CONNECTED);
         firstFrame.getValue().run();
+        service.awaitGuild(1L);
 
         assertThat(progress).containsExactly(
                 DiscordPlaybackSessionService.PlaybackProgress.VOICE_CONNECTED,

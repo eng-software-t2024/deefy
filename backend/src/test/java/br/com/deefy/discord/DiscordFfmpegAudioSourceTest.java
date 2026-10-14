@@ -109,6 +109,38 @@ class DiscordFfmpegAudioSourceTest {
         assertThat(source.exitCode()).isEqualTo(1);
     }
 
+    @Test
+    void shouldPauseWithoutDeliveringOrDiscardingBufferedAudioAndResumeAtSamePosition() throws Exception {
+        byte[] pcm = new byte[DiscordFfmpegAudioSource.PCM_FRAME_SIZE * 2];
+        pcm[0] = 11;
+        pcm[DiscordFfmpegAudioSource.PCM_FRAME_SIZE] = 22;
+        Process process = mock(Process.class);
+        when(process.getInputStream()).thenReturn(new ByteArrayInputStream(pcm));
+        when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.waitFor(2, TimeUnit.SECONDS)).thenReturn(true);
+        when(process.exitValue()).thenReturn(0);
+        DiscordFfmpegAudioSource source = new DiscordFfmpegAudioSource(process, 123L, () -> { }, () -> { });
+
+        assertThat(waitUntil(() -> source.framesProduced() == 2)).isTrue();
+        source.pause();
+        assertThat(source.isPaused()).isTrue();
+        assertThat(source.canProvide()).isFalse();
+        assertThat(source.provide20MsAudio()).isNull();
+        assertThat(source.framesDelivered()).isZero();
+
+        source.resume();
+        assertThat(source.isPaused()).isFalse();
+        ByteBuffer first = source.provide20MsAudio();
+        ByteBuffer second = source.provide20MsAudio();
+
+        assertThat(first).isNotNull();
+        assertThat(second).isNotNull();
+        assertThat(first.get()).isEqualTo((byte) 11);
+        assertThat(second.get()).isEqualTo((byte) 22);
+        assertThat(source.framesDelivered()).isEqualTo(2);
+        source.close();
+    }
+
     private boolean waitUntil(BooleanSupplier condition) {
         long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
         while (System.nanoTime() < deadline) {

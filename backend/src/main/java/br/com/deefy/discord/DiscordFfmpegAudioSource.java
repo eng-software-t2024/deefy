@@ -13,6 +13,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
 public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
@@ -42,11 +44,14 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
     private final AtomicLong pcmBytesProduced = new AtomicLong();
     private final AtomicLong framesProduced = new AtomicLong();
     private final AtomicLong framesDelivered = new AtomicLong();
+    private final ReentrantLock playbackLock = new ReentrantLock();
+    private final Condition playbackResumed = playbackLock.newCondition();
     private final Thread stderrThread;
     private final Thread producerThread;
 
     private volatile boolean sourceEnded;
     private volatile boolean closed;
+    private volatile boolean paused;
     private volatile Integer exitCode;
     private volatile String stderrSummary = "";
 
@@ -72,7 +77,7 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
 
     @Override
     public boolean canProvide() {
-        if (closed) {
+        if (closed || paused) {
             return false;
         }
         if (!frameBuffer.isEmpty()) {
@@ -86,7 +91,7 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
 
     @Override
     public ByteBuffer provide20MsAudio() {
-        if (closed) {
+        if (closed || paused) {
             return null;
         }
 
@@ -107,6 +112,34 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
     @Override
     public boolean isOpus() {
         return false;
+    }
+
+    @Override
+    public void pause() {
+        playbackLock.lock();
+        try {
+            if (!closed) {
+                paused = true;
+            }
+        } finally {
+            playbackLock.unlock();
+        }
+    }
+
+    @Override
+    public void resume() {
+        playbackLock.lock();
+        try {
+            paused = false;
+            playbackResumed.signalAll();
+        } finally {
+            playbackLock.unlock();
+        }
+    }
+
+    @Override
+    public boolean isPaused() {
+        return paused;
     }
 
     @Override
@@ -137,6 +170,10 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
     private void produceFrames() {
         try {
             while (!closed) {
+                awaitPlayback();
+                if (closed) {
+                    return;
+                }
                 byte[] frame = readFrame();
                 if (frame == null) {
                     return;
@@ -199,6 +236,7 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
         }
 
         if (shouldClose) {
+            resume();
             producerThread.interrupt();
             closeProcess();
         }
@@ -207,6 +245,17 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
 
         if (notifyTermination && terminationNotified.compareAndSet(false, true)) {
             runSafely(onTerminated);
+        }
+    }
+
+    private void awaitPlayback() throws InterruptedException {
+        playbackLock.lockInterruptibly();
+        try {
+            while (paused && !closed) {
+                playbackResumed.await();
+            }
+        } finally {
+            playbackLock.unlock();
         }
     }
 

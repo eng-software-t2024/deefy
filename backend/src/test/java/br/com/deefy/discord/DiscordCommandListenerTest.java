@@ -1,293 +1,381 @@
 package br.com.deefy.discord;
 
-import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
-import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
+import net.dv8tion.jda.api.components.MessageTopLevelComponent;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
-import net.dv8tion.jda.api.interactions.InteractionHook;
+import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
+import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.interactions.AutoCompleteQuery;
+import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
-import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
-import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
+import net.dv8tion.jda.api.requests.RestAction;
+import net.dv8tion.jda.api.requests.restaction.WebhookMessageCreateAction;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
+import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
+import net.dv8tion.jda.api.requests.restaction.interactions.MessageEditCallbackAction;
+import net.dv8tion.jda.api.requests.restaction.interactions.ReplyCallbackAction;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DiscordCommandListenerTest {
 
     @Test
-    void shouldIgnoreJoinCommandFromDirectMessage() {
-        DiscordBotProperties properties = configuredProperties();
-        DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
+    void shouldIgnoreCommandsFromDirectMessage() {
         DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
         when(event.isFromGuild()).thenReturn(false);
 
-        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
-                .onSlashCommandInteraction(event);
+        listener(configuredProperties(), playbackService).onSlashCommandInteraction(event);
 
-        verifyNoInteractions(voiceConnectionService);
         verifyNoInteractions(playbackService);
         verify(event, never()).reply(anyString());
     }
 
     @Test
-    void shouldReplyPongToGuildDeefyPingCommand() {
-        DiscordBotProperties properties = configuredProperties();
-        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
-        Guild guild = mock(Guild.class);
-        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
-        when(event.isFromGuild()).thenReturn(true);
-        when(event.getGuild()).thenReturn(guild);
-        when(guild.getId()).thenReturn(properties.getTestGuildId());
-        when(event.getName()).thenReturn("deefy");
+    void shouldReplyPongPubliclyWithoutRenewingPlaybackState() {
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        SlashCommandInteractionEvent event = guildSlash(configuredProperties(), "deefy");
+        ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
         when(event.getSubcommandName()).thenReturn("ping");
-        when(event.reply("pong")).thenReturn(replyAction);
-        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
-        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
+        when(event.reply("pong")).thenReturn(reply);
+        when(reply.setEphemeral(false)).thenReturn(reply);
+        when(reply.setAllowedMentions(anyList())).thenReturn(reply);
 
-        DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
-        new DiscordCommandListener(properties, voiceConnectionService, mock(DiscordPlaybackService.class))
-                .onSlashCommandInteraction(event);
+        listener(configuredProperties(), playbackService).onSlashCommandInteraction(event);
 
-        verify(event).reply("pong");
-        verify(replyAction).setEphemeral(false);
-        verify(replyAction).queue();
-        verifyNoInteractions(voiceConnectionService);
+        verify(reply).setEphemeral(false);
+        verify(reply).setAllowedMentions(List.of());
+        verify(reply).queue();
+        verifyNoInteractions(playbackService);
     }
 
     @Test
-    void shouldAcceptCommandsFromAnyGuildInNormalModeWithoutConfiguredGuild() {
+    void shouldAcceptCommandsFromAnyGuildInNormalMode() {
         DiscordBotProperties properties = new DiscordBotProperties();
-        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
-        Guild guild = mock(Guild.class);
-        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
-        when(event.isFromGuild()).thenReturn(true);
-        when(event.getGuild()).thenReturn(guild);
-        when(guild.getId()).thenReturn("987654321098765432");
-        when(event.getName()).thenReturn("deefy");
+        SlashCommandInteractionEvent event = guildSlash(properties, "deefy");
+        ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
         when(event.getSubcommandName()).thenReturn("ping");
-        when(event.reply("pong")).thenReturn(replyAction);
-        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
-        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
+        when(event.reply("pong")).thenReturn(reply);
+        when(reply.setEphemeral(false)).thenReturn(reply);
+        when(reply.setAllowedMentions(anyList())).thenReturn(reply);
 
-        new DiscordCommandListener(
-                properties,
-                mock(DiscordVoiceConnectionService.class),
-                mock(DiscordPlaybackService.class)
-        ).onSlashCommandInteraction(event);
+        listener(properties, mock(DiscordPlaybackService.class)).onSlashCommandInteraction(event);
 
-        verify(event).reply("pong");
-        verify(replyAction).queue();
+        verify(reply).queue();
     }
 
     @Test
-    void shouldIgnoreCommandsOutsideTheConfiguredGuildOnlyInTestMode() {
+    void shouldIgnoreCommandsOutsideConfiguredGuildOnlyInTestMode() {
         DiscordBotProperties properties = configuredProperties();
         SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
         Guild guild = mock(Guild.class);
         when(event.isFromGuild()).thenReturn(true);
         when(event.getGuild()).thenReturn(guild);
         when(guild.getId()).thenReturn("987654321098765432");
-        when(event.getName()).thenReturn("deefy");
-        when(event.getSubcommandName()).thenReturn("ping");
 
-        DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
-        new DiscordCommandListener(properties, voiceConnectionService, mock(DiscordPlaybackService.class))
-                .onSlashCommandInteraction(event);
+        listener(properties, mock(DiscordPlaybackService.class)).onSlashCommandInteraction(event);
 
-        verify(event, never()).reply("pong");
-        verifyNoInteractions(voiceConnectionService);
+        verify(event, never()).reply(anyString());
     }
 
     @Test
-    void shouldRouteJoinCommandAndReplyPublicly() {
+    void shouldAcknowledgeJoinAsPublicAndCompleteAsynchronously() {
         DiscordBotProperties properties = configuredProperties();
-        DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
-        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
-        Guild guild = mock(Guild.class);
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        SlashCommandInteractionEvent event = guildSlash(properties, "entrar");
+        ReplyCallbackAction defer = mock(ReplyCallbackAction.class);
+        InteractionHook hook = mock(InteractionHook.class);
+        WebhookMessageEditAction<Message> edit = mock(WebhookMessageEditAction.class);
+        Guild guild = event.getGuild();
         Member member = mock(Member.class);
-        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
+        when(event.getMember()).thenReturn(member);
+        when(event.getId()).thenReturn("join-1");
+        when(event.deferReply(false)).thenReturn(defer);
+        when(defer.setAllowedMentions(anyList())).thenReturn(defer);
+        completeReply(defer, hook);
+        when(playbackService.joinAsync(guild, member, "join-1")).thenReturn(CompletableFuture.completedFuture(
+                DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED
+        ));
         String response = DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED.responseMessage();
+        when(hook.editOriginal(response)).thenReturn(edit);
+        when(edit.setAllowedMentions(anyList())).thenReturn(edit);
 
-        when(event.isFromGuild()).thenReturn(true);
-        when(event.getGuild()).thenReturn(guild);
-        when(event.getMember()).thenReturn(member);
-        when(guild.getId()).thenReturn(properties.getTestGuildId());
-        when(event.getName()).thenReturn("entrar");
-        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
-        when(playbackService.join(guild, member))
-                .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED);
-        when(event.reply(response)).thenReturn(replyAction);
-        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
-        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
+        listener(properties, playbackService).onSlashCommandInteraction(event);
 
-        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
-                .onSlashCommandInteraction(event);
-
-        verify(playbackService).join(guild, member);
-        verify(replyAction).setEphemeral(false);
-        verify(replyAction).queue();
+        verify(event).deferReply(false);
+        verify(playbackService).joinAsync(guild, member, "join-1");
+        verify(edit).queue();
     }
 
     @Test
-    void shouldRouteLeaveCommandAndReplyPublicly() {
+    void shouldRouteLeaveThroughPlaybackDomainAndReplyPublicly() {
         DiscordBotProperties properties = configuredProperties();
-        DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
-        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
-        Guild guild = mock(Guild.class);
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        SlashCommandInteractionEvent event = guildSlash(properties, "sair");
+        ReplyCallbackAction defer = mock(ReplyCallbackAction.class);
+        InteractionHook hook = mock(InteractionHook.class);
+        WebhookMessageEditAction<Message> edit = mock(WebhookMessageEditAction.class);
+        Guild guild = event.getGuild();
         Member member = mock(Member.class);
-        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
+        when(event.getMember()).thenReturn(member);
+        when(event.getId()).thenReturn("leave-1");
+        when(event.deferReply(false)).thenReturn(defer);
+        when(defer.setAllowedMentions(anyList())).thenReturn(defer);
+        completeReply(defer, hook);
+        when(playbackService.leaveAsync(guild, member, "leave-1")).thenReturn(CompletableFuture.completedFuture(
+                DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED
+        ));
         String response = DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED.responseMessage();
+        when(hook.editOriginal(response)).thenReturn(edit);
+        when(edit.setAllowedMentions(anyList())).thenReturn(edit);
 
-        when(event.isFromGuild()).thenReturn(true);
-        when(event.getGuild()).thenReturn(guild);
-        when(event.getMember()).thenReturn(member);
-        when(guild.getId()).thenReturn(properties.getTestGuildId());
-        when(event.getName()).thenReturn("sair");
-        when(voiceConnectionService.leave(eq(guild), eq(member), any(Runnable.class)))
-                .thenAnswer(invocation -> {
-                    invocation.<Runnable>getArgument(2).run();
-                    return DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED;
-                });
-        when(event.reply(response)).thenReturn(replyAction);
-        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
-        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
+        listener(properties, playbackService).onSlashCommandInteraction(event);
 
-        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
-        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
-                .onSlashCommandInteraction(event);
-
-        verify(voiceConnectionService).leave(eq(guild), eq(member), any(Runnable.class));
-        verify(playbackService).stop(guild);
-        verify(replyAction).setEphemeral(false);
-        verify(replyAction).queue();
+        verify(playbackService).leaveAsync(guild, member, "leave-1");
+        verify(event).deferReply(false);
+        verify(edit).queue();
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     @Test
-    void shouldReplyPubliclyWhenLeaveFails() {
+    void shouldPublishReadablePlaybackMessageWithButtonsAndNoTechnicalText() {
         DiscordBotProperties properties = configuredProperties();
-        DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
-        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
-        Guild guild = mock(Guild.class);
-        Member member = mock(Member.class);
-        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
-        String failureResponse = DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_FAILED
-                .responseMessage();
-
-        when(event.isFromGuild()).thenReturn(true);
-        when(event.getGuild()).thenReturn(guild);
-        when(event.getMember()).thenReturn(member);
-        when(guild.getId()).thenReturn(properties.getTestGuildId());
-        when(event.getName()).thenReturn("sair");
-        when(voiceConnectionService.leave(eq(guild), eq(member), any(Runnable.class)))
-                .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_FAILED);
-        when(event.reply(failureResponse)).thenReturn(replyAction);
-        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
-        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
-
         DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
-        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
-                .onSlashCommandInteraction(event);
-
-        verify(event).reply(failureResponse);
-        verify(event, never()).reply(
-                DiscordVoiceConnectionService.VoiceCommandResult.DISCONNECTION_STARTED.responseMessage()
-        );
-        verify(replyAction).setEphemeral(false);
-        verify(replyAction).queue();
-        verify(playbackService, never()).stop(guild);
-    }
-
-    @Test
-    void shouldRoutePlayCommandWithRequiredMusicOption() {
-        DiscordBotProperties properties = configuredProperties();
-        DiscordVoiceConnectionService voiceConnectionService = mock(DiscordVoiceConnectionService.class);
-        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
-        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
-        Guild guild = mock(Guild.class);
+        SlashCommandInteractionEvent event = guildSlash(properties, "tocar");
+        Guild guild = event.getGuild();
         Member member = mock(Member.class);
         OptionMapping option = mock(OptionMapping.class);
-        ReplyCallbackAction replyAction = mock(ReplyCallbackAction.class);
+        ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
         InteractionHook hook = mock(InteractionHook.class);
-        WebhookMessageEditAction<Message> editAction = mock(WebhookMessageEditAction.class);
-        ArgumentCaptor<List<MessageEmbed>> editedEmbeds = ArgumentCaptor.forClass(List.class);
-        DiscordPlaybackService.PlaybackPresentation preparing = new DiscordPlaybackService.PlaybackPresentation(
-                DiscordPlaybackService.PlaybackMessageState.PREPARING,
-                "Preparando reprodução",
-                "Estou preparando a faixa e a conexão de voz.",
-                "XTRANHO",
-                "Matuê",
-                "Pessoa de teste",
-                "Música"
-        );
-        DiscordPlaybackService.PlaybackPresentation progress = new DiscordPlaybackService.PlaybackPresentation(
+        WebhookMessageEditAction<Message> edit = mock(WebhookMessageEditAction.class);
+        RestAction<Message> retrieve = mock(RestAction.class);
+        Message message = mock(Message.class);
+        ArgumentCaptor<List<MessageEmbed>> embeds = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<? extends MessageTopLevelComponent>> components = ArgumentCaptor.forClass(List.class);
+        DiscordPlaybackService.PlaybackPresentation playing = presentation(
                 DiscordPlaybackService.PlaybackMessageState.PLAYING,
-                "Tocando agora",
-                "A reprodução começou.",
-                "XTRANHO",
-                "Matuê",
-                "Pessoa de teste",
-                "Música"
+                "Tocando agora"
         );
 
-        when(event.isFromGuild()).thenReturn(true);
-        when(event.getGuild()).thenReturn(guild);
         when(event.getMember()).thenReturn(member);
-        when(guild.getId()).thenReturn(properties.getTestGuildId());
-        when(event.getName()).thenReturn("tocar");
+        when(event.getId()).thenReturn("play-1");
         when(event.getOption("musica")).thenReturn(option);
-        when(option.getAsString()).thenReturn("13");
-        when(playbackService.play(eq(guild), eq(member), eq("13"), any()))
+        when(option.getAsString()).thenReturn("XTRANHO - Matuê");
+        when(event.replyEmbeds(anyList())).thenReturn(reply);
+        when(reply.setEphemeral(false)).thenReturn(reply);
+        when(reply.setAllowedMentions(anyList())).thenReturn(reply);
+        completeReply(reply, hook);
+        when(hook.editOriginalEmbeds(embeds.capture())).thenReturn(edit);
+        when(edit.setComponents(components.capture())).thenReturn(edit);
+        when(edit.setAllowedMentions(anyList())).thenReturn(edit);
+        completeEdit(edit);
+        when(hook.retrieveOriginal()).thenReturn(retrieve);
+        when(message.getIdLong()).thenReturn(99L);
+        when(retrieve.submit()).thenReturn(CompletableFuture.completedFuture(message));
+        when(playbackService.bindControlMessageAsync(guild.getIdLong(), "session-1", 99L))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        when(playbackService.playAsync(eq(guild), eq(member), eq("XTRANHO - Matuê"), eq("play-1"), any()))
                 .thenAnswer(invocation -> {
-                    @SuppressWarnings("unchecked")
-                    Consumer<DiscordPlaybackService.PlaybackProgressUpdate> observer = invocation.getArgument(3);
-                    observer.accept(new DiscordPlaybackService.PlaybackProgressUpdate(progress));
-                    return new DiscordPlaybackService.PlaybackCommandResult(preparing, true);
+                    Consumer<DiscordPlaybackService.PlaybackProgressUpdate> observer = invocation.getArgument(4);
+                    observer.accept(new DiscordPlaybackService.PlaybackProgressUpdate(playing));
+                    return CompletableFuture.completedFuture(new DiscordPlaybackService.PlaybackCommandResult(
+                            presentation(DiscordPlaybackService.PlaybackMessageState.PREPARING, "Preparando reprodução"),
+                            true,
+                            "session-1"
+                    ));
                 });
-        when(event.replyEmbeds(anyList())).thenReturn(replyAction);
-        when(replyAction.setEphemeral(false)).thenReturn(replyAction);
-        when(replyAction.setAllowedMentions(anyList())).thenReturn(replyAction);
-        when(hook.editOriginalEmbeds(editedEmbeds.capture())).thenReturn(editAction);
-        when(editAction.setAllowedMentions(anyList())).thenReturn(editAction);
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            Consumer<InteractionHook> callback = invocation.getArgument(0);
-            callback.accept(hook);
-            return null;
-        }).when(replyAction).queue(any());
 
-        new DiscordCommandListener(properties, voiceConnectionService, playbackService)
-                .onSlashCommandInteraction(event);
+        listener(properties, playbackService).onSlashCommandInteraction(event);
 
-        verify(playbackService).play(eq(guild), eq(member), eq("13"), any());
-        verify(replyAction).setEphemeral(false);
-        verify(replyAction).setAllowedMentions(anyList());
-        verify(editAction).queue();
-        MessageEmbed published = editedEmbeds.getValue().getFirst();
+        MessageEmbed published = embeds.getValue().getFirst();
         assertThat(published.getTitle()).isEqualTo("Tocando agora");
-        assertThat(published.getFields())
-                .extracting(MessageEmbed.Field::getValue)
+        assertThat(published.getFields()).extracting(MessageEmbed.Field::getValue)
                 .contains("XTRANHO", "Matuê", "Pessoa de teste", "Música");
         assertThat(published.toData().toString())
                 .doesNotContain("PCM", "frame", "DAVE", "codec", "audição no cliente");
+        List<ActionRow> rows = (List<ActionRow>) (List) components.getValue();
+        assertThat(rows).singleElement().satisfies(row -> assertThat(row.getButtons())
+                .extracting(button -> button.getLabel())
+                .containsExactly("⏸️ Pausar", "⏹️ Parar"));
+        verify(playbackService).bindControlMessageAsync(guild.getIdLong(), "session-1", 99L);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    void shouldNotPublishSessionButtonsBeforeTheMessageIsBound() {
+        DiscordBotProperties properties = configuredProperties();
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        SlashCommandInteractionEvent event = guildSlash(properties, "tocar");
+        Guild guild = event.getGuild();
+        Member member = mock(Member.class);
+        OptionMapping option = mock(OptionMapping.class);
+        ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
+        InteractionHook hook = mock(InteractionHook.class);
+        WebhookMessageEditAction<Message> edit = mock(WebhookMessageEditAction.class);
+        RestAction<Message> retrieve = mock(RestAction.class);
+        Message message = mock(Message.class);
+        CompletableFuture<Boolean> binding = new CompletableFuture<>();
+        ArgumentCaptor<List<? extends MessageTopLevelComponent>> components = ArgumentCaptor.forClass(List.class);
+        when(event.getMember()).thenReturn(member);
+        when(event.getId()).thenReturn("play-1");
+        when(event.getOption("musica")).thenReturn(option);
+        when(option.getAsString()).thenReturn("XTRANHO - Matuê");
+        when(event.replyEmbeds(anyList())).thenReturn(reply);
+        when(reply.setEphemeral(false)).thenReturn(reply);
+        when(reply.setAllowedMentions(anyList())).thenReturn(reply);
+        completeReply(reply, hook);
+        when(hook.retrieveOriginal()).thenReturn(retrieve);
+        when(retrieve.submit()).thenReturn(CompletableFuture.completedFuture(message));
+        when(message.getIdLong()).thenReturn(99L);
+        when(playbackService.bindControlMessageAsync(guild.getIdLong(), "session-1", 99L))
+                .thenReturn(binding);
+        when(playbackService.playAsync(eq(guild), eq(member), eq("XTRANHO - Matuê"), eq("play-1"), any()))
+                .thenReturn(CompletableFuture.completedFuture(new DiscordPlaybackService.PlaybackCommandResult(
+                        presentation(DiscordPlaybackService.PlaybackMessageState.PREPARING, "Preparando reprodução"),
+                        true,
+                        "session-1"
+                )));
+        when(hook.editOriginalEmbeds(anyList())).thenReturn(edit);
+        when(edit.setComponents(components.capture())).thenReturn(edit);
+        when(edit.setAllowedMentions(anyList())).thenReturn(edit);
+        completeEdit(edit);
+
+        listener(properties, playbackService).onSlashCommandInteraction(event);
+
+        verify(hook, never()).editOriginalEmbeds(anyList());
+
+        binding.complete(true);
+
+        verify(hook).editOriginalEmbeds(anyList());
+        List<ActionRow> rows = (List<ActionRow>) (List) components.getValue();
+        assertThat(rows).singleElement().satisfies(row -> assertThat(row.getButtons())
+                .extracting(button -> button.getLabel())
+                .containsExactly("⏸️ Pausar", "⏹️ Parar"));
+    }
+
+    @Test
+    void shouldRouteSlashPauseToSameDomainControlWithoutPublicFlood() {
+        DiscordBotProperties properties = configuredProperties();
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        SlashCommandInteractionEvent event = guildSlash(properties, "pausar");
+        ReplyCallbackAction defer = mock(ReplyCallbackAction.class);
+        InteractionHook hook = mock(InteractionHook.class);
+        RestAction<Void> delete = mock(RestAction.class);
+        Member member = mock(Member.class);
+        when(event.getMember()).thenReturn(member);
+        when(event.getId()).thenReturn("pause-1");
+        when(event.deferReply(true)).thenReturn(defer);
+        completeReply(defer, hook);
+        when(hook.deleteOriginal()).thenReturn(delete);
+        when(playbackService.controlAsync(eq(event.getGuild()), eq(member), any()))
+                .thenReturn(CompletableFuture.completedFuture(new DiscordPlaybackSessionService.PlaybackControlResult(
+                        DiscordPlaybackSessionService.PlaybackControlStatus.APPLIED,
+                        "Reprodução pausada."
+                )));
+        ArgumentCaptor<DiscordPlaybackSessionService.PlaybackControlRequest> request =
+                ArgumentCaptor.forClass(DiscordPlaybackSessionService.PlaybackControlRequest.class);
+
+        listener(properties, playbackService).onSlashCommandInteraction(event);
+
+        verify(playbackService).controlAsync(eq(event.getGuild()), eq(member), request.capture());
+        assertThat(request.getValue().action())
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackControlAction.PAUSE);
+        assertThat(request.getValue().expectedSessionId()).isNull();
+        verify(hook).deleteOriginal();
+        verify(delete).queue();
+    }
+
+    @Test
+    void shouldValidateButtonUsingSessionMessageGuildAndInteractionIdentity() {
+        DiscordBotProperties properties = configuredProperties();
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        ButtonInteractionEvent event = mock(ButtonInteractionEvent.class);
+        Guild guild = mock(Guild.class);
+        Member member = mock(Member.class);
+        MessageEditCallbackAction defer = mock(MessageEditCallbackAction.class);
+        InteractionHook hook = mock(InteractionHook.class);
+        when(event.isFromGuild()).thenReturn(true);
+        when(event.getGuild()).thenReturn(guild);
+        when(guild.getId()).thenReturn(properties.getTestGuildId());
+        when(event.getMember()).thenReturn(member);
+        when(event.getComponentId()).thenReturn("deefy:playback:stop:session-1");
+        when(event.getMessageIdLong()).thenReturn(99L);
+        when(event.getId()).thenReturn("button-1");
+        when(event.deferEdit()).thenReturn(defer);
+        completeButtonDefer(defer, hook);
+        when(playbackService.controlAsync(eq(guild), eq(member), any()))
+                .thenReturn(CompletableFuture.completedFuture(new DiscordPlaybackSessionService.PlaybackControlResult(
+                        DiscordPlaybackSessionService.PlaybackControlStatus.APPLIED,
+                        "Reprodução encerrada."
+                )));
+        ArgumentCaptor<DiscordPlaybackSessionService.PlaybackControlRequest> request =
+                ArgumentCaptor.forClass(DiscordPlaybackSessionService.PlaybackControlRequest.class);
+
+        listener(properties, playbackService).onButtonInteraction(event);
+
+        verify(playbackService).controlAsync(eq(guild), eq(member), request.capture());
+        assertThat(request.getValue()).satisfies(value -> {
+            assertThat(value.action()).isEqualTo(DiscordPlaybackSessionService.PlaybackControlAction.STOP);
+            assertThat(value.expectedSessionId()).isEqualTo("session-1");
+            assertThat(value.expectedMessageId()).isEqualTo(99L);
+            assertThat(value.interactionId()).isEqualTo("button-1");
+        });
+    }
+
+    @Test
+    void shouldRejectAnExpiredButtonEphemerallyWithoutPostingAnotherPublicMessage() {
+        DiscordBotProperties properties = configuredProperties();
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        ButtonInteractionEvent event = mock(ButtonInteractionEvent.class);
+        Guild guild = mock(Guild.class);
+        Member member = mock(Member.class);
+        MessageEditCallbackAction defer = mock(MessageEditCallbackAction.class);
+        InteractionHook hook = mock(InteractionHook.class);
+        WebhookMessageCreateAction<Message> rejection = mock(WebhookMessageCreateAction.class);
+        when(event.isFromGuild()).thenReturn(true);
+        when(event.getGuild()).thenReturn(guild);
+        when(guild.getId()).thenReturn(properties.getTestGuildId());
+        when(event.getMember()).thenReturn(member);
+        when(event.getComponentId()).thenReturn("deefy:playback:pause:old-session");
+        when(event.getMessageIdLong()).thenReturn(99L);
+        when(event.getId()).thenReturn("old-button");
+        when(event.deferEdit()).thenReturn(defer);
+        completeButtonDefer(defer, hook);
+        when(playbackService.controlAsync(eq(guild), eq(member), any()))
+                .thenReturn(CompletableFuture.completedFuture(new DiscordPlaybackSessionService.PlaybackControlResult(
+                        DiscordPlaybackSessionService.PlaybackControlStatus.EXPIRED_CONTROL,
+                        "Esse controle pertence a uma reprodução encerrada."
+                )));
+        when(hook.sendMessage("Esse controle pertence a uma reprodução encerrada."))
+                .thenReturn(rejection);
+        when(rejection.setEphemeral(true)).thenReturn(rejection);
+        when(rejection.setAllowedMentions(anyList())).thenReturn(rejection);
+
+        listener(properties, playbackService).onButtonInteraction(event);
+
+        verify(event).deferEdit();
+        verify(rejection).setEphemeral(true);
+        verify(rejection).queue();
     }
 
     @Test
@@ -298,7 +386,6 @@ class DiscordCommandListenerTest {
         Guild guild = mock(Guild.class);
         AutoCompleteQuery focusedOption = mock(AutoCompleteQuery.class);
         AutoCompleteCallbackAction action = mock(AutoCompleteCallbackAction.class);
-
         when(event.isFromGuild()).thenReturn(true);
         when(event.getGuild()).thenReturn(guild);
         when(guild.getId()).thenReturn("987654321098765432");
@@ -311,15 +398,75 @@ class DiscordCommandListenerTest {
         ));
         when(event.replyChoices(anyList())).thenReturn(action);
 
-        new DiscordCommandListener(
+        listener(properties, playbackService).onCommandAutoCompleteInteraction(event);
+
+        verify(event).replyChoices(anyList());
+        verify(action).queue();
+    }
+
+    private DiscordCommandListener listener(
+            DiscordBotProperties properties,
+            DiscordPlaybackService playbackService
+    ) {
+        return new DiscordCommandListener(
                 properties,
                 mock(DiscordVoiceConnectionService.class),
                 playbackService
-        ).onCommandAutoCompleteInteraction(event);
+        );
+    }
 
-        verify(playbackService).suggest("xtranho");
-        verify(event).replyChoices(anyList());
-        verify(action).queue();
+    private SlashCommandInteractionEvent guildSlash(DiscordBotProperties properties, String command) {
+        SlashCommandInteractionEvent event = mock(SlashCommandInteractionEvent.class);
+        Guild guild = mock(Guild.class);
+        when(event.isFromGuild()).thenReturn(true);
+        when(event.getGuild()).thenReturn(guild);
+        when(guild.getId()).thenReturn(properties.isTestMode()
+                ? properties.getTestGuildId()
+                : "987654321098765432");
+        when(guild.getIdLong()).thenReturn(123L);
+        when(event.getName()).thenReturn(command);
+        return event;
+    }
+
+    private DiscordPlaybackService.PlaybackPresentation presentation(
+            DiscordPlaybackService.PlaybackMessageState state,
+            String heading
+    ) {
+        return new DiscordPlaybackService.PlaybackPresentation(
+                state,
+                heading,
+                state == DiscordPlaybackService.PlaybackMessageState.PLAYING
+                        ? "A reprodução está em andamento."
+                        : "Preparando.",
+                "XTRANHO",
+                "Matuê",
+                "Pessoa de teste",
+                "Música"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private void completeReply(ReplyCallbackAction action, InteractionHook hook) {
+        doAnswer(invocation -> {
+            invocation.<Consumer<InteractionHook>>getArgument(0).accept(hook);
+            return null;
+        }).when(action).queue(any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void completeButtonDefer(MessageEditCallbackAction action, InteractionHook hook) {
+        doAnswer(invocation -> {
+            invocation.<Consumer<InteractionHook>>getArgument(0).accept(hook);
+            return null;
+        }).when(action).queue(any());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void completeEdit(WebhookMessageEditAction<Message> action) {
+        doAnswer(invocation -> {
+            invocation.<Consumer<Message>>getArgument(0).accept(mock(Message.class));
+            return null;
+        }).when(action).queue(any(), any());
     }
 
     private DiscordBotProperties configuredProperties() {
