@@ -12,6 +12,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -44,6 +45,17 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
     private final AtomicLong pcmBytesProduced = new AtomicLong();
     private final AtomicLong framesProduced = new AtomicLong();
     private final AtomicLong framesDelivered = new AtomicLong();
+    private final AtomicLong emptyPollsWhilePlaying = new AtomicLong();
+    private final AtomicLong productionReadNanos = new AtomicLong();
+    private final AtomicLong productionReadOperations = new AtomicLong();
+    private final AtomicLong deliveryIntervalNanos = new AtomicLong();
+    private final AtomicLong deliveryIntervals = new AtomicLong();
+    private final AtomicLong lastDeliveryNanos = new AtomicLong();
+    private final AtomicLong minimumDeliveryIntervalNanos = new AtomicLong(Long.MAX_VALUE);
+    private final AtomicLong maximumDeliveryIntervalNanos = new AtomicLong();
+    private final AtomicInteger minimumBufferDepth = new AtomicInteger(Integer.MAX_VALUE);
+    private final AtomicInteger maximumBufferDepth = new AtomicInteger();
+    private final AtomicLong pauseCount = new AtomicLong();
     private final ReentrantLock playbackLock = new ReentrantLock();
     private final Condition playbackResumed = playbackLock.newCondition();
     private final Thread stderrThread;
@@ -81,10 +93,13 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
             return false;
         }
         if (!frameBuffer.isEmpty()) {
+            observeBufferDepth();
             return true;
         }
         if (sourceEnded) {
             closeResources(true, "natural-end");
+        } else if (firstFrameDelivered.get()) {
+            emptyPollsWhilePlaying.incrementAndGet();
         }
         return false;
     }
@@ -99,10 +114,14 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
         if (frame == null) {
             if (sourceEnded) {
                 closeResources(true, "natural-end");
+            } else if (firstFrameDelivered.get()) {
+                emptyPollsWhilePlaying.incrementAndGet();
             }
             return null;
         }
         framesDelivered.incrementAndGet();
+        observeDeliveryInterval();
+        observeBufferDepth();
         if (firstFrameDelivered.compareAndSet(false, true)) {
             runSafely(onFirstFrame);
         }
@@ -119,7 +138,10 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
         playbackLock.lock();
         try {
             if (!closed) {
-                paused = true;
+                if (!paused) {
+                    pauseCount.incrementAndGet();
+                    paused = true;
+                }
             }
         } finally {
             playbackLock.unlock();
@@ -159,6 +181,22 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
         return framesDelivered.get();
     }
 
+    long emptyPollsWhilePlaying() {
+        return emptyPollsWhilePlaying.get();
+    }
+
+    int bufferDepthMin() {
+        return minimumBufferDepth.get() == Integer.MAX_VALUE ? 0 : minimumBufferDepth.get();
+    }
+
+    int bufferDepthMax() {
+        return maximumBufferDepth.get();
+    }
+
+    long deliveryIntervals() {
+        return deliveryIntervals.get();
+    }
+
     Integer exitCode() {
         return exitCode;
     }
@@ -180,6 +218,7 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
                 }
                 framesProduced.incrementAndGet();
                 frameBuffer.put(frame);
+                observeBufferDepth();
             }
         } catch (IOException exception) {
             LOGGER.warn("FFmpeg PCM stream failed: trackId={}", trackId);
@@ -192,17 +231,23 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
     }
 
     private byte[] readFrame() throws IOException {
+        long started = System.nanoTime();
+        productionReadOperations.incrementAndGet();
         byte[] frame = new byte[PCM_FRAME_SIZE];
-        int offset = 0;
-        while (offset < frame.length) {
-            int read = pcmStream.read(frame, offset, frame.length - offset);
-            if (read < 0) {
-                return null;
+        try {
+            int offset = 0;
+            while (offset < frame.length) {
+                int read = pcmStream.read(frame, offset, frame.length - offset);
+                if (read < 0) {
+                    return null;
+                }
+                pcmBytesProduced.addAndGet(read);
+                offset += read;
             }
-            pcmBytesProduced.addAndGet(read);
-            offset += read;
+            return frame;
+        } finally {
+            productionReadNanos.addAndGet(System.nanoTime() - started);
         }
-        return frame;
     }
 
     private void captureStderr() {
@@ -299,15 +344,62 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
             return;
         }
         LOGGER.info(
-                "FFmpeg finished: trackId={}, reason={}, exitCode={}, pcmBytes={}, framesProduced={}, framesDelivered={}, stderr={}",
+                "FFmpeg finished: trackId={}, reason={}, exitCode={}, pcmBytes={}, framesProduced={}, "
+                        + "framesDelivered={}, emptyPollsWhilePlaying={}, bufferDepthMin={}, bufferDepthMax={}, "
+                        + "deliveryIntervalAvgMs={}, deliveryIntervalMinMs={}, deliveryIntervalMaxMs={}, "
+                        + "productionReadAvgMs={}, pauseCount={}, sourceEnded={}, stderr={}",
                 trackId,
                 reason,
                 exitCode == null ? "unknown" : exitCode,
                 pcmBytesProduced.get(),
                 framesProduced.get(),
                 framesDelivered.get(),
+                emptyPollsWhilePlaying.get(),
+                minimumBufferDepth.get() == Integer.MAX_VALUE ? 0 : minimumBufferDepth.get(),
+                maximumBufferDepth.get(),
+                averageDeliveryIntervalMillis(),
+                nanosToMillis(minimumDeliveryIntervalNanos.get() == Long.MAX_VALUE
+                        ? 0
+                        : minimumDeliveryIntervalNanos.get()),
+                nanosToMillis(maximumDeliveryIntervalNanos.get()),
+                averageProductionReadMillis(),
+                pauseCount.get(),
+                sourceEnded,
                 stderrSummary.isBlank() ? "none" : stderrSummary
         );
+    }
+
+    private void observeBufferDepth() {
+        int depth = frameBuffer.size();
+        minimumBufferDepth.accumulateAndGet(depth, Math::min);
+        maximumBufferDepth.accumulateAndGet(depth, Math::max);
+    }
+
+    private void observeDeliveryInterval() {
+        long now = System.nanoTime();
+        long previous = lastDeliveryNanos.getAndSet(now);
+        if (previous <= 0) {
+            return;
+        }
+        long interval = now - previous;
+        deliveryIntervalNanos.addAndGet(interval);
+        deliveryIntervals.incrementAndGet();
+        minimumDeliveryIntervalNanos.accumulateAndGet(interval, Math::min);
+        maximumDeliveryIntervalNanos.accumulateAndGet(interval, Math::max);
+    }
+
+    private long averageDeliveryIntervalMillis() {
+        long intervals = deliveryIntervals.get();
+        return intervals == 0 ? 0 : nanosToMillis(deliveryIntervalNanos.get() / intervals);
+    }
+
+    private long averageProductionReadMillis() {
+        long operations = productionReadOperations.get();
+        return operations == 0 ? 0 : nanosToMillis(productionReadNanos.get() / operations);
+    }
+
+    private long nanosToMillis(long nanos) {
+        return TimeUnit.NANOSECONDS.toMillis(nanos);
     }
 
     static String sanitizeDiagnostic(String diagnostic) {

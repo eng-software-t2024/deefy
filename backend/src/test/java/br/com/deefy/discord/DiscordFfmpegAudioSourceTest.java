@@ -141,6 +141,34 @@ class DiscordFfmpegAudioSourceTest {
         source.close();
     }
 
+    @Test
+    void shouldCollectAggregateMetricsWithoutChangingFrameDelivery() throws Exception {
+        byte[] pcm = new byte[DiscordFfmpegAudioSource.PCM_FRAME_SIZE * 3];
+        pcm[0] = 1;
+        pcm[DiscordFfmpegAudioSource.PCM_FRAME_SIZE] = 2;
+        pcm[DiscordFfmpegAudioSource.PCM_FRAME_SIZE * 2] = 3;
+        Process process = mock(Process.class);
+        when(process.getInputStream()).thenReturn(new ByteArrayInputStream(pcm));
+        when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.waitFor(2, TimeUnit.SECONDS)).thenReturn(true);
+        when(process.exitValue()).thenReturn(0);
+        DiscordFfmpegAudioSource source = new DiscordFfmpegAudioSource(process, 123L, () -> { }, () -> { });
+
+        assertThat(waitUntil(() -> source.framesProduced() == 3)).isTrue();
+        assertThat(source.canProvide()).isTrue();
+        assertThat(source.provide20MsAudio()).isNotNull();
+        assertThat(source.provide20MsAudio()).isNotNull();
+        assertThat(source.provide20MsAudio()).isNotNull();
+
+        assertThat(source.framesProduced()).isEqualTo(3);
+        assertThat(source.framesDelivered()).isEqualTo(3);
+        assertThat(source.bufferDepthMax()).isGreaterThan(0);
+        assertThat(source.bufferDepthMin()).isGreaterThanOrEqualTo(0);
+        assertThat(source.deliveryIntervals()).isGreaterThanOrEqualTo(2);
+        assertThat(source.emptyPollsWhilePlaying()).isGreaterThanOrEqualTo(0);
+        source.close();
+    }
+
     private boolean waitUntil(BooleanSupplier condition) {
         long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
         while (System.nanoTime() < deadline) {

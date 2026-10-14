@@ -195,9 +195,17 @@ public class DiscordPlaybackSessionService {
     ) {
         return guildExecutor.submit(guildId, () -> {
             DiscordGuildPlaybackSession session = sessionsByGuild.get(guildId);
-            return session != null
+            boolean bound = session != null
                     && session.getSessionId().equals(sessionId)
                     && session.bindControlMessage(messageId);
+            LOGGER.info(
+                    "Discord playback message binding: guildId={}, sessionRef={}, messageRef={}, result={}",
+                    guildId,
+                    DiscordDiagnosticSupport.pseudonymize(sessionId),
+                    DiscordDiagnosticSupport.pseudonymize(messageId),
+                    bound ? "accepted" : "rejected"
+            );
+            return bound;
         });
     }
 
@@ -406,7 +414,12 @@ public class DiscordPlaybackSessionService {
         }
 
         cancelIdleConnectionInGuild(guildId, null, "valid_playback_request");
-        LOGGER.info("Discord playback session created: guildId={}, trackId={}", guildId, track.id());
+        LOGGER.info(
+                "Discord playback session created: guildId={}, sessionRef={}, trackId={}",
+                guildId,
+                DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
+                track.id()
+        );
         return new StartReservation(session, null);
     }
 
@@ -441,6 +454,11 @@ public class DiscordPlaybackSessionService {
                         }
                     }
             );
+            LOGGER.info(
+                    "Discord playback audio source created: guildId={}, sessionRef={}, source=ffmpeg",
+                    session.getGuildId(),
+                    DiscordDiagnosticSupport.pseudonymize(session.getSessionId())
+            );
             return AudioSourceOpening.opened(
                     source,
                     attached,
@@ -469,6 +487,11 @@ public class DiscordPlaybackSessionService {
         try {
             session.attach(source);
             session.getVoiceConnection().setSendingHandler(source);
+            LOGGER.info(
+                    "Discord playback audio source attached: guildId={}, sessionRef={}, source=ffmpeg",
+                    session.getGuildId(),
+                    DiscordDiagnosticSupport.pseudonymize(session.getSessionId())
+            );
             session.setStartupTimeout(scheduler.schedule(
                     () -> submitSessionCallback(session, () -> removeAndCloseInGuild(
                             session,
@@ -502,32 +525,56 @@ public class DiscordPlaybackSessionService {
     ) {
         long guildId = guild.getIdLong();
         if (isDuplicateInteraction(guildId, request.interactionId())) {
-            return result(PlaybackControlStatus.DUPLICATE, "Esse controle já foi processado.");
+            PlaybackControlResult duplicate = result(
+                    PlaybackControlStatus.DUPLICATE,
+                    "Esse controle já foi processado."
+            );
+            logControlOutcome(guildId, request, null, null, duplicate);
+            return duplicate;
         }
         DiscordGuildPlaybackSession session = sessionsByGuild.get(guildId);
         if (session == null) {
             releaseGuildMetadataIfInactive(guildId);
-            return result(PlaybackControlStatus.NO_ACTIVE_SESSION, "Não existe uma reprodução ativa nesta comunidade.");
+            PlaybackControlResult missing = result(
+                    PlaybackControlStatus.NO_ACTIVE_SESSION,
+                    "Não existe uma reprodução ativa nesta comunidade."
+            );
+            logControlOutcome(guildId, request, null, null, missing);
+            return missing;
         }
+        DiscordGuildPlaybackSession.PlaybackState previousState = session.getState();
         if (request.expectedSessionId() != null
                 && !request.expectedSessionId().equals(session.getSessionId())) {
-            return result(PlaybackControlStatus.EXPIRED_CONTROL, "Esse controle pertence a uma reprodução encerrada.");
+            PlaybackControlResult expired = result(
+                    PlaybackControlStatus.EXPIRED_CONTROL,
+                    "Esse controle pertence a uma reprodução encerrada."
+            );
+            logControlOutcome(guildId, request, session, previousState, expired);
+            return expired;
         }
         if (request.expectedMessageId() != null
                 && !session.matchesControlMessage(request.expectedMessageId())) {
-            return result(PlaybackControlStatus.EXPIRED_CONTROL, "Essa mensagem de controle não está mais ativa.");
+            PlaybackControlResult expired = result(
+                    PlaybackControlStatus.EXPIRED_CONTROL,
+                    "Essa mensagem de controle não está mais ativa."
+            );
+            logControlOutcome(guildId, request, session, previousState, expired);
+            return expired;
         }
 
         PlaybackControlResult authorization = authorizeController(session, requester);
         if (authorization != null) {
+            logControlOutcome(guildId, request, session, previousState, authorization);
             return authorization;
         }
 
-        return switch (request.action()) {
+        PlaybackControlResult controlResult = switch (request.action()) {
             case PAUSE -> pauseInGuild(session);
             case RESUME -> resumeInGuild(session);
             case STOP -> stopAndKeepVoiceInGuild(session);
         };
+        logControlOutcome(guildId, request, session, previousState, controlResult);
+        return controlResult;
     }
 
     private PlaybackControlResult pauseInGuild(DiscordGuildPlaybackSession session) {
@@ -595,8 +642,9 @@ public class DiscordPlaybackSessionService {
         );
         session.notifyProgress(PlaybackProgress.STOPPED);
         LOGGER.info(
-                "Discord playback cleanup: guildId={}, trackId={}, reason={}",
+                "Discord playback cleanup completed: guildId={}, sessionRef={}, trackId={}, reason={}",
                 session.getGuildId(),
+                DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
                 session.getCurrentTrack().id(),
                 CleanupReason.USER_REQUESTED_STOP
         );
@@ -635,8 +683,9 @@ public class DiscordPlaybackSessionService {
     private void markPlayingInGuild(DiscordGuildPlaybackSession session) {
         if (sessionsByGuild.get(session.getGuildId()) == session && session.markPlaying()) {
             LOGGER.info(
-                    "Discord playback first frame delivered: guildId={}, trackId={}",
+                    "Discord playback first frame delivered: guildId={}, sessionRef={}, trackId={}",
                     session.getGuildId(),
+                    DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
                     session.getCurrentTrack().id()
             );
             session.notifyProgress(PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
@@ -650,6 +699,11 @@ public class DiscordPlaybackSessionService {
         if (sessionsByGuild.get(session.getGuildId()) != session
                 || !session.matchesPauseTimeout(pauseGeneration)
                 || !sessionsByGuild.remove(session.getGuildId(), session)) {
+            LOGGER.info(
+                    "Discord playback callback ignored: kind=pause-timeout guildId={} sessionRef={} reason=stale",
+                    session.getGuildId(),
+                    DiscordDiagnosticSupport.pseudonymize(session.getSessionId())
+            );
             return;
         }
         session.beginStopping();
@@ -671,14 +725,20 @@ public class DiscordPlaybackSessionService {
             String detail
     ) {
         if (!sessionsByGuild.remove(session.getGuildId(), session)) {
+            LOGGER.info(
+                    "Discord playback callback ignored: kind=cleanup guildId={} sessionRef={} reason=stale",
+                    session.getGuildId(),
+                    DiscordDiagnosticSupport.pseudonymize(session.getSessionId())
+            );
             return;
         }
         cancelIdleConnectionInGuild(session.getGuildId(), null, "terminal_playback_cleanup");
         session.beginStopping();
         session.close(closeVoiceConnection);
         LOGGER.info(
-                "Discord playback cleanup: guildId={}, trackId={}, reason={}, detail={}",
+                "Discord playback cleanup completed: guildId={}, sessionRef={}, trackId={}, reason={}, detail={}",
                 session.getGuildId(),
+                DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
                 session.getCurrentTrack().id(),
                 reason,
                 detail == null ? "none" : detail
@@ -689,6 +749,11 @@ public class DiscordPlaybackSessionService {
 
     private void handleAudioSourceTerminationInGuild(DiscordGuildPlaybackSession session) {
         if (!sessionsByGuild.remove(session.getGuildId(), session)) {
+            LOGGER.info(
+                    "Discord playback callback ignored: kind=audio-termination guildId={} sessionRef={} reason=stale",
+                    session.getGuildId(),
+                    DiscordDiagnosticSupport.pseudonymize(session.getSessionId())
+            );
             return;
         }
         DiscordGuildPlaybackSession.PlaybackState previousState = session.getState();
@@ -706,8 +771,9 @@ public class DiscordPlaybackSessionService {
             );
         }
         LOGGER.info(
-                "Discord playback cleanup: guildId={}, trackId={}, reason={}, detail=none",
+                "Discord playback cleanup completed: guildId={}, sessionRef={}, trackId={}, reason={}, detail=none",
                 session.getGuildId(),
+                DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
                 session.getCurrentTrack().id(),
                 CleanupReason.AUDIO_SOURCE_TERMINATED
         );
@@ -730,6 +796,12 @@ public class DiscordPlaybackSessionService {
                     status.name()
             );
         } else {
+            LOGGER.info(
+                    "Discord playback callback ignored: kind=voice-status guildId={} sessionRef={} reason=stale status={}",
+                    session.getGuildId(),
+                    DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
+                    status.name()
+            );
             cancelIdleConnectionInGuild(session.getGuildId(), session, status.name());
             releaseGuildMetadataIfInactive(session.getGuildId());
         }
@@ -771,6 +843,10 @@ public class DiscordPlaybackSessionService {
         if (idleConnectionsByGuild.get(idleConnection.guildId()) != idleConnection
                 || sessionsByGuild.containsKey(idleConnection.guildId())
                 || !idleConnectionsByGuild.remove(idleConnection.guildId(), idleConnection)) {
+            LOGGER.info(
+                    "Discord playback callback ignored: kind=idle-timeout guildId={} reason=stale",
+                    idleConnection.guildId()
+            );
             return;
         }
         closeIdleVoiceConnection(idleConnection, IdleReason.IDLE_TIMEOUT);
@@ -970,6 +1046,28 @@ public class DiscordPlaybackSessionService {
 
     private PlaybackControlResult result(PlaybackControlStatus status, String message) {
         return new PlaybackControlResult(status, message);
+    }
+
+    private void logControlOutcome(
+            long guildId,
+            PlaybackControlRequest request,
+            DiscordGuildPlaybackSession session,
+            DiscordGuildPlaybackSession.PlaybackState previousState,
+            PlaybackControlResult result
+    ) {
+        LOGGER.info(
+                "Discord playback control: guildId={}, type={}, action={}, correlation={}, sessionRef={}, "
+                        + "result={}, reason={}, stateBefore={}, stateAfter={}",
+                guildId,
+                request.expectedSessionId() == null ? "slash" : "button",
+                request.action().name().toLowerCase(),
+                DiscordDiagnosticSupport.pseudonymize(request.interactionId()),
+                DiscordDiagnosticSupport.pseudonymize(session == null ? null : session.getSessionId()),
+                result.status().name().toLowerCase(),
+                result.status() == PlaybackControlStatus.APPLIED ? "applied" : "domain_result",
+                previousState == null ? "none" : previousState.name(),
+                session == null ? "none" : session.getState().name()
+        );
     }
 
     private <T> T join(CompletableFuture<T> future) {
