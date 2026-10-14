@@ -11,6 +11,8 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Component
 public class DiscordCommandListener extends ListenerAdapter {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(DiscordCommandListener.class);
     private static final String ROOT_COMMAND = "deefy";
     private static final String PING_SUBCOMMAND = "ping";
     private static final String JOIN_COMMAND = "entrar";
@@ -47,7 +50,17 @@ public class DiscordCommandListener extends ListenerAdapter {
 
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
+        long started = System.nanoTime();
+        String correlation = DiscordDiagnosticSupport.pseudonymize(event.getId());
+        String action = diagnosticSlashAction(event);
+        LOGGER.info(
+                "Discord interaction received: type=slash action={} correlation={} guildScope={}",
+                action,
+                correlation,
+                event.isFromGuild() ? "guild" : "direct-message"
+        );
         if (!event.isFromGuild() || !isAllowedGuild(event.getGuild() == null ? null : event.getGuild().getId())) {
+            logInteractionResult("slash", action, correlation, "rejected", "guild_scope", started);
             return;
         }
 
@@ -56,6 +69,7 @@ public class DiscordCommandListener extends ListenerAdapter {
                     .setEphemeral(false)
                     .setAllowedMentions(List.of())
                     .queue();
+            logInteractionResult("slash", action, correlation, "accepted", "ping", started);
             return;
         }
 
@@ -80,21 +94,47 @@ public class DiscordCommandListener extends ListenerAdapter {
             return;
         }
 
-        DiscordPlaybackSessionService.PlaybackControlAction action = slashControl(event.getName());
-        if (action != null) {
-            handleSlashControl(event, action);
+        DiscordPlaybackSessionService.PlaybackControlAction controlAction = slashControl(event.getName());
+        if (controlAction != null) {
+            handleSlashControl(event, controlAction, correlation, started);
         }
     }
 
     @Override
     public void onButtonInteraction(ButtonInteractionEvent event) {
+        long started = System.nanoTime();
         if (!event.isFromGuild() || !isAllowedGuild(event.getGuild() == null ? null : event.getGuild().getId())) {
+            logInteractionResult(
+                    "button",
+                    "unknown",
+                    DiscordDiagnosticSupport.pseudonymize(event.getId()),
+                    "rejected",
+                    "guild_scope",
+                    started
+            );
             return;
         }
         ParsedControl control = parseControl(event.getComponentId());
         if (control == null) {
+            logInteractionResult(
+                    "button",
+                    "unknown",
+                    DiscordDiagnosticSupport.pseudonymize(event.getId()),
+                    "rejected",
+                    "invalid_control",
+                    started
+            );
             return;
         }
+
+        String correlation = DiscordDiagnosticSupport.pseudonymize(event.getId());
+        LOGGER.info(
+                "Discord interaction received: type=button action={} correlation={} sessionRef={} messageRef={}",
+                control.action().name().toLowerCase(Locale.ROOT),
+                correlation,
+                DiscordDiagnosticSupport.pseudonymize(control.sessionId()),
+                DiscordDiagnosticSupport.pseudonymize(event.getMessageIdLong())
+        );
 
         event.deferEdit().queue(hook -> playbackService.controlAsync(
                 event.getGuild(),
@@ -107,9 +147,20 @@ public class DiscordCommandListener extends ListenerAdapter {
                 )
         ).whenComplete((result, failure) -> {
             if (failure != null) {
+                logInteractionResult("button", control.action().name(), correlation, "failed", "exception", started);
                 sendEphemeral(hook, "Não consegui aplicar esse controle agora.");
             } else if (!result.applied()) {
+                logInteractionResult(
+                        "button",
+                        control.action().name(),
+                        correlation,
+                        result.status().name().toLowerCase(Locale.ROOT),
+                        "domain_result",
+                        started
+                );
                 sendEphemeral(hook, result.responseMessage());
+            } else {
+                logInteractionResult("button", control.action().name(), correlation, "accepted", "applied", started);
             }
         }));
     }
@@ -205,7 +256,9 @@ public class DiscordCommandListener extends ListenerAdapter {
 
     private void handleSlashControl(
             SlashCommandInteractionEvent event,
-            DiscordPlaybackSessionService.PlaybackControlAction action
+            DiscordPlaybackSessionService.PlaybackControlAction action,
+            String correlation,
+            long started
     ) {
         event.deferReply(true).queue(hook -> playbackService.controlAsync(
                 event.getGuild(),
@@ -213,12 +266,22 @@ public class DiscordCommandListener extends ListenerAdapter {
                 DiscordPlaybackSessionService.PlaybackControlRequest.slash(action, event.getId())
         ).whenComplete((result, failure) -> {
             if (failure != null) {
+                logInteractionResult("slash", action.name(), correlation, "failed", "exception", started);
                 hook.editOriginal("Não consegui aplicar esse controle agora.")
                         .setAllowedMentions(List.of())
                         .queue();
             } else if (result.applied()) {
+                logInteractionResult("slash", action.name(), correlation, "accepted", "applied", started);
                 hook.deleteOriginal().queue();
             } else {
+                logInteractionResult(
+                        "slash",
+                        action.name(),
+                        correlation,
+                        result.status().name().toLowerCase(Locale.ROOT),
+                        "domain_result",
+                        started
+                );
                 hook.editOriginal(result.responseMessage())
                         .setAllowedMentions(List.of())
                         .queue();
@@ -302,6 +365,40 @@ public class DiscordCommandListener extends ListenerAdapter {
             case STOP_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.STOP;
             default -> null;
         };
+    }
+
+    private String diagnosticSlashAction(SlashCommandInteractionEvent event) {
+        if (ROOT_COMMAND.equals(event.getName()) && PING_SUBCOMMAND.equals(event.getSubcommandName())) {
+            return "deefy.ping";
+        }
+        if (JOIN_COMMAND.equals(event.getName())
+                || LEAVE_COMMAND.equals(event.getName())
+                || PLAY_COMMAND.equals(event.getName())
+                || PAUSE_COMMAND.equals(event.getName())
+                || RESUME_COMMAND.equals(event.getName())
+                || STOP_COMMAND.equals(event.getName())) {
+            return event.getName();
+        }
+        return "unknown";
+    }
+
+    private void logInteractionResult(
+            String type,
+            String action,
+            String correlation,
+            String result,
+            String reason,
+            long started
+    ) {
+        LOGGER.info(
+                "Discord interaction result: type={} action={} correlation={} result={} reason={} latencyMs={}",
+                type,
+                action.toLowerCase(Locale.ROOT),
+                correlation,
+                result,
+                reason,
+                (System.nanoTime() - started) / 1_000_000
+        );
     }
 
     private DiscordPlaybackService.PlaybackPresentation unexpectedFailure() {
