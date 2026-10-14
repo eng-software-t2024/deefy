@@ -2,6 +2,8 @@ package br.com.deefy.discord;
 
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.audio.AudioModuleConfig;
+import net.dv8tion.jda.api.audio.dave.DaveSessionFactory;
 import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.slf4j.Logger;
@@ -21,6 +23,7 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
     private final DiscordCommandListener commandListener;
     private final DiscordCommandRegistrar commandRegistrar;
     private final DiscordPlaybackSessionService playbackSessionService;
+    private final DiscordDaveSessionFactoryProvider daveSessionFactoryProvider;
 
     private volatile JDA jda;
     private volatile boolean running;
@@ -29,12 +32,14 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
             DiscordBotProperties properties,
             DiscordCommandListener commandListener,
             DiscordCommandRegistrar commandRegistrar,
-            DiscordPlaybackSessionService playbackSessionService
+            DiscordPlaybackSessionService playbackSessionService,
+            DiscordDaveSessionFactoryProvider daveSessionFactoryProvider
     ) {
         this.properties = properties;
         this.commandListener = commandListener;
         this.commandRegistrar = commandRegistrar;
         this.playbackSessionService = playbackSessionService;
+        this.daveSessionFactoryProvider = daveSessionFactoryProvider;
     }
 
     @Override
@@ -57,7 +62,10 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
                 return;
             }
 
+            DaveSessionFactory daveSessionFactory = daveSessionFactoryProvider.createRequired();
             jda = JDABuilder.createDefault(token)
+                    .setAudioModuleConfig(new AudioModuleConfig()
+                            .withDaveSessionFactory(daveSessionFactory))
                     .addEventListeners(commandListener, commandRegistrar, this)
                     .build();
             LOGGER.info("Discord bot startup requested");

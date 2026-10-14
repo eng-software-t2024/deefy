@@ -178,7 +178,59 @@ class DiscordPlaybackSessionServiceTest {
 
         assertThat(service.sessionFor(1L)).isEmpty();
         verify(source).close();
-        verify(fixture.audioManager, never()).closeAudioConnection();
+        verify(fixture.audioManager, times(1)).closeAudioConnection();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldIgnoreLateTerminalCallbackFromOldVoiceAttempt() throws Exception {
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordAudioSource firstSource = mock(DiscordAudioSource.class);
+        DiscordAudioSource secondSource = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Consumer<ConnectionStatus>> observers = ArgumentCaptor.forClass(Consumer.class);
+        when(voiceService.join(eq(fixture.guild), eq(fixture.requester), observers.capture()))
+                .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED);
+        when(sourceFactory.open(eq(fixture.track), any(), any()))
+                .thenReturn(firstSource)
+                .thenReturn(secondSource);
+
+        assertThat(service.start(fixture.guild, fixture.requester, fixture.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+        Consumer<ConnectionStatus> oldObserver = observers.getValue();
+        service.stop(fixture.guild);
+        assertThat(service.start(fixture.guild, fixture.requester, fixture.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+
+        oldObserver.accept(ConnectionStatus.DISCONNECTED_LOST_PERMISSION);
+
+        assertThat(service.sessionFor(1L)).isPresent();
+        verify(secondSource, never()).close();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldCloseTerminalFailureOnceWithoutAffectingAnotherGuild() throws Exception {
+        PlaybackFixture first = fixture(1L, 10L);
+        PlaybackFixture second = fixture(2L, 20L);
+        DiscordAudioSource firstSource = mock(DiscordAudioSource.class);
+        DiscordAudioSource secondSource = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Consumer<ConnectionStatus>> firstObserver = ArgumentCaptor.forClass(Consumer.class);
+        when(voiceService.join(eq(first.guild), eq(first.requester), firstObserver.capture()))
+                .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED);
+        when(sourceFactory.open(eq(first.track), any(), any())).thenReturn(firstSource);
+        when(sourceFactory.open(eq(second.track), any(), any())).thenReturn(secondSource);
+
+        service.start(first.guild, first.requester, first.track);
+        service.start(second.guild, second.requester, second.track);
+        firstObserver.getValue().accept(ConnectionStatus.ERROR_CANNOT_RESUME);
+        firstObserver.getValue().accept(ConnectionStatus.ERROR_CANNOT_RESUME);
+
+        assertThat(service.sessionFor(1L)).isEmpty();
+        assertThat(service.sessionFor(2L)).isPresent();
+        verify(firstSource, times(1)).close();
+        verify(first.audioManager, times(1)).closeAudioConnection();
+        verify(secondSource, never()).close();
+        verify(second.audioManager, never()).closeAudioConnection();
     }
 
     @Test

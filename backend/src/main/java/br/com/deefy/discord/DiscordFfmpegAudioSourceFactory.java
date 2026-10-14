@@ -19,6 +19,11 @@ public class DiscordFfmpegAudioSourceFactory implements DiscordAudioSourceFactor
             Runnable onFirstFrame,
             Runnable onTerminated
     ) throws IOException {
-        return new DiscordFfmpegAudioSource(processFactory.start(track), onFirstFrame, onTerminated);
+        return new DiscordFfmpegAudioSource(
+                processFactory.start(track),
+                track.id(),
+                onFirstFrame,
+                onTerminated
+        );
     }
 }

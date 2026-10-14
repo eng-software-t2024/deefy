@@ -10,6 +10,8 @@ import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 import net.dv8tion.jda.api.managers.AudioManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -19,6 +21,8 @@ import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class DiscordPlaybackSessionService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DiscordPlaybackSessionService.class);
 
     private final DiscordVoiceConnectionService voiceConnectionService;
     private final DiscordAudioSourceFactory audioSourceFactory;
@@ -55,18 +59,25 @@ public class DiscordPlaybackSessionService {
             return PlaybackStartResult.ALREADY_PLAYING;
         }
 
+        LOGGER.info("Discord playback session created: guildId={}, trackId={}", guildId, track.id());
+
         DiscordVoiceConnectionService.VoiceCommandResult voiceResult = voiceConnectionService.join(
                 guild,
                 requester,
                 status -> {
                     if (isTerminalVoiceStatus(status)) {
-                        removeAndClose(session, false);
+                        removeAndClose(
+                                session,
+                                true,
+                                CleanupReason.VOICE_TERMINAL_STATUS,
+                                status.name()
+                        );
                     }
                 }
         );
         PlaybackStartResult rejected = mapRejectedVoiceResult(voiceResult);
         if (rejected != null) {
-            removeAndClose(session, false);
+            removeAndClose(session, false, CleanupReason.VOICE_START_REJECTED, voiceResult.name());
             return rejected;
         }
 
@@ -74,13 +85,13 @@ public class DiscordPlaybackSessionService {
             DiscordAudioSource source = audioSourceFactory.open(
                     track,
                     () -> markPlaying(session),
-                    () -> removeAndClose(session, true)
+                    () -> removeAndClose(session, true, CleanupReason.AUDIO_SOURCE_TERMINATED, null)
             );
             session.attach(source);
             audioManager.setSendingHandler(source);
             return PlaybackStartResult.STARTED;
         } catch (IOException | RuntimeException exception) {
-            removeAndClose(session, true);
+            removeAndClose(session, true, CleanupReason.AUDIO_SOURCE_START_FAILED, null);
             return PlaybackStartResult.AUDIO_SOURCE_FAILED;
         }
     }
@@ -91,6 +102,12 @@ public class DiscordPlaybackSessionService {
         }
         DiscordGuildPlaybackSession session = sessionsByGuild.remove(guild.getIdLong());
         if (session != null) {
+            LOGGER.info(
+                    "Discord playback cleanup: guildId={}, trackId={}, reason={}",
+                    session.getGuildId(),
+                    session.getCurrentTrack().id(),
+                    CleanupReason.USER_REQUESTED_STOP
+            );
             session.close(false);
         }
     }
@@ -107,6 +124,12 @@ public class DiscordPlaybackSessionService {
     public void closeAll() {
         sessionsByGuild.forEach((guildId, session) -> {
             if (sessionsByGuild.remove(guildId, session)) {
+                LOGGER.info(
+                        "Discord playback cleanup: guildId={}, trackId={}, reason={}",
+                        session.getGuildId(),
+                        session.getCurrentTrack().id(),
+                        CleanupReason.APPLICATION_SHUTDOWN
+                );
                 session.close(true);
             }
         });
@@ -115,11 +138,28 @@ public class DiscordPlaybackSessionService {
     private void markPlaying(DiscordGuildPlaybackSession session) {
         if (sessionsByGuild.get(session.getGuildId()) == session) {
             session.markPlaying();
+            LOGGER.info(
+                    "Discord playback first frame delivered: guildId={}, trackId={}",
+                    session.getGuildId(),
+                    session.getCurrentTrack().id()
+            );
         }
     }
 
-    private void removeAndClose(DiscordGuildPlaybackSession session, boolean closeVoiceConnection) {
+    private void removeAndClose(
+            DiscordGuildPlaybackSession session,
+            boolean closeVoiceConnection,
+            CleanupReason reason,
+            String detail
+    ) {
         if (sessionsByGuild.remove(session.getGuildId(), session)) {
+            LOGGER.info(
+                    "Discord playback cleanup: guildId={}, trackId={}, reason={}, detail={}",
+                    session.getGuildId(),
+                    session.getCurrentTrack().id(),
+                    reason,
+                    detail == null ? "none" : detail
+            );
             session.close(closeVoiceConnection);
         }
     }
@@ -175,5 +215,14 @@ public class DiscordPlaybackSessionService {
         VOICE_CONNECTION_IN_PROGRESS,
         VOICE_CONNECTION_FAILED,
         AUDIO_SOURCE_FAILED
+    }
+
+    private enum CleanupReason {
+        VOICE_TERMINAL_STATUS,
+        VOICE_START_REJECTED,
+        AUDIO_SOURCE_TERMINATED,
+        AUDIO_SOURCE_START_FAILED,
+        USER_REQUESTED_STOP,
+        APPLICATION_SHUTDOWN
     }
 }

@@ -13,6 +13,8 @@ import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 import net.dv8tion.jda.api.managers.AudioManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumSet;
@@ -22,6 +24,8 @@ import java.util.function.Consumer;
 
 @Service
 public class DiscordVoiceConnectionService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DiscordVoiceConnectionService.class);
 
     private final ConcurrentMap<Long, GuildVoiceSession> sessionsByGuild = new ConcurrentHashMap<>();
 
@@ -50,7 +54,7 @@ public class DiscordVoiceConnectionService {
         }
 
         long guildId = guild.getIdLong();
-        GuildVoiceSession session = sessionsByGuild.computeIfAbsent(guildId, ignored -> new GuildVoiceSession());
+        GuildVoiceSession session = sessionsByGuild.computeIfAbsent(guildId, GuildVoiceSession::new);
 
         synchronized (session) {
             ConnectionAttempt attempt = null;
@@ -96,7 +100,7 @@ public class DiscordVoiceConnectionService {
 
         GuildVoiceSession session = sessionsByGuild.computeIfAbsent(
                 guild.getIdLong(),
-                ignored -> new GuildVoiceSession()
+                GuildVoiceSession::new
         );
 
         synchronized (session) {
@@ -173,7 +177,12 @@ public class DiscordVoiceConnectionService {
     }
 
     private static final class GuildVoiceSession {
+        private final long guildId;
         private ConnectionAttempt activeAttempt;
+
+        private GuildVoiceSession(long guildId) {
+            this.guildId = guildId;
+        }
     }
 
     private static final class ConnectionAttempt {
@@ -212,6 +221,7 @@ public class DiscordVoiceConnectionService {
 
         @Override
         public void onStatusChange(ConnectionStatus status) {
+            LOGGER.info("Discord voice state transition: guildId={}, status={}", session.guildId, status.name());
             if (!status.name().startsWith("CONNECTING_")) {
                 clearAttempt(session, attempt);
             }

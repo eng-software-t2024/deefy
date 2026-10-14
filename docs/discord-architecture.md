@@ -147,9 +147,10 @@ controlados pela aplicação.
    cria o JDA.
 4. Se ativada, valida o token. A guild só é obrigatória e validada quando o modo
    de teste explícito está ativo; no modo normal sua ausência é válida.
-5. Com configuração válida, `JDABuilder.createDefault` cria o cliente e recebe
-   como listeners `DiscordCommandListener`, `DiscordCommandRegistrar` e o
-   próprio lifecycle.
+5. Com configuração válida, o processo exclusivo do bot valida JDave/native e
+   configura `AudioModuleConfig` com um `DaveSessionFactory` explícito. Só então
+   `JDABuilder.createDefault` cria o cliente e recebe como listeners
+   `DiscordCommandListener`, `DiscordCommandRegistrar` e o próprio lifecycle.
 6. A construção solicita a inicialização de forma assíncrona. O estado só muda
    para `running` quando `DiscordBotLifecycle` recebe `ReadyEvent`.
 7. No mesmo tipo de evento, `DiscordCommandRegistrar` faz `upsert` individual
@@ -337,6 +338,17 @@ Nenhum teste unitário deve conectar ao Discord real.
 - O código permanece no artefato Spring, mas há um Compose futuro para executar
   o bot em processo/container separado, sem portas publicadas e sem modificar o
   backend web existente.
+- O runtime de voz do bot usa Java 25 e JDave 0.1.8 em perfil Maven e Dockerfile
+  exclusivos. O backend web permanece em Java 21 e não carrega JDave quando a
+  integração Discord está desativada.
+- A imagem fixa os estágios Java 25 por digest e incorpora o native DAVE em
+  `/app/native/libdave.so`; o carregamento não depende de executar arquivos no
+  `/tmp`, que continua montado com `noexec`.
+- A inicialização do bot valida o native DAVE antes de abrir o cliente JDA e não
+  aceita fallback silencioso para `PassthroughDaveSessionFactory`.
+- Transições de voz, lifecycle do FFmpeg, exit code, bytes PCM e frames entregues
+  são registrados somente com IDs técnicos; URL de mídia e valores sensíveis são
+  removidos do stderr limitado.
 - A borda Discord deve chamar serviços de aplicação. Ela não deve acessar
   Supabase, repositórios ou estruturas internas de reprodução diretamente.
 - A reconexão não está explicitamente implementada nem testada.

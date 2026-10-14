@@ -2,9 +2,10 @@ services:
   deefy-discord-bot:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: backend/Dockerfile.discord-bot
     image: deefy-discord-bot:${DEEFY_DISCORD_BOT_IMAGE_TAG:-local}
     container_name: deefy-discord-bot
+    user: "${DEEFY_DISCORD_RUNTIME_UID:-1000}:${DEEFY_DISCORD_RUNTIME_GID:-1000}"
     restart: unless-stopped
     read_only: true
     cap_drop:
