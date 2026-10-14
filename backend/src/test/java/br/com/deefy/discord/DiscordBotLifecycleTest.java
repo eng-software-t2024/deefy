@@ -20,7 +20,8 @@ class DiscordBotLifecycleTest {
                         mock(DiscordPlaybackService.class)
                 ),
                 new DiscordCommandRegistrar(properties),
-                mock(DiscordPlaybackSessionService.class)
+                mock(DiscordPlaybackSessionService.class),
+                mock(DiscordDaveSessionFactoryProvider.class)
         );
 
         lifecycle.start();
@@ -42,7 +43,8 @@ class DiscordBotLifecycleTest {
                         mock(DiscordPlaybackService.class)
                 ),
                 new DiscordCommandRegistrar(properties),
-                mock(DiscordPlaybackSessionService.class)
+                mock(DiscordPlaybackSessionService.class),
+                mock(DiscordDaveSessionFactoryProvider.class)
         );
 
         lifecycle.start();
@@ -62,7 +64,8 @@ class DiscordBotLifecycleTest {
                         mock(DiscordPlaybackService.class)
                 ),
                 new DiscordCommandRegistrar(properties),
-                mock(DiscordPlaybackSessionService.class)
+                mock(DiscordPlaybackSessionService.class),
+                mock(DiscordDaveSessionFactoryProvider.class)
         );
 
         assertThat(lifecycle.isRunning()).isFalse();

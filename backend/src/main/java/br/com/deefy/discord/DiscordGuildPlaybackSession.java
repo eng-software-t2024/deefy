@@ -2,10 +2,14 @@ package br.com.deefy.discord;
 
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.managers.AudioManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
 
 public final class DiscordGuildPlaybackSession implements AutoCloseable {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(DiscordGuildPlaybackSession.class);
 
     private final long guildId;
     private final VoiceChannel voiceChannel;
@@ -80,7 +84,8 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
         try {
             voiceConnection.setSendingHandler(null);
         } catch (RuntimeException ignored) {
-            // Cleanup continues without exposing JDA internals or media URLs.
+            LOGGER.warn("Could not clear Discord audio handler during cleanup: guildId={}, trackId={}",
+                    guildId, currentTrack.id());
         }
         if (source != null) {
             source.close();
@@ -90,7 +95,8 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
             try {
                 voiceConnection.closeAudioConnection();
             } catch (RuntimeException ignored) {
-                // Cleanup is best effort and remains scoped to this guild.
+                LOGGER.warn("Could not close Discord voice connection during cleanup: guildId={}, trackId={}",
+                        guildId, currentTrack.id());
             }
         }
     }

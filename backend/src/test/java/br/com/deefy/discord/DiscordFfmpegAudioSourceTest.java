@@ -4,13 +4,16 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,16 +21,19 @@ import static org.mockito.Mockito.when;
 class DiscordFfmpegAudioSourceTest {
 
     @Test
-    void shouldProvidePcmAndNotifyNaturalTerminationExactlyOnce() {
+    void shouldProvidePcmRecordTelemetryAndNotifyNaturalTerminationExactlyOnce() throws Exception {
         byte[] pcm = new byte[DiscordFfmpegAudioSource.PCM_FRAME_SIZE];
         pcm[0] = 42;
         Process process = mock(Process.class);
         when(process.getInputStream()).thenReturn(new ByteArrayInputStream(pcm));
-        when(process.isAlive()).thenReturn(true);
+        when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.waitFor(2, TimeUnit.SECONDS)).thenReturn(true);
+        when(process.exitValue()).thenReturn(0);
         AtomicInteger firstFrames = new AtomicInteger();
         AtomicInteger terminations = new AtomicInteger();
         DiscordFfmpegAudioSource source = new DiscordFfmpegAudioSource(
                 process,
+                123L,
                 firstFrames::incrementAndGet,
                 terminations::incrementAndGet
         );
@@ -43,18 +49,24 @@ class DiscordFfmpegAudioSourceTest {
         source.canProvide();
         source.close();
 
+        assertThat(source.pcmBytesProduced()).isEqualTo(DiscordFfmpegAudioSource.PCM_FRAME_SIZE);
+        assertThat(source.framesProduced()).isEqualTo(1);
+        assertThat(source.framesDelivered()).isEqualTo(1);
+        assertThat(source.exitCode()).isZero();
         assertThat(terminations).hasValue(1);
-        verify(process, times(1)).destroy();
-        verify(process, times(1)).destroyForcibly();
+        verify(process, never()).destroyForcibly();
     }
 
     @Test
     void shouldCloseIdempotentlyWithoutPublishingFalseNaturalTermination() {
         Process process = mock(Process.class);
         when(process.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.isAlive()).thenReturn(true);
         AtomicInteger terminations = new AtomicInteger();
         DiscordFfmpegAudioSource source = new DiscordFfmpegAudioSource(
                 process,
+                123L,
                 () -> { },
                 terminations::incrementAndGet
         );
@@ -64,6 +76,37 @@ class DiscordFfmpegAudioSourceTest {
 
         assertThat(terminations).hasValue(0);
         verify(process, times(1)).destroy();
+        verify(process, times(1)).destroyForcibly();
+    }
+
+    @Test
+    void shouldSanitizeAndLimitFfmpegStderr() throws Exception {
+        byte[] stderr = ("failed https://deefy.example/media/file.mp3?token=secret "
+                + "Authorization: Bearer-secret password=hunter2")
+                .getBytes(StandardCharsets.UTF_8);
+        Process process = mock(Process.class);
+        when(process.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(stderr));
+        when(process.waitFor(2, TimeUnit.SECONDS)).thenReturn(true);
+        when(process.exitValue()).thenReturn(1);
+        DiscordFfmpegAudioSource source = new DiscordFfmpegAudioSource(
+                process,
+                123L,
+                () -> { },
+                () -> { }
+        );
+
+        assertThat(waitUntil(() -> !source.canProvide())).isTrue();
+        source.close();
+
+        assertThat(source.sanitizedStderr())
+                .contains("[redacted-url]")
+                .contains("Authorization=[redacted]")
+                .contains("password=[redacted]")
+                .doesNotContain("file.mp3")
+                .doesNotContain("Bearer-secret")
+                .doesNotContain("hunter2");
+        assertThat(source.exitCode()).isEqualTo(1);
     }
 
     private boolean waitUntil(BooleanSupplier condition) {
