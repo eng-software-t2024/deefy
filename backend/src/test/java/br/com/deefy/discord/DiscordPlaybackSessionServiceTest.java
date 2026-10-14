@@ -492,6 +492,30 @@ class DiscordPlaybackSessionServiceTest {
         );
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldIgnoreLateVoiceConnectedAfterPlaybackHasStarted() throws Exception {
+        PlaybackFixture fixture = fixture(3L, 30L);
+        DiscordAudioSource source = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Consumer<ConnectionStatus>> voiceObserver = ArgumentCaptor.forClass(Consumer.class);
+        ArgumentCaptor<Runnable> firstFrame = ArgumentCaptor.forClass(Runnable.class);
+        List<DiscordPlaybackSessionService.PlaybackProgress> progress = new CopyOnWriteArrayList<>();
+        when(voiceService.join(eq(fixture.guild), eq(fixture.requester), voiceObserver.capture()))
+                .thenReturn(DiscordVoiceConnectionService.VoiceCommandResult.CONNECTION_STARTED);
+        when(sourceFactory.open(eq(fixture.track), firstFrame.capture(), any())).thenReturn(source);
+
+        assertThat(service.start(fixture.guild, fixture.requester, fixture.track, progress::add))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+
+        firstFrame.getValue().run();
+        voiceObserver.getValue().accept(ConnectionStatus.CONNECTED);
+        service.awaitGuild(fixture.guild.getIdLong());
+
+        assertThat(progress).containsExactly(DiscordPlaybackSessionService.PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
+        assertThat(service.stateFor(fixture.guild.getIdLong()))
+                .isEqualTo(DiscordGuildPlaybackSession.PlaybackState.PLAYING);
+    }
+
     private PlaybackFixture fixture(long guildId, long channelId) {
         Guild guild = mock(Guild.class);
         Member requester = mock(Member.class);

@@ -195,7 +195,7 @@ public class DiscordCommandListener extends ListenerAdapter {
                                     .queue(ignored -> success.run(), failure)
                     );
                     AtomicReference<String> sessionId = new AtomicReference<>();
-                    AtomicReference<DiscordPlaybackService.PlaybackPresentation> bufferedProgress =
+                    AtomicReference<DiscordPlaybackService.PlaybackPresentation> latestProgressBeforeBinding =
                             new AtomicReference<>();
                     AtomicBoolean controlsReady = new AtomicBoolean(false);
                     Object publicationGate = new Object();
@@ -209,7 +209,12 @@ public class DiscordCommandListener extends ListenerAdapter {
                                 synchronized (publicationGate) {
                                     String activeSession = sessionId.get();
                                     if (activeSession == null || !controlsReady.get()) {
-                                        bufferedProgress.set(progress.presentation());
+                                        latestProgressBeforeBinding.set(progress.presentation());
+                                        LOGGER.info(
+                                                "Discord playback snapshot buffered: state={}, sessionRef={}, controlsBound=false",
+                                                progress.presentation().state(),
+                                                DiscordDiagnosticSupport.pseudonymize(activeSession)
+                                        );
                                     } else {
                                         messages.publish(progress.presentation(), activeSession);
                                     }
@@ -227,11 +232,19 @@ public class DiscordCommandListener extends ListenerAdapter {
                         }
                         bindControlMessage(event, hook, result.sessionId()).whenComplete((bound, bindFailure) -> {
                             synchronized (publicationGate) {
-                                DiscordPlaybackService.PlaybackPresentation buffered = bufferedProgress.getAndSet(null);
-                                DiscordPlaybackService.PlaybackPresentation current = buffered != null
-                                        ? buffered
+                                DiscordPlaybackService.PlaybackPresentation latest =
+                                        latestProgressBeforeBinding.getAndSet(null);
+                                DiscordPlaybackService.PlaybackPresentation current = latest != null
+                                        ? latest
                                         : result.presentation();
                                 boolean controlsBound = bindFailure == null && Boolean.TRUE.equals(bound);
+                                LOGGER.info(
+                                        "Discord playback snapshot after binding: state={}, sessionRef={}, controlsBound={}, bindingResult={}",
+                                        current.state(),
+                                        DiscordDiagnosticSupport.pseudonymize(result.sessionId()),
+                                        controlsBound,
+                                        bindFailure == null ? "completed" : "failed"
+                                );
                                 messages.publish(current, controlsBound ? result.sessionId() : null);
                                 controlsReady.set(controlsBound);
                             }

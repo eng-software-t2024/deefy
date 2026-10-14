@@ -783,7 +783,16 @@ public class DiscordPlaybackSessionService {
 
     private void handleVoiceStatusInGuild(DiscordGuildPlaybackSession session, ConnectionStatus status) {
         if (status == ConnectionStatus.CONNECTED && sessionsByGuild.get(session.getGuildId()) == session) {
-            session.notifyProgress(PlaybackProgress.VOICE_CONNECTED);
+            if (session.getState() == DiscordGuildPlaybackSession.PlaybackState.STARTING) {
+                session.notifyProgress(PlaybackProgress.VOICE_CONNECTED);
+            } else {
+                LOGGER.info(
+                        "Discord playback progress ignored: kind=voice-connected guildId={}, sessionRef={}, reason=state, state={}",
+                        session.getGuildId(),
+                        DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
+                        session.getState()
+                );
+            }
         }
         if (!isTerminalVoiceStatus(status)) {
             return;
