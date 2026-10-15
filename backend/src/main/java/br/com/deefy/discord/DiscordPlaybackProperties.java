@@ -121,6 +121,14 @@ public class DiscordPlaybackProperties {
         this.audioInitialBufferTimeout = audioInitialBufferTimeout;
     }
 
+    int initialBufferFrames() {
+        if (audioInitialBuffer == null || audioInitialBuffer.isZero() || audioInitialBuffer.isNegative()) {
+            return 1;
+        }
+        long frames = (audioInitialBuffer.toNanos() * 50L + 999_999_999L) / 1_000_000_000L;
+        return (int) Math.min(Integer.MAX_VALUE, Math.max(1L, frames));
+    }
+
     public int getAudioDownloadAttempts() {
         return audioDownloadAttempts;
     }
