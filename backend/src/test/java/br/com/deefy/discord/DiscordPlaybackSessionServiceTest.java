@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Duration;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletableFuture;
@@ -45,6 +46,47 @@ class DiscordPlaybackSessionServiceTest {
             voiceService,
             sourceFactory
     );
+
+    @Test
+    void shouldPrepareAndOpenOnlyTheValidatedLocalFileInProductionWiring() throws Exception {
+        PlaybackFixture fixture = fixture(91L, 910L);
+        DiscordAudioDownloadManager downloadManager = mock(DiscordAudioDownloadManager.class);
+        DiscordPlaybackProperties properties = new DiscordPlaybackProperties();
+        properties.setAudioInitialBuffer(Duration.ofMillis(20));
+        properties.setAudioInitialBufferTimeout(Duration.ofSeconds(1));
+        DiscordAudioSource source = mock(DiscordAudioSource.class);
+        Path validatedPath = Path.of("/cache/91.audio");
+        DiscordPreparedAudio prepared = new DiscordPreparedAudio(
+                fixture.track.id(),
+                validatedPath,
+                new DiscordValidatedAudioMetadata("mp3", 48_000, 2, 1_000, null, 32, "hash"),
+                "hash",
+                null,
+                -1
+        );
+        when(downloadManager.prepare(fixture.track)).thenReturn(CompletableFuture.completedFuture(prepared));
+        when(source.awaitInitialBuffer(any(), any())).thenReturn(true);
+        when(sourceFactory.open(eq(fixture.track), eq(validatedPath), any(), any())).thenReturn(source);
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        DiscordPlaybackSessionService isolatedService = new DiscordPlaybackSessionService(
+                voiceService,
+                sourceFactory,
+                new DiscordGuildCommandExecutor(),
+                scheduler,
+                Duration.ofSeconds(1),
+                Duration.ofMinutes(10),
+                downloadManager,
+                properties
+        );
+        try {
+            assertThat(isolatedService.start(fixture.guild, fixture.requester, fixture.track))
+                    .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+            verify(sourceFactory).open(eq(fixture.track), eq(validatedPath), any(), any());
+            verify(sourceFactory, never()).open(eq(fixture.track), any(), any());
+        } finally {
+            isolatedService.closeAll();
+        }
+    }
 
     @Test
     void shouldKeepPlaybackSessionsIndependentByGuild() throws Exception {
