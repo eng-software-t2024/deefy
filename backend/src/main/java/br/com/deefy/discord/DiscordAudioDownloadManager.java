@@ -125,13 +125,19 @@ public class DiscordAudioDownloadManager {
     }
 
     private DiscordPreparedAudio prepareBlocking(DiscordTrack track) {
+        long started = System.nanoTime();
         preflight();
         Path finalPath = finalPath(track.id());
         Path metadataPath = metadataPath(track.id());
         CacheMetadata cached = readUsableCache(track, finalPath, metadataPath);
         if (cached != null) {
             DiscordValidatedAudioMetadata validated = validator.validate(finalPath);
-            LOGGER.info("Discord audio cache hit: trackId={}, bytes={}", track.id(), cached.size());
+            LOGGER.info(
+                    "Discord audio cache hit: trackId={}, bytes={}, prepareMs={}",
+                    track.id(),
+                    cached.size(),
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+            );
             return cached.audio(finalPath, track.id(), validated);
         }
 
@@ -170,7 +176,12 @@ public class DiscordAudioDownloadManager {
             }
             throw new DiscordAudioPreparationException("Não foi possível finalizar o cache de áudio.", failure);
         }
-        LOGGER.info("Discord audio cached: trackId={}, bytes={}", track.id(), downloaded.metadata().size());
+        LOGGER.info(
+                "Discord audio cached: trackId={}, bytes={}, prepareMs={}",
+                track.id(),
+                downloaded.metadata().size(),
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+        );
         return downloaded.metadata().audio(finalPath, track.id(), validated);
     }
 
@@ -194,6 +205,8 @@ public class DiscordAudioDownloadManager {
                 connection.disconnect();
                 throw new DiscordAudioPreparationException("O arquivo de áudio excede o limite configurado.");
             }
+            String etag = connection.getHeaderField("ETag");
+            long lastModified = connection.getLastModified();
             long bytes = 0;
             try (InputStream input = connection.getInputStream();
                  OutputStream output = Files.newOutputStream(part, StandardOpenOption.CREATE_NEW,
@@ -216,8 +229,8 @@ public class DiscordAudioDownloadManager {
             return new DownloadedFile(part, new CacheMetadata(
                     bytes,
                     sha256(part),
-                    safeHeader(connection, "ETag"),
-                    connection.getLastModified()
+                    etag,
+                    lastModified
             ));
         } catch (IOException failure) {
             deleteQuietly(part);
@@ -445,10 +458,6 @@ public class DiscordAudioDownloadManager {
         } catch (IOException ignored) {
             return Long.MIN_VALUE;
         }
-    }
-
-    private String safeHeader(HttpURLConnection connection, String name) {
-        return connection.getHeaderField(name);
     }
 
     private String sha256(Path file) {

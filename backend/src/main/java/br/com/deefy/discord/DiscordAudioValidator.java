@@ -34,6 +34,7 @@ public class DiscordAudioValidator implements DiscordAudioValidatorPort {
 
     @Override
     public DiscordValidatedAudioMetadata validate(Path audioFile) {
+        long started = System.nanoTime();
         if (audioFile == null || !Files.isRegularFile(audioFile)) {
             throw new DiscordAudioPreparationException("Arquivo de áudio indisponível.");
         }
@@ -49,7 +50,7 @@ public class DiscordAudioValidator implements DiscordAudioValidatorPort {
 
         ProbeResult probe = probe(audioFile);
         decodeSample(audioFile);
-        return new DiscordValidatedAudioMetadata(
+        DiscordValidatedAudioMetadata metadata = new DiscordValidatedAudioMetadata(
                 probe.codec(),
                 probe.sampleRate(),
                 probe.channels(),
@@ -58,6 +59,16 @@ public class DiscordAudioValidator implements DiscordAudioValidatorPort {
                 size,
                 sha256(audioFile)
         );
+        LOGGER.info(
+                "Discord audio validated: codec={}, sampleRate={}, channels={}, durationMs={}, bytes={}, validationMs={}",
+                metadata.codec(),
+                metadata.sampleRate(),
+                metadata.channels(),
+                metadata.durationMillis(),
+                metadata.size(),
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+        );
+        return metadata;
     }
 
     private ProbeResult probe(Path audioFile) {
