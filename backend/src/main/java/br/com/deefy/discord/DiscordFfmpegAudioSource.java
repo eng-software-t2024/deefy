@@ -8,12 +8,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
@@ -37,7 +39,7 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
     private final InputStream stderrStream;
     private final Runnable onFirstFrame;
     private final Runnable onTerminated;
-    private final BlockingQueue<byte[]> frameBuffer = new ArrayBlockingQueue<>(50);
+    private final BlockingQueue<byte[]> frameBuffer;
     private final AtomicBoolean firstFrameDelivered = new AtomicBoolean();
     private final AtomicBoolean terminationNotified = new AtomicBoolean();
     private final AtomicBoolean processClosed = new AtomicBoolean();
@@ -73,8 +75,19 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
             Runnable onFirstFrame,
             Runnable onTerminated
     ) {
+        this(process, trackId, 50, onFirstFrame, onTerminated);
+    }
+
+    public DiscordFfmpegAudioSource(
+            Process process,
+            long trackId,
+            int bufferCapacityFrames,
+            Runnable onFirstFrame,
+            Runnable onTerminated
+    ) {
         this.process = process;
         this.trackId = trackId;
+        this.frameBuffer = new ArrayBlockingQueue<>(Math.max(1, bufferCapacityFrames));
         this.pcmStream = nonNullStream(process.getInputStream());
         this.stderrStream = nonNullStream(process.getErrorStream());
         this.onFirstFrame = onFirstFrame;
@@ -162,6 +175,34 @@ public final class DiscordFfmpegAudioSource implements DiscordAudioSource {
     @Override
     public boolean isPaused() {
         return paused;
+    }
+
+    @Override
+    public boolean awaitInitialBuffer(Duration minimum, Duration timeout) {
+        Duration safeMinimum = minimum == null || minimum.isNegative() ? Duration.ZERO : minimum;
+        Duration safeTimeout = timeout == null || timeout.isNegative() ? Duration.ZERO : timeout;
+        int requiredFrames = (int) Math.min(
+                frameBuffer.size() + frameBuffer.remainingCapacity(),
+                Math.max(1L, (safeMinimum.toNanos() * 50L + 999_999_999L) / 1_000_000_000L)
+        );
+        if (safeMinimum.isZero()) {
+            return !frameBuffer.isEmpty() || sourceEnded;
+        }
+        long deadline = System.nanoTime() + safeTimeout.toNanos();
+        while (!closed) {
+            int available = frameBuffer.size();
+            if (available >= requiredFrames || (sourceEnded && available > 0)) {
+                return true;
+            }
+            if (sourceEnded || System.nanoTime() >= deadline) {
+                return false;
+            }
+            LockSupport.parkNanos(Math.min(
+                    Duration.ofMillis(20).toNanos(),
+                    Math.max(1L, deadline - System.nanoTime())
+            ));
+        }
+        return false;
     }
 
     @Override

@@ -1,6 +1,7 @@
 package br.com.deefy.discord;
 
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -9,9 +10,19 @@ import java.nio.file.Path;
 public class DiscordFfmpegAudioSourceFactory implements DiscordAudioSourceFactory {
 
     private final DiscordFfmpegProcessFactory processFactory;
+    private final DiscordPlaybackProperties properties;
 
-    public DiscordFfmpegAudioSourceFactory(DiscordFfmpegProcessFactory processFactory) {
+    @Autowired
+    public DiscordFfmpegAudioSourceFactory(
+            DiscordFfmpegProcessFactory processFactory,
+            DiscordPlaybackProperties properties
+    ) {
         this.processFactory = processFactory;
+        this.properties = properties;
+    }
+
+    DiscordFfmpegAudioSourceFactory(DiscordFfmpegProcessFactory processFactory) {
+        this(processFactory, new DiscordPlaybackProperties());
     }
 
     @Override
@@ -33,6 +44,7 @@ public class DiscordFfmpegAudioSourceFactory implements DiscordAudioSourceFactor
         return new DiscordFfmpegAudioSource(
                 processFactory.start(validatedAudioFile, track.id()),
                 track.id(),
+                properties.initialBufferFrames(),
                 onFirstFrame,
                 onTerminated
         );

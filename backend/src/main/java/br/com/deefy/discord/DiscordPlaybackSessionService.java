@@ -48,6 +48,8 @@ public class DiscordPlaybackSessionService {
     private final DiscordVoiceConnectionService voiceConnectionService;
     private final DiscordAudioSourceFactory audioSourceFactory;
     private final DiscordGuildCommandExecutor guildExecutor;
+    private final DiscordAudioDownloadManager audioDownloadManager;
+    private final DiscordPlaybackProperties playbackProperties;
     private final ExecutorService audioSetupExecutor;
     private final ScheduledExecutorService scheduler;
     private final Duration startupTimeout;
@@ -61,7 +63,9 @@ public class DiscordPlaybackSessionService {
     public DiscordPlaybackSessionService(
             DiscordVoiceConnectionService voiceConnectionService,
             DiscordAudioSourceFactory audioSourceFactory,
-            DiscordGuildCommandExecutor guildExecutor
+            DiscordGuildCommandExecutor guildExecutor,
+            DiscordAudioDownloadManager audioDownloadManager,
+            DiscordPlaybackProperties playbackProperties
     ) {
         this(
                 voiceConnectionService,
@@ -71,8 +75,10 @@ public class DiscordPlaybackSessionService {
                         .daemon(true)
                         .name("deefy-discord-playback-timeout")
                         .unstarted(runnable)),
-                STARTUP_TIMEOUT,
-                INACTIVITY_TIMEOUT
+                playbackProperties.getAudioInitialBufferTimeout(),
+                INACTIVITY_TIMEOUT,
+                audioDownloadManager,
+                playbackProperties
         );
     }
 
@@ -81,6 +87,23 @@ public class DiscordPlaybackSessionService {
             DiscordAudioSourceFactory audioSourceFactory
     ) {
         this(voiceConnectionService, audioSourceFactory, new DiscordGuildCommandExecutor());
+    }
+
+    DiscordPlaybackSessionService(
+            DiscordVoiceConnectionService voiceConnectionService,
+            DiscordAudioSourceFactory audioSourceFactory,
+            DiscordGuildCommandExecutor guildExecutor
+    ) {
+        this(
+                voiceConnectionService,
+                audioSourceFactory,
+                guildExecutor,
+                Executors.newSingleThreadScheduledExecutor(),
+                STARTUP_TIMEOUT,
+                INACTIVITY_TIMEOUT,
+                null,
+                new DiscordPlaybackProperties()
+        );
     }
 
     DiscordPlaybackSessionService(
@@ -95,7 +118,9 @@ public class DiscordPlaybackSessionService {
                 new DiscordGuildCommandExecutor(),
                 scheduler,
                 startupTimeout,
-                INACTIVITY_TIMEOUT
+                INACTIVITY_TIMEOUT,
+                null,
+                new DiscordPlaybackProperties()
         );
     }
 
@@ -112,8 +137,31 @@ public class DiscordPlaybackSessionService {
                 new DiscordGuildCommandExecutor(),
                 scheduler,
                 startupTimeout,
-                inactivityTimeout
+                inactivityTimeout,
+                null,
+                new DiscordPlaybackProperties()
         );
+    }
+
+    DiscordPlaybackSessionService(
+            DiscordVoiceConnectionService voiceConnectionService,
+            DiscordAudioSourceFactory audioSourceFactory,
+            DiscordGuildCommandExecutor guildExecutor,
+            ScheduledExecutorService scheduler,
+            Duration startupTimeout,
+            Duration inactivityTimeout,
+            DiscordAudioDownloadManager audioDownloadManager,
+            DiscordPlaybackProperties playbackProperties
+    ) {
+        this.voiceConnectionService = voiceConnectionService;
+        this.audioSourceFactory = audioSourceFactory;
+        this.guildExecutor = guildExecutor;
+        this.audioDownloadManager = audioDownloadManager;
+        this.playbackProperties = playbackProperties;
+        this.audioSetupExecutor = newAudioSetupExecutor();
+        this.scheduler = scheduler;
+        this.startupTimeout = startupTimeout;
+        this.inactivityTimeout = inactivityTimeout;
     }
 
     DiscordPlaybackSessionService(
@@ -124,13 +172,16 @@ public class DiscordPlaybackSessionService {
             Duration startupTimeout,
             Duration inactivityTimeout
     ) {
-        this.voiceConnectionService = voiceConnectionService;
-        this.audioSourceFactory = audioSourceFactory;
-        this.guildExecutor = guildExecutor;
-        this.audioSetupExecutor = newAudioSetupExecutor();
-        this.scheduler = scheduler;
-        this.startupTimeout = startupTimeout;
-        this.inactivityTimeout = inactivityTimeout;
+        this(
+                voiceConnectionService,
+                audioSourceFactory,
+                guildExecutor,
+                scheduler,
+                startupTimeout,
+                inactivityTimeout,
+                null,
+                new DiscordPlaybackProperties()
+        );
     }
 
     public CompletableFuture<DiscordVoiceConnectionService.VoiceCommandResult> joinIdleAsync(
@@ -167,10 +218,15 @@ public class DiscordPlaybackSessionService {
             if (reservation.outcome() != null) {
                 return CompletableFuture.completedFuture(reservation.outcome());
             }
-            return openAudioSourceAsync(reservation.session())
+            return prepareAudioAsync(reservation.session())
+                    .thenCompose(prepared -> openAudioSourceAsync(reservation.session(), prepared))
                     .thenCompose(opening -> guildExecutor.submit(
                             guild.getIdLong(),
                             () -> completeStartInGuild(reservation.session(), opening)
+                    ))
+                    .exceptionallyCompose(failure -> guildExecutor.submit(
+                            guild.getIdLong(),
+                            () -> failPreparationInGuild(reservation.session(), failure)
                     ));
         });
     }
@@ -423,10 +479,20 @@ public class DiscordPlaybackSessionService {
         return new StartReservation(session, null);
     }
 
-    private CompletableFuture<AudioSourceOpening> openAudioSourceAsync(DiscordGuildPlaybackSession session) {
+    private CompletableFuture<DiscordPreparedAudio> prepareAudioAsync(DiscordGuildPlaybackSession session) {
+        if (audioDownloadManager == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return audioDownloadManager.prepare(session.getCurrentTrack());
+    }
+
+    private CompletableFuture<AudioSourceOpening> openAudioSourceAsync(
+            DiscordGuildPlaybackSession session,
+            DiscordPreparedAudio preparedAudio
+    ) {
         try {
             return CompletableFuture.supplyAsync(
-                    () -> openAudioSource(session),
+                    () -> openAudioSource(session, preparedAudio),
                     audioSetupExecutor
             );
         } catch (RejectedExecutionException failure) {
@@ -434,26 +500,48 @@ public class DiscordPlaybackSessionService {
         }
     }
 
-    private AudioSourceOpening openAudioSource(DiscordGuildPlaybackSession session) {
+    private AudioSourceOpening openAudioSource(
+            DiscordGuildPlaybackSession session,
+            DiscordPreparedAudio preparedAudio
+    ) {
         AtomicBoolean attached = new AtomicBoolean();
         AtomicBoolean firstFrameObserved = new AtomicBoolean();
         AtomicBoolean terminationObserved = new AtomicBoolean();
         try {
-            DiscordAudioSource source = audioSourceFactory.open(
-                    session.getCurrentTrack(),
-                    () -> {
+            DiscordAudioSource source;
+            Runnable onFirstFrame = () -> {
                         firstFrameObserved.set(true);
                         if (attached.get()) {
                             submitSessionCallback(session, () -> markPlayingInGuild(session));
                         }
-                    },
-                    () -> {
+                    };
+            Runnable onTerminated = () -> {
                         terminationObserved.set(true);
                         if (attached.get()) {
                             submitSessionCallback(session, () -> handleAudioSourceTerminationInGuild(session));
                         }
-                    }
-            );
+                    };
+            if (audioDownloadManager == null) {
+                source = audioSourceFactory.open(session.getCurrentTrack(), onFirstFrame, onTerminated);
+            } else {
+                if (preparedAudio == null) {
+                    throw new DiscordAudioPreparationException("A faixa validada não está disponível.");
+                }
+                source = audioSourceFactory.open(
+                        session.getCurrentTrack(),
+                        preparedAudio.path(),
+                        onFirstFrame,
+                        onTerminated
+                );
+                if (!source.awaitInitialBuffer(
+                        playbackProperties.getAudioInitialBuffer(),
+                        playbackProperties.getAudioInitialBufferTimeout()
+                )) {
+                    source.close();
+                    return AudioSourceOpening.failed(
+                            new DiscordAudioPreparationException("O áudio não atingiu o buffer inicial no prazo."));
+                }
+            }
             LOGGER.info(
                     "Discord playback audio source created: guildId={}, sessionRef={}, source=ffmpeg",
                     session.getGuildId(),
@@ -468,6 +556,26 @@ public class DiscordPlaybackSessionService {
         } catch (IOException | RuntimeException failure) {
             return AudioSourceOpening.failed(failure);
         }
+    }
+
+    private PlaybackStartOutcome failPreparationInGuild(
+            DiscordGuildPlaybackSession session,
+            Throwable failure
+    ) {
+        removeAndCloseInGuild(session, true, CleanupReason.AUDIO_SOURCE_START_FAILED, "audio-preparation");
+        LOGGER.warn(
+                "Discord playback preparation failed: guildId={}, sessionRef={}, reason={}",
+                session.getGuildId(),
+                DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
+                unwrap(failure).getClass().getSimpleName()
+        );
+        return outcome(PlaybackStartResult.AUDIO_SOURCE_FAILED, null);
+    }
+
+    private Throwable unwrap(Throwable failure) {
+        return failure instanceof CompletionException && failure.getCause() != null
+                ? failure.getCause()
+                : failure;
     }
 
     private PlaybackStartOutcome completeStartInGuild(

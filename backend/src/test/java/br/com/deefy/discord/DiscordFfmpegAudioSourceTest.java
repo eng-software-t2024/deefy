@@ -169,6 +169,52 @@ class DiscordFfmpegAudioSourceTest {
         source.close();
     }
 
+    @Test
+    void shouldFillInitialBufferWithoutConsumingFrames() throws Exception {
+        byte[] pcm = new byte[DiscordFfmpegAudioSource.PCM_FRAME_SIZE * 2];
+        pcm[0] = 7;
+        pcm[DiscordFfmpegAudioSource.PCM_FRAME_SIZE] = 8;
+        Process process = mock(Process.class);
+        when(process.getInputStream()).thenReturn(new ByteArrayInputStream(pcm));
+        when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.waitFor(2, TimeUnit.SECONDS)).thenReturn(true);
+        when(process.exitValue()).thenReturn(0);
+        DiscordFfmpegAudioSource source = new DiscordFfmpegAudioSource(
+                process,
+                123L,
+                10,
+                () -> { },
+                () -> { }
+        );
+
+        assertThat(source.awaitInitialBuffer(Duration.ofMillis(40), Duration.ofSeconds(1))).isTrue();
+        assertThat(source.framesProduced()).isEqualTo(2);
+        assertThat(source.framesDelivered()).isZero();
+        assertThat(source.provide20MsAudio()).isNotNull();
+        assertThat(source.provide20MsAudio()).isNotNull();
+        source.close();
+    }
+
+    @Test
+    void shouldRejectStartupWhenSourceEndsBeforeAnyInitialAudio() throws Exception {
+        Process process = mock(Process.class);
+        when(process.getInputStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.getErrorStream()).thenReturn(new ByteArrayInputStream(new byte[0]));
+        when(process.waitFor(2, TimeUnit.SECONDS)).thenReturn(true);
+        when(process.exitValue()).thenReturn(1);
+        DiscordFfmpegAudioSource source = new DiscordFfmpegAudioSource(
+                process,
+                123L,
+                10,
+                () -> { },
+                () -> { }
+        );
+
+        assertThat(source.awaitInitialBuffer(Duration.ofSeconds(10), Duration.ofMillis(100))).isFalse();
+        assertThat(source.framesProduced()).isZero();
+        source.close();
+    }
+
     private boolean waitUntil(BooleanSupplier condition) {
         long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
         while (System.nanoTime() < deadline) {
