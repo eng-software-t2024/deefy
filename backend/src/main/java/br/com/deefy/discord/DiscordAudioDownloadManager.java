@@ -4,6 +4,7 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -44,6 +45,7 @@ public class DiscordAudioDownloadManager {
     private static final int TOTAL_ATTEMPTS = 3;
 
     private final DiscordPlaybackProperties properties;
+    private final DiscordAudioValidatorPort validator;
     private final ConcurrentMap<Long, CompletableFuture<DiscordPreparedAudio>> inFlight =
             new ConcurrentHashMap<>();
     private final ExecutorService downloadExecutor = Executors.newFixedThreadPool(4, runnable ->
@@ -51,8 +53,13 @@ public class DiscordAudioDownloadManager {
     private final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor(runnable ->
             Thread.ofPlatform().daemon(true).name("deefy-discord-audio-cache-cleanup").unstarted(runnable));
 
-    public DiscordAudioDownloadManager(DiscordPlaybackProperties properties) {
+    @Autowired
+    public DiscordAudioDownloadManager(
+            DiscordPlaybackProperties properties,
+            DiscordAudioValidatorPort validator
+    ) {
         this.properties = properties;
+        this.validator = validator;
     }
 
     @PostConstruct
@@ -123,8 +130,9 @@ public class DiscordAudioDownloadManager {
         Path metadataPath = metadataPath(track.id());
         CacheMetadata cached = readUsableCache(track, finalPath, metadataPath);
         if (cached != null) {
+            DiscordValidatedAudioMetadata validated = validator.validate(finalPath);
             LOGGER.info("Discord audio cache hit: trackId={}, bytes={}", track.id(), cached.size());
-            return cached.audio(finalPath, track.id());
+            return cached.audio(finalPath, track.id(), validated);
         }
 
         deleteCacheFiles(finalPath, metadataPath);
@@ -149,15 +157,21 @@ public class DiscordAudioDownloadManager {
                     : lastFailure;
         }
 
+        DiscordValidatedAudioMetadata validated;
         try {
+            validated = validator.validate(downloaded.part());
             moveAtomically(downloaded.part(), finalPath);
             writeMetadataAtomically(metadataPath, downloaded.metadata());
-        } catch (IOException failure) {
+        } catch (IOException | DiscordAudioPreparationException failure) {
+            deleteQuietly(downloaded.part());
             deleteCacheFiles(finalPath, metadataPath);
+            if (failure instanceof DiscordAudioPreparationException preparationFailure) {
+                throw preparationFailure;
+            }
             throw new DiscordAudioPreparationException("Não foi possível finalizar o cache de áudio.", failure);
         }
         LOGGER.info("Discord audio cached: trackId={}, bytes={}", track.id(), downloaded.metadata().size());
-        return downloaded.metadata().audio(finalPath, track.id());
+        return downloaded.metadata().audio(finalPath, track.id(), validated);
     }
 
     private DownloadedFile downloadOnce(DiscordTrack track, int attempt) {
@@ -487,8 +501,12 @@ public class DiscordAudioDownloadManager {
             }
         }
 
-        private DiscordPreparedAudio audio(Path path, long trackId) {
-            return new DiscordPreparedAudio(trackId, path, sha256, etag, lastModified);
+        private DiscordPreparedAudio audio(
+                Path path,
+                long trackId,
+                DiscordValidatedAudioMetadata metadata
+        ) {
+            return new DiscordPreparedAudio(trackId, path, metadata, sha256, etag, lastModified);
         }
     }
 
