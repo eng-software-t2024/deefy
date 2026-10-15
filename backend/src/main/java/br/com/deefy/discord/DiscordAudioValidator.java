@@ -23,6 +23,7 @@ public class DiscordAudioValidator implements DiscordAudioValidatorPort {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DiscordAudioValidator.class);
     private static final int MAX_DIAGNOSTIC_LENGTH = 512;
+    private static final int MAX_MACHINE_OUTPUT_LENGTH = 1024 * 1024;
 
     private final DiscordPlaybackProperties properties;
     private final ObjectMapper objectMapper;
@@ -140,9 +141,9 @@ public class DiscordAudioValidator implements DiscordAudioValidatorPort {
         }
         try {
             CompletableFuture<String> stdout = CompletableFuture.supplyAsync(
-                    () -> readLimited(process.getInputStream()));
+                    () -> readLimited(process.getInputStream(), MAX_MACHINE_OUTPUT_LENGTH));
             CompletableFuture<String> stderr = CompletableFuture.supplyAsync(
-                    () -> readLimited(process.getErrorStream()));
+                    () -> readLimited(process.getErrorStream(), MAX_DIAGNOSTIC_LENGTH));
             if (!process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
                 process.destroyForcibly();
                 throw new DiscordAudioPreparationException("A validação de áudio excedeu o tempo limite.");
@@ -155,8 +156,8 @@ public class DiscordAudioValidator implements DiscordAudioValidatorPort {
         }
     }
 
-    private String readLimited(InputStream stream) {
-        byte[] buffer = new byte[MAX_DIAGNOSTIC_LENGTH];
+    private String readLimited(InputStream stream, int maximumLength) {
+        byte[] buffer = new byte[maximumLength];
         int captured = 0;
         try (stream) {
             int read;

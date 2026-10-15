@@ -42,6 +42,33 @@ class DiscordAudioValidatorTest {
     }
 
     @Test
+    void shouldParseCompleteProbeJsonWhenItExceedsDiagnosticLimit() throws Exception {
+        Path directory = Files.createTempDirectory("deefy-validator-large-probe-");
+        String padding = "x".repeat(1024);
+        String probeJson = "{\"streams\":[{\"codec_type\":\"audio\",\"codec_name\":\"mp3\","
+                + "\"sample_rate\":\"44100\",\"channels\":2,\"duration\":\"2.0\","
+                + "\"bit_rate\":\"128000\"}],\"format\":{\"comment\":\""
+                + padding + "\"}}";
+        Path ffprobe = script(directory, "ffprobe", "#!/bin/sh\nprintf '%s' '" + probeJson + "'\n");
+        Path ffmpeg = script(directory, "ffmpeg", "#!/bin/sh\nexit 0\n");
+        Path audio = directory.resolve("large-probe.part");
+        Files.write(audio, new byte[]{1, 2, 3});
+
+        DiscordPlaybackProperties properties = new DiscordPlaybackProperties();
+        properties.setFfprobeExecutable(ffprobe.toString());
+        properties.setFfmpegExecutable(ffmpeg.toString());
+        properties.setCacheMaxFileBytes(10);
+
+        DiscordValidatedAudioMetadata result = new DiscordAudioValidator(properties, new ObjectMapper())
+                .validate(audio);
+
+        assertThat(result.codec()).isEqualTo("mp3");
+        assertThat(result.sampleRate()).isEqualTo(44100);
+        assertThat(result.channels()).isEqualTo(2);
+        assertThat(result.durationMillis()).isEqualTo(2000);
+    }
+
+    @Test
     void shouldRejectDecodeFailureWithoutExposingProcessDetails() throws Exception {
         Path directory = Files.createTempDirectory("deefy-validator-fixture-");
         Path ffprobe = script(directory, "ffprobe", "#!/bin/sh\nprintf '%s' '{\"streams\":[{\"codec_type\":\"audio\",\"codec_name\":\"mp3\",\"sample_rate\":\"44100\",\"channels\":2,\"duration\":\"2.0\"}]}'\n");
