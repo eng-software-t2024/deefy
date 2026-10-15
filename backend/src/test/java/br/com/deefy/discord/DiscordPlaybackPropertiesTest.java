@@ -50,5 +50,6 @@ class DiscordPlaybackPropertiesTest {
         assertThat(properties.getAudioDownloadAttempts()).isEqualTo(3);
         assertThat(properties.getAudioDownloadBackoff())
                 .containsExactly(Duration.ofSeconds(2), Duration.ofSeconds(5), Duration.ofSeconds(10));
+        assertThat(properties.initialBufferFrames()).isEqualTo(500);
     }
 }
