@@ -147,6 +147,51 @@ class DiscordAudioDownloadManagerTest {
         assertThat(gets).hasValue(2);
     }
 
+    @Test
+    void shouldFailClosedWhenCachePathIsNotWritableDirectory() throws Exception {
+        Path cacheFile = Files.createTempFile("deefy-cache-file-", ".tmp");
+        properties.setCacheDirectory(cacheFile.toString());
+        DiscordAudioDownloadManager isolatedManager = new DiscordAudioDownloadManager(
+                properties,
+                this::validateFixture
+        );
+        try {
+            assertThatThrownBy(() -> isolatedManager.prepare(track(7, "/audio/7")).join())
+                    .hasMessageContaining("O cache local de áudio não está disponível para gravação.");
+        } finally {
+            isolatedManager.close();
+            Files.deleteIfExists(cacheFile);
+        }
+    }
+
+    @Test
+    void shouldRejectRedirectOutsideConfiguredOriginBeforeSecondConnection() throws Exception {
+        AtomicInteger externalRequests = new AtomicInteger();
+        HttpServer external = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        external.createContext("/audio/8", exchange -> {
+            externalRequests.incrementAndGet();
+            respond(exchange, 200, "must-not-be-read", null);
+        });
+        external.start();
+        server.createContext("/audio/8", exchange -> {
+            exchange.getResponseHeaders().set(
+                    "Location",
+                    "http://127.0.0.1:" + external.getAddress().getPort() + "/audio/8"
+            );
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.start();
+
+        try {
+            assertThatThrownBy(() -> manager.prepare(track(8, "/audio/8")).join())
+                    .hasRootCauseInstanceOf(DiscordAudioPreparationException.class);
+            assertThat(externalRequests).hasValue(0);
+        } finally {
+            external.stop(0);
+        }
+    }
+
     private DiscordTrack track(long id, String path) {
         return new DiscordTrack(id, "Título", "Artista", origin() + path);
     }
