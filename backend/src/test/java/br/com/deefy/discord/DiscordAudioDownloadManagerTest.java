@@ -36,7 +36,7 @@ class DiscordAudioDownloadManagerTest {
         properties.setCacheDirectory(cacheDirectory.toString());
         properties.setCacheCleanupInterval(Duration.ZERO);
         properties.setAudioDownloadBackoff(List.of(Duration.ZERO, Duration.ZERO, Duration.ZERO));
-        manager = new DiscordAudioDownloadManager(properties);
+        manager = new DiscordAudioDownloadManager(properties, this::validateFixture);
     }
 
     @AfterEach
@@ -149,6 +149,15 @@ class DiscordAudioDownloadManagerTest {
 
     private DiscordTrack track(long id, String path) {
         return new DiscordTrack(id, "Título", "Artista", origin() + path);
+    }
+
+    private DiscordValidatedAudioMetadata validateFixture(Path path) {
+        try {
+            return new DiscordValidatedAudioMetadata(
+                    "fixture", 48000, 2, 1000, null, Files.size(path), "fixture-sha256");
+        } catch (IOException failure) {
+            throw new DiscordAudioPreparationException("fixture validation failed", failure);
+        }
     }
 
     private String origin() {

@@ -5,6 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 @Component
@@ -18,13 +20,16 @@ public class DiscordFfmpegProcessFactory {
         this.properties = properties;
     }
 
-    public Process start(DiscordTrack track) throws IOException {
+    public Process start(Path validatedAudioFile, long trackId) throws IOException {
+        if (validatedAudioFile == null || !Files.isRegularFile(validatedAudioFile)) {
+            throw new IOException("Validated local audio is unavailable.");
+        }
         ProcessBuilder processBuilder = new ProcessBuilder(List.of(
                 properties.getFfmpegExecutable(),
                 "-nostdin",
                 "-hide_banner",
                 "-loglevel", "error",
-                "-i", track.audioUrl(),
+                "-i", validatedAudioFile.toString(),
                 "-vn",
                 "-ac", "2",
                 "-ar", "48000",
@@ -32,7 +37,7 @@ public class DiscordFfmpegProcessFactory {
                 "pipe:1"
         ));
         Process process = processBuilder.start();
-        LOGGER.info("FFmpeg started: trackId={}", track.id());
+        LOGGER.info("FFmpeg started: trackId={}, source=validated-cache", trackId);
         return process;
     }
 }
