@@ -8,6 +8,7 @@ import net.dv8tion.jda.api.events.session.ReadyEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
@@ -25,9 +26,29 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
     private final DiscordPlaybackSessionService playbackSessionService;
     private final DiscordOpusNativeProvider opusNativeProvider;
     private final DiscordDaveSessionFactoryProvider daveSessionFactoryProvider;
+    private final DiscordAudioDownloadManager audioDownloadManager;
 
     private volatile JDA jda;
     private volatile boolean running;
+
+    @Autowired
+    public DiscordBotLifecycle(
+            DiscordBotProperties properties,
+            DiscordCommandListener commandListener,
+            DiscordCommandRegistrar commandRegistrar,
+            DiscordPlaybackSessionService playbackSessionService,
+            DiscordOpusNativeProvider opusNativeProvider,
+            DiscordDaveSessionFactoryProvider daveSessionFactoryProvider,
+            DiscordAudioDownloadManager audioDownloadManager
+    ) {
+        this.properties = properties;
+        this.commandListener = commandListener;
+        this.commandRegistrar = commandRegistrar;
+        this.playbackSessionService = playbackSessionService;
+        this.opusNativeProvider = opusNativeProvider;
+        this.daveSessionFactoryProvider = daveSessionFactoryProvider;
+        this.audioDownloadManager = audioDownloadManager;
+    }
 
     public DiscordBotLifecycle(
             DiscordBotProperties properties,
@@ -37,12 +58,15 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
             DiscordOpusNativeProvider opusNativeProvider,
             DiscordDaveSessionFactoryProvider daveSessionFactoryProvider
     ) {
-        this.properties = properties;
-        this.commandListener = commandListener;
-        this.commandRegistrar = commandRegistrar;
-        this.playbackSessionService = playbackSessionService;
-        this.opusNativeProvider = opusNativeProvider;
-        this.daveSessionFactoryProvider = daveSessionFactoryProvider;
+        this(
+                properties,
+                commandListener,
+                commandRegistrar,
+                playbackSessionService,
+                opusNativeProvider,
+                daveSessionFactoryProvider,
+                null
+        );
     }
 
     @Override
@@ -56,6 +80,15 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
         if (!errors.isEmpty()) {
             LOGGER.error("Discord integration is enabled but cannot start: {}", String.join("; ", errors));
             return;
+        }
+
+        if (audioDownloadManager != null) {
+            try {
+                audioDownloadManager.preflight();
+            } catch (DiscordAudioPreparationException failure) {
+                LOGGER.error("Discord audio cache preflight failed; bot will remain stopped");
+                return;
+            }
         }
 
         try {
