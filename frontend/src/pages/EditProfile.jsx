@@ -7,6 +7,7 @@ import "./EditProfile.css";
 import api from "../services/api";
 import { showMusicError, showMusicSuccess } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
+import BreadcrumbNav from "../components/BreadcrumbNav";
 
 function EditProfile() {
   const navigate = useNavigate();
@@ -123,6 +124,13 @@ function EditProfile() {
       />
 
       <section className="edit-profile-wrapper">
+        <BreadcrumbNav
+          items={[
+            { label: 'Início', to: '/home' },
+            { label: 'Configurações', to: '/configuration' },
+            { label: 'Editar foto' },
+          ]}
+        />
 
         {/* Back button */}
         <div className="edit-profile-back-btn" onClick={() => navigate(-1)}>
