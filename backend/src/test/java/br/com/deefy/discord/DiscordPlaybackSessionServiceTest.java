@@ -141,12 +141,61 @@ class DiscordPlaybackSessionServiceTest {
             releaseSourceCreation.countDown();
 
             assertThat(second.get(5, TimeUnit.SECONDS).result())
-                    .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.ALREADY_PLAYING);
+                    .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.QUEUED);
+            assertThat(second.get(5, TimeUnit.SECONDS).queuePosition()).isEqualTo(1);
             assertThat(first.get(5, TimeUnit.SECONDS).result())
                     .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void shouldRejectQueueRequestFromAnotherVoiceChannelWithoutMovingTheBot() throws Exception {
+        PlaybackFixture first = fixture(1L, 10L);
+        PlaybackFixture otherChannel = fixture(1L, 20L);
+        DiscordAudioSource source = mock(DiscordAudioSource.class);
+        when(sourceFactory.open(eq(first.track), any(), any())).thenReturn(source);
+
+        assertThat(service.start(first.guild, first.requester, first.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+
+        assertThat(service.start(otherChannel.guild, otherChannel.requester, otherChannel.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.BOT_IN_ANOTHER_CHANNEL);
+        assertThat(service.queueSnapshot(1L).pending()).isEmpty();
+        assertThat(service.sessionFor(1L).orElseThrow().getVoiceChannel().getIdLong()).isEqualTo(10L);
+    }
+
+    @Test
+    void shouldAllowBackFromIdleUsingTheLastHistoryEntry() throws Exception {
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordAudioSource firstSource = mock(DiscordAudioSource.class);
+        DiscordAudioSource replaySource = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Runnable> firstFrames = ArgumentCaptor.forClass(Runnable.class);
+        ArgumentCaptor<Runnable> terminations = ArgumentCaptor.forClass(Runnable.class);
+        when(sourceFactory.open(eq(fixture.track), firstFrames.capture(), terminations.capture()))
+                .thenReturn(firstSource, replaySource);
+
+        assertThat(service.start(fixture.guild, fixture.requester, fixture.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+        firstFrames.getValue().run();
+        terminations.getValue().run();
+        service.awaitGuild(fixture.guild.getIdLong());
+
+        DiscordPlaybackSessionService.PlaybackControlResult result = service.control(
+                fixture.guild,
+                fixture.requester,
+                DiscordPlaybackSessionService.PlaybackControlRequest.slash(
+                        DiscordPlaybackSessionService.PlaybackControlAction.BACK,
+                        "back-1"
+                )
+        );
+
+        assertThat(result.status()).isEqualTo(DiscordPlaybackSessionService.PlaybackControlStatus.APPLIED);
+        service.awaitGuild(fixture.guild.getIdLong());
+        assertThat(service.sessionFor(1L)).isPresent();
+        assertThat(service.sessionFor(1L).orElseThrow().getCurrentTrack()).isEqualTo(fixture.track);
+        verify(fixture.audioManager).setSendingHandler(replaySource);
     }
 
     @Test
@@ -580,6 +629,7 @@ class DiscordPlaybackSessionServiceTest {
         when(voiceState.getChannel()).thenReturn(channelUnion);
         when(channelUnion.getType()).thenReturn(ChannelType.VOICE);
         when(channelUnion.asVoiceChannel()).thenReturn(voiceChannel);
+        when(audioManager.getConnectedChannel()).thenReturn(channelUnion);
         when(voiceChannel.getIdLong()).thenReturn(channelId);
         when(selfMember.hasPermission(voiceChannel, Permission.VOICE_SPEAK)).thenReturn(true);
         when(voiceService.join(eq(guild), eq(requester), any()))

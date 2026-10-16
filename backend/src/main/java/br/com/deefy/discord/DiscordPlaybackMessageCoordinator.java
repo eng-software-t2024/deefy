@@ -125,10 +125,13 @@ public final class DiscordPlaybackMessageCoordinator {
         if (presentation == null || presentation.state() == null) {
             return "none";
         }
+        String queueControls = "skip=" + (presentation.pendingCount() > 0 ? "enabled" : "disabled")
+                + ",back=" + (presentation.historySize() > 0 ? "enabled" : "disabled")
+                + ",restart=enabled";
         return switch (presentation.state()) {
-            case PREPARING -> "pause=disabled,stop=enabled";
-            case PLAYING -> "pause=enabled,stop=enabled";
-            case PAUSED -> "resume=enabled,stop=enabled";
+            case PREPARING -> "pause=disabled,stop=enabled," + queueControls;
+            case PLAYING -> "pause=enabled,stop=enabled," + queueControls;
+            case PAUSED -> "resume=enabled,stop=enabled," + queueControls;
             case COMPLETED, STOPPED, FAILED -> "none";
         };
     }

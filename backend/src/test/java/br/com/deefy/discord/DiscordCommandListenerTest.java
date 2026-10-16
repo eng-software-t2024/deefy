@@ -216,7 +216,7 @@ class DiscordCommandListenerTest {
         List<ActionRow> rows = (List<ActionRow>) (List) components.getValue();
         assertThat(rows).singleElement().satisfies(row -> assertThat(row.getButtons())
                 .extracting(button -> button.getLabel())
-                .containsExactly("⏸️ Pausar", "⏹️ Parar"));
+                .containsExactly("⏸️ Pausar", "⏹️ Parar", "⏭️ Pular", "⏮️ Voltar", "🔄 Reiniciar"));
         verify(playbackService).bindControlMessageAsync(guild.getIdLong(), "session-1", 99L);
     }
 
@@ -280,7 +280,7 @@ class DiscordCommandListenerTest {
         List<ActionRow> rows = (List<ActionRow>) (List) components.getValue();
         assertThat(rows).singleElement().satisfies(row -> assertThat(row.getButtons())
                 .extracting(button -> button.getLabel())
-                .containsExactly("⏸️ Pausar", "⏹️ Parar"));
+                .containsExactly("⏸️ Pausar", "⏹️ Parar", "⏭️ Pular", "⏮️ Voltar", "🔄 Reiniciar"));
     }
 
     @Test

@@ -10,7 +10,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -71,14 +71,14 @@ class DiscordPlaybackServiceTest {
         GuildVoiceState voiceState = mock(GuildVoiceState.class);
         AudioChannelUnion voiceChannel = mock(AudioChannelUnion.class);
         DiscordTrack track = new DiscordTrack(369L, "XTRANHO", "Matuê", "https://deefy.olua.me/media/369");
-        ArgumentCaptor<Consumer<DiscordPlaybackSessionService.PlaybackProgress>> observer =
-                ArgumentCaptor.forClass(Consumer.class);
+        ArgumentCaptor<BiConsumer<String, DiscordPlaybackSessionService.PlaybackProgress>> observer =
+                ArgumentCaptor.forClass(BiConsumer.class);
         when(catalog.find("XTRANHO - Matuê")).thenReturn(new DiscordTrackCatalog.TrackLookupResult(
                 DiscordTrackCatalog.TrackLookupStatus.FOUND,
                 track,
                 List.of()
         ));
-        when(sessions.startAsync(eq(guild), eq(member), eq(track), isNull(), observer.capture()))
+        when(sessions.startAsyncWithSession(eq(guild), eq(member), eq(track), isNull(), observer.capture()))
                 .thenReturn(CompletableFuture.completedFuture(
                         new DiscordPlaybackSessionService.PlaybackStartOutcome(
                                 DiscordPlaybackSessionService.PlaybackStartResult.STARTED,
@@ -93,8 +93,8 @@ class DiscordPlaybackServiceTest {
 
         DiscordPlaybackService.PlaybackCommandResult result = new DiscordPlaybackService(catalog, sessions)
                 .play(guild, member, "XTRANHO - Matuê", update -> updates.add(update.presentation()));
-        observer.getValue().accept(DiscordPlaybackSessionService.PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
-        observer.getValue().accept(DiscordPlaybackSessionService.PlaybackProgress.START_TIMEOUT);
+        observer.getValue().accept("session-1", DiscordPlaybackSessionService.PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
+        observer.getValue().accept("session-1", DiscordPlaybackSessionService.PlaybackProgress.START_TIMEOUT);
 
         assertThat(result.awaitingProgress()).isTrue();
         assertThat(result.presentation().trackTitle()).isEqualTo("XTRANHO");

@@ -9,15 +9,16 @@ neste texto identificam tarefas do Taiga acadêmico, não GitHub Issues.
 A integração tem como objetivo oferecer recursos do Deefy dentro de guilds do
 Discord por comandos de interação. O código atual conecta um cliente JDA ao
 processo Spring e oferece `/deefy ping`, `/entrar`, `/sair` e
-`/tocar musica:<titulo-ou-titulo-artista>`, além de `/pausar`, `/retomar` e
-`/parar`. No modo normal, os sete comandos
+`/tocar musica:<titulo-ou-titulo-artista>`, além de `/pausar`, `/retomar`,
+`/parar`, `/pular`, `/voltar`, `/reiniciar` e `/fila` com suas operações de
+consulta e organização. No modo normal, os onze comandos
 são registrados globalmente e podem ser usados em qualquer guild na qual o bot
 tenha sido convidado com as permissões necessárias. Um modo de teste explícito
 e desativado por padrão pode restringir registro e execução a uma única guild.
 `/entrar` e `/sair` conectam e desconectam o bot de canais de voz comuns;
-`/tocar` reproduz uma única faixa do catálogo self-hosted. Cada guild mantém
-estado de conexão independente, e uma conexão existente não é movida
-silenciosamente para outro canal.
+`/tocar` inicia uma faixa ou a coloca na fila FIFO da guild. Cada guild mantém
+estado de conexão, fila, histórico e timers independentes, e uma conexão
+existente não é movida silenciosamente para outro canal.
 
 Esta arquitetura cobre:
 
@@ -28,8 +29,8 @@ Esta arquitetura cobre:
 - a fronteira entre a integração Discord e os serviços de aplicação do Deefy;
 - segurança, configuração, observabilidade e estratégia de testes.
 
-Ficam fora do escopo desta tarefa Stage Channels, fila, playlists Discord,
-próxima/anterior, volume, presença e a ampliação da política de permissões,
+Ficam fora do escopo desta tarefa Stage Channels, playlists Discord, repetição,
+volume, presença e a ampliação da política de permissões,
 bem como alterações de banco, Supabase ou cliente web.
 
 As responsabilidades das partes são distintas:
@@ -49,18 +50,18 @@ As responsabilidades das partes são distintas:
 ## 2. Componentes atuais
 
 A implementação está concentrada em `backend/src/main/java/br/com/deefy/discord`.
-Existe reprodução de uma única faixa; não existe abstração ou implementação de
-fila.
+Existe reprodução de uma faixa por vez, com fila e histórico mantidos em
+memória por guild; não há persistência da fila em banco.
 
 | Componente | Responsabilidade | Entradas | Saídas e efeitos | Dependências e limites |
 |---|---|---|---|---|
 | `DiscordBotProperties` | Mapear e validar a configuração `deefy.discord` | Propriedades Spring derivadas do ambiente | Estado de configuração, política de guild e lista de erros de validação | Aceita token legado em ambiente ou arquivo protegido, sem registrar o valor; a guild só é obrigatória no modo de teste explícito |
 | `DiscordBotLifecycle` | Integrar o cliente JDA ao ciclo de vida Spring | Propriedades, listener, registrar e `ReadyEvent` | Criação do JDA, estado `running` e shutdown | Usa `JDABuilder`; não registra comandos nem trata regras de negócio |
-| `DiscordCommandRegistrar` | Registrar os comandos disponíveis | `ReadyEvent` e política de guild | `upsertCommand` individual e assíncrono para `/deefy ping`, `/entrar`, `/sair`, `/tocar`, `/pausar`, `/retomar` e `/parar`, com logs do resultado | Registra globalmente por padrão sem substituir comandos não relacionados; no modo de teste, registra somente na guild configurada |
+| `DiscordCommandRegistrar` | Registrar os comandos disponíveis | `ReadyEvent` e política de guild | `upsertCommand` individual e assíncrono para `/deefy ping`, `/entrar`, `/sair`, `/tocar`, `/pausar`, `/retomar`, `/parar`, `/pular`, `/voltar`, `/reiniciar` e `/fila`, com logs do resultado | Registra globalmente por padrão sem substituir comandos não relacionados; no modo de teste, registra somente na guild configurada |
 | `DiscordCommandListener` | Filtrar e rotear interações, botões e autocomplete suportados | Eventos slash, botão e autocomplete | Respostas públicas e uma mensagem Deefy atualizada durante a reprodução | Reconhece interações prontamente, desabilita menções e encaminha botões/slash ao mesmo serviço de domínio; rejeições individuais de botão são efêmeras |
-| `DiscordVoiceConnectionService` | Aplicar as regras de entrada e saída de voz por guild | Guild, membro solicitante e estado JDA do canal | Abertura ou fechamento da conexão de voz e resultado controlado | Suporta apenas canais de voz comuns; não move conexão existente, não reproduz áudio e não possui fila nem proprietário exclusivo |
+| `DiscordVoiceConnectionService` | Aplicar as regras de entrada e saída de voz por guild | Guild, membro solicitante e estado JDA do canal | Abertura ou fechamento da conexão de voz e resultado controlado | Suporta apenas canais de voz comuns; não move conexão existente e não reproduz áudio |
 | `DiscordTrackCatalog` | Resolver título, título + artista ou ID técnico no catálogo | Entrada textual e `MusicRepository` | Faixa normalizada, sugestões ou erro de ausência, ambiguidade ou origem | Normaliza caixa, acentos e espaços; entende créditos importados; recusa URL fora do origin de `DEEFY_API_URL`, assinada ou do Supabase antigo |
-| `DiscordPlaybackSessionService` | Possuir uma sessão ativa por guild e executar mutações serializadas | Guild, membro, faixa e intenção de controle | Fonte JDA, estado, timers, conexão ociosa e cleanup restritos à guild | Uma segunda faixa é recusada; valida sessão/mensagem/canal no momento do controle; ao fim natural ou `/parar`, libera áudio e mantém voz por até 10 minutos |
+| `DiscordPlaybackSessionService` | Possuir sessão, fila e histórico por guild e executar mutações serializadas | Guild, membro, faixa e intenção de controle | Fonte JDA, estado, fila, histórico, timers, conexão ociosa e cleanup restritos à guild | Uma faixa ativa toca por vez; novas faixas entram FIFO; valida sessão/mensagem/canal no controle; ao fim natural ou `/parar`, libera áudio e mantém voz por até 10 minutos |
 | `DiscordGuildCommandExecutor` | Serializar mutações por guild com fila limitada | Comandos, botões, timers e callbacks | Uma sequência ordenada por guild e paralelismo entre guilds | Não executa rede/FFmpeg sob um lock compartilhado; remove lanes inativas e rejeita sobrecarga explicitamente |
 | `DiscordPlaybackMessageCoordinator` | Coalescer edições da mensagem pública | Apresentações versionadas da sessão | No máximo uma edição em voo e entrega do estado mais recente | Uma conclusão atrasada não republica estado antigo |
 | `DiscordFfmpegAudioSource` | Converter mídia self-hosted em PCM de 20 ms e preservar posição durante pausa | Processo FFmpeg sem shell | Frames PCM para `AudioSendHandler` | Na pausa deixa de ler e entregar frames; não registra URL e libera stream/processo no término, erro ou saída |
@@ -109,7 +110,8 @@ Discord (qualquer guild autorizada pela instalação do bot)
 JDA client -- ciclo de vida --> DiscordBotLifecycle
         |
         +--> DiscordCommandRegistrar -- registra --> /deefy ping, /entrar, /sair, /tocar
-        |                                          /pausar, /retomar, /parar
+        |                                          /pausar, /retomar, /parar, /pular
+        |                                          /voltar, /reiniciar, /fila
         |
         +--> DiscordCommandListener  -- responde --> pong
                          |
@@ -162,7 +164,7 @@ controlados pela aplicação.
 6. A construção solicita a inicialização de forma assíncrona. O estado só muda
    para `running` quando `DiscordBotLifecycle` recebe `ReadyEvent`.
 7. No mesmo tipo de evento, `DiscordCommandRegistrar` faz `upsert` individual
-   dos sete comandos globais ou, no modo de teste, na guild configurada.
+   dos onze comandos globais ou, no modo de teste, na guild configurada.
 8. Na parada do contexto, o lifecycle zera suas referências e chama
    `shutdownNow()` no cliente existente. Na variante com callback, o callback é
    executado mesmo após a tentativa de shutdown.
@@ -226,8 +228,8 @@ rejeições individuais de botão podem ser efêmeras para não poluir o canal.
 |---|---|---|---|
 | `IDLE` | `/entrar` ou `/tocar` válido | `IDLE` ou `STARTING` | Mantém somente conexão ociosa, com prazo de 10 minutos |
 | `STARTING` | primeiro frame, falha, timeout, `/parar` ou `/sair` | `PLAYING`, `STOPPING` | Fonte é preparada fora da lane; a conclusão revalida a sessão |
-| `PLAYING` | pausar, parar, fim/erro ou sair | `PAUSED`, `STOPPING` | Frames são entregues; uma segunda faixa é recusada, pois não há fila |
-| `PAUSED` | retomar, parar, timeout de 10 minutos ou sair | `PLAYING`, `STOPPING` | FFmpeg/stream permanecem na posição sem leitura ou descarte em segundo plano |
+| `PLAYING` | pausar, parar, pular, voltar, reiniciar, fim/erro ou sair | `PAUSED`, `STARTING`, `STOPPING` | Frames são entregues; uma nova faixa é enfileirada e só uma fonte toca por vez |
+| `PAUSED` | retomar, parar, pular, voltar, reiniciar, timeout de 10 minutos ou sair | `PLAYING`, `STARTING`, `STOPPING` | FFmpeg/stream preservam a posição; controles de faixa passam pela mesma lane |
 | `STOPPING` | callbacks/timers atrasados | `STOPPING` | Cleanup idempotente; nenhuma nova mutação da sessão é aceita |
 
 `/parar` libera a faixa e inicia o período ocioso da conexão. `/sair` fecha a
@@ -289,36 +291,33 @@ introduzida apenas quando cada incremento justificar a extração.
 
 ## 7. Contrato da fila — Taiga #79
 
-A fila pertence à tarefa Taiga #79 e não é definida nem implementada por este
-documento. A camada de reprodução deve depender apenas de uma porta conceitual
-capaz de:
+As referências locais à #79 indicam que a fila e o histórico são responsabilidade
+separada da reprodução. Nesta entrega, a integração Discord usa um contrato
+interno mínimo e volátil, sem consultar diretamente `ListeningHistoryService`,
+`historico_execucao`, banco ou Storage. Nenhuma fonte externa da tarefa Taiga foi
+consultada nesta rodada.
 
-- consultar a faixa atual;
-- consultar se há próxima faixa disponível;
-- solicitar o próximo item para reprodução;
-- notificar término ou erro da faixa atual;
-- limpar o estado de reprodução quando a sessão terminar;
-- consultar um retrato do estado necessário ao player sem expor a estrutura.
+O contrato local fornece:
 
-Essas capacidades não são assinaturas Java. Tipos, concorrência, persistência,
-repetição, remoção, prioridade e a semântica exata de avanço pertencem à #79 e
-devem ser acordados com seu responsável.
+- faixa atual e pendentes FIFO por guild;
+- posições públicas iniciadas em 1, somente para pendentes;
+- remoção, movimentação, limpeza e embaralhamento apenas das pendentes;
+- histórico limitado para `/voltar`, consumido ao retroceder;
+- avanço único em fim natural, falha ou `/pular`;
+- snapshot sanitizado para a mensagem e `/fila ver`.
 
-O `ListeningHistoryService` e a tabela `historico_execucao` registram histórico
-de escuta, não representam uma fila e não autorizam inferir ordenação de
-próxima/anterior. Por isso, a #78 não registra `/pular` ou `/voltar` e não exibe
-esses botões. O ponto de extensão é o serviço centralizado de controle; ele só
-ganhará novas ações quando a porta da #79 estiver definida e testada.
+Os limites padrão são 50 pendentes e 50 entradas de histórico, configuráveis por
+`DEEFY_DISCORD_PLAYBACK_QUEUE_MAX_SIZE` e
+`DEEFY_DISCORD_PLAYBACK_HISTORY_MAX_SIZE`. A fila não é persistida, não repete
+faixas automaticamente, não pré-baixa a fila inteira e não implementa playlists
+externas. Falhas de uma faixa avançam para a próxima; quando todas falham, a
+guild entra no estado ocioso sem loop de tentativas.
 
-As regras de integração são:
-
-- a reprodução **consome** a porta; a fila é dona da ordenação;
-- controles enviam intenções ao serviço de reprodução e não manipulam a
-  estrutura interna da fila;
-- o player notifica fatos de reprodução, mas não decide como a fila os
-  transforma em ordenação ou repetição;
-- mocks ou fakes da porta podem viabilizar testes futuros do player sem antecipar
-  a implementação real.
+`/pular`, `/voltar` e `/reiniciar` não criam uma segunda fila: são intenções
+serializadas pelo mesmo `DiscordPlaybackSessionService`. `/voltar` pode iniciar
+a última entrada do histórico enquanto a voz está ociosa; `/reiniciar` mantém a
+faixa atual, fila e histórico, criando apenas uma nova identidade de sessão e
+fonte para começar do primeiro frame.
 
 ## 8. Voz e reprodução
 
@@ -326,8 +325,8 @@ As regras de integração são:
 |---|---|---|---|---|---|
 | #76 — voz | JDA pronto, guild/canal autorizados e intents revisados | Entrada, saída e estado da conexão de voz | Não reproduz nem ordena faixas | Conecta e desconecta no canal permitido com erro controlado | Canal ausente, permissão negada, conexão e shutdown simulados |
 | #77 — reprodução | Sessão de voz e fonte de áudio definida | Iniciar, terminar e sinalizar erro de uma faixa | Não implementa fila nem controles do player | Player entrega áudio e encerra estado de forma determinística | Fonte válida/inválida, término, erro e limpeza com fakes |
-| #78 — controles | Player e autorização disponíveis | Pausar, retomar e parar por botão/slash | Não implementa fila, próxima/anterior ou volume | Cada controle produz uma intenção autorizada, serializada e observável | Corridas, timers antigos, permissão, idempotência e isolamento por guild |
-| #79 — fila | Contrato alinhado com o player | Possuir coleção, ordenação e semântica de avanço | Não conhece JDA nem detalhes de áudio | Contrato aceito pelo player e sem vazamento de implementação | Ordem, concorrência e semânticas definidas na própria tarefa |
+| #78 — controles | Player e autorização disponíveis | Pausar, retomar e parar por botão/slash | Não implementa fila paralela | Cada controle produz uma intenção autorizada, serializada e observável | Corridas, timers antigos, permissão, idempotência e isolamento por guild |
+| #79 — fila | Player e controles locais disponíveis | Fila FIFO, histórico limitado, pular, voltar, reiniciar e organização de pendentes | Não persiste fila nem conhece detalhes de Storage/Discord fora da borda | Uma fila por guild, sem perda/duplicação em concorrência e sem duas fontes simultâneas | Ordem, avanço, falhas, limites, histórico, autorização e isolamento |
 | #80 — presença | Estado confiável do bot/player | Atualizar atividade/status com informação sanitizada | Não dirige reprodução | Presença reflete transições relevantes sem excesso de chamadas | Deduplicação, indisponibilidade e ausência de faixa |
 | #81 — permissões | Contexto normalizado de guild/canal/usuário | Autorizar comandos e ações de voz | Não contém regra de reprodução | Ações negadas por padrão fora do escopo autorizado | Matrizes de papéis, guilds, canais e respostas seguras |
 | #82 — testes/documentação | Contratos estabilizados nas tarefas anteriores | Cobertura integrada, guias e operação segura | Não adiciona funcionalidade incidental | Suíte reproduzível e documentação coerente com o código | Lifecycle, comandos, voz, player, fila fake, permissões e shutdown |
@@ -395,8 +394,8 @@ Nenhum teste unitário deve conectar ao Discord real.
 | #75 | Parcialmente entregue | #74 e JDA | Ciclo de conexão e comando básico testável | Sem player ou fila |
 | #76 | Implementada | #74, #75 e intents padrão do JDA | Entrada e saída de canal de voz comum por guild | Sem reprodução, fila ou Stage Channel |
 | #77 | Implementada | #76 e catálogo self-hosted | Uma faixa por guild via FFmpeg/JDA, com cleanup explícito | Sem fila |
-| #78 | Implementada localmente, ainda sem commit/deploy | #77 e autorização por canal | Pausar, retomar e parar por botão/slash, com concorrência serializada | Sem próxima/anterior, volume ou mutação direta da fila |
-| #79 | Não implementada; responsabilidade de outro colega | Contrato alinhado com #77/#78 | Fila e suas semânticas | Sem JDA ou reprodução de áudio |
+| #78 | Implementada localmente, ainda sem commit/deploy | #77 e autorização por canal | Pausar, retomar e parar por botão/slash, com concorrência serializada | Não adiciona fila paralela |
+| #79 | Implementada localmente nesta branch, ainda sem commit/deploy | #77/#78 e catálogo existente | Fila FIFO em memória, histórico limitado e controles de avanço | Sem persistência, repetição, playlist externa ou reprodução progressiva |
 | #80 | Não implementada | Estado de #75/#77 | Presença coerente e sanitizada | Sem regras de player |
 | #81 | Não implementada | Contexto de comandos e voz | Política explícita de permissões | Sem credenciais ou regra de fila |
 | #82 | Não implementada | Incrementos anteriores estabilizados | Testes adicionais e documentação operacional | Sem funcionalidade nova incidental |
@@ -421,9 +420,10 @@ Nenhum teste unitário deve conectar ao Discord real.
   Supabase, repositórios ou estruturas internas de reprodução diretamente.
 - A reconexão não está explicitamente implementada nem testada.
 - Intents não estão explicitamente definidos no código atual.
-- Presença, política ampla de permissões e fila não estão implementadas nesta
-  linha. Os controles locais cobrem pausa, retomada e parada de uma única faixa
-  independente por guild; próxima/anterior e volume continuam ausentes.
+- Presença e política ampla de permissões não estão implementadas nesta linha.
+  A fila é volátil e local ao serviço; reinício do bot perde pendentes e
+  histórico, mas não altera catálogo, banco ou Storage. Volume e playlists
+  externas continuam ausentes.
 - No modo de teste, a guild configurada pode não ser encontrada depois do JDA
   ficar pronto; esse caso impede o registro dos comandos restritos, mas não muda
   o estado `running` do lifecycle.

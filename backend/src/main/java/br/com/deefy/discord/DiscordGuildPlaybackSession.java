@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.ScheduledFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public final class DiscordGuildPlaybackSession implements AutoCloseable {
@@ -19,7 +20,8 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
     private final VoiceChannel voiceChannel;
     private final AudioManager voiceConnection;
     private final DiscordTrack currentTrack;
-    private final Consumer<DiscordPlaybackSessionService.PlaybackProgress> progressObserver;
+    private final boolean remainPausedAfterStart;
+    private final BiConsumer<String, DiscordPlaybackSessionService.PlaybackProgress> progressObserver;
 
     private DiscordAudioSource audioSource;
     private ScheduledFuture<?> startupTimeout;
@@ -37,11 +39,32 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
             DiscordTrack currentTrack,
             Consumer<DiscordPlaybackSessionService.PlaybackProgress> progressObserver
     ) {
+        this(
+                sessionId,
+                guildId,
+                voiceChannel,
+                voiceConnection,
+                currentTrack,
+                false,
+                (ignoredSessionId, progress) -> progressObserver.accept(progress)
+        );
+    }
+
+    public DiscordGuildPlaybackSession(
+            String sessionId,
+            long guildId,
+            VoiceChannel voiceChannel,
+            AudioManager voiceConnection,
+            DiscordTrack currentTrack,
+            boolean remainPausedAfterStart,
+            BiConsumer<String, DiscordPlaybackSessionService.PlaybackProgress> progressObserver
+    ) {
         this.sessionId = Objects.requireNonNull(sessionId);
         this.guildId = guildId;
         this.voiceChannel = Objects.requireNonNull(voiceChannel);
         this.voiceConnection = Objects.requireNonNull(voiceConnection);
         this.currentTrack = Objects.requireNonNull(currentTrack);
+        this.remainPausedAfterStart = remainPausedAfterStart;
         this.progressObserver = Objects.requireNonNull(progressObserver);
     }
 
@@ -63,6 +86,10 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
 
     public DiscordTrack getCurrentTrack() {
         return currentTrack;
+    }
+
+    public boolean shouldRemainPausedAfterStart() {
+        return remainPausedAfterStart;
     }
 
     public synchronized PlaybackState getState() {
@@ -177,7 +204,7 @@ public final class DiscordGuildPlaybackSession implements AutoCloseable {
 
     public void notifyProgress(DiscordPlaybackSessionService.PlaybackProgress progress) {
         try {
-            progressObserver.accept(progress);
+            progressObserver.accept(sessionId, progress);
         } catch (RuntimeException ignored) {
             LOGGER.warn("Could not notify Discord playback progress: guildId={}, trackId={}",
                     guildId, currentTrack.id());

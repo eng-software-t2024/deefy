@@ -33,6 +33,10 @@ public class DiscordCommandListener extends ListenerAdapter {
     private static final String PAUSE_COMMAND = "pausar";
     private static final String RESUME_COMMAND = "retomar";
     private static final String STOP_COMMAND = "parar";
+    private static final String SKIP_COMMAND = "pular";
+    private static final String BACK_COMMAND = "voltar";
+    private static final String RESTART_COMMAND = "reiniciar";
+    private static final String QUEUE_COMMAND = "fila";
     private static final String MUSIC_OPTION = "musica";
     private static final String CONTROL_PREFIX = "deefy:playback:";
 
@@ -91,6 +95,11 @@ public class DiscordCommandListener extends ListenerAdapter {
 
         if (PLAY_COMMAND.equals(event.getName())) {
             startPlayback(event);
+            return;
+        }
+
+        if (QUEUE_COMMAND.equals(event.getName())) {
+            handleQueueCommand(event);
             return;
         }
 
@@ -207,6 +216,9 @@ public class DiscordCommandListener extends ListenerAdapter {
                             event.getId(),
                             progress -> {
                                 synchronized (publicationGate) {
+                                    if (progress.sessionId() != null) {
+                                        sessionId.set(progress.sessionId());
+                                    }
                                     String activeSession = sessionId.get();
                                     if (activeSession == null || !controlsReady.get()) {
                                         latestProgressBeforeBinding.set(progress.presentation());
@@ -302,6 +314,74 @@ public class DiscordCommandListener extends ListenerAdapter {
         }));
     }
 
+    private void handleQueueCommand(SlashCommandInteractionEvent event) {
+        DiscordPlaybackSessionService.QueueAction action = switch (
+                event.getSubcommandName() == null ? "" : event.getSubcommandName()
+        ) {
+            case "ver" -> DiscordPlaybackSessionService.QueueAction.VIEW;
+            case "remover" -> DiscordPlaybackSessionService.QueueAction.REMOVE;
+            case "mover" -> DiscordPlaybackSessionService.QueueAction.MOVE;
+            case "limpar" -> DiscordPlaybackSessionService.QueueAction.CLEAR;
+            case "embaralhar" -> DiscordPlaybackSessionService.QueueAction.SHUFFLE;
+            default -> null;
+        };
+        if (action == null) {
+            event.reply("Subcomando de fila inválido.")
+                    .setEphemeral(true)
+                    .setAllowedMentions(List.of())
+                    .queue();
+            return;
+        }
+        OptionMapping originOption = event.getOption("posicao");
+        OptionMapping destinationOption = event.getOption("destino");
+        int origin = originOption == null ? 0 : originOption.getAsInt();
+        int destination = destinationOption == null ? 0 : destinationOption.getAsInt();
+        event.deferReply(false).setAllowedMentions(List.of()).queue(hook ->
+                playbackService.queueAsync(
+                        event.getGuild(),
+                        event.getMember(),
+                        new DiscordPlaybackSessionService.QueueCommandRequest(
+                                action,
+                                origin,
+                                destination,
+                                event.getId()
+                        )
+                ).whenComplete((result, failure) -> hook
+                        .editOriginal(failure == null
+                                ? queueMessage(result)
+                                : "Não consegui atualizar a fila agora.")
+                        .setAllowedMentions(List.of())
+                        .queue())
+        );
+    }
+
+    private String queueMessage(DiscordPlaybackSessionService.QueueCommandResult result) {
+        if (result.status() != DiscordPlaybackSessionService.QueueCommandStatus.APPLIED) {
+            return result.responseMessage();
+        }
+        StringBuilder message = new StringBuilder(result.responseMessage());
+        if (result.snapshot().current() != null) {
+            message.append("\nTocando: ")
+                    .append(safeQueueText(result.snapshot().current().track().title()));
+        }
+        message.append("\nPendentes:");
+        if (result.snapshot().pending().isEmpty()) {
+            return message.append(" nenhuma.").toString();
+        }
+        for (int index = 0; index < result.snapshot().pending().size(); index++) {
+            DiscordPlaybackSessionService.QueueEntryView entry = result.snapshot().pending().get(index);
+            message.append("\n").append(index + 1).append(". ")
+                    .append(safeQueueText(entry.track().title()))
+                    .append(" — ").append(safeQueueText(entry.track().artist()))
+                    .append(" (por ").append(safeQueueText(entry.requester())).append(")");
+        }
+        return message.toString();
+    }
+
+    private String safeQueueText(String value) {
+        return value == null ? "—" : value.replace("@", "@\u200B");
+    }
+
     private void deferPublicVoiceReply(
             SlashCommandInteractionEvent event,
             CompletableFuture<DiscordVoiceConnectionService.VoiceCommandResult> future
@@ -333,15 +413,30 @@ public class DiscordCommandListener extends ListenerAdapter {
         return switch (presentation.state()) {
             case PREPARING -> List.of(ActionRow.of(
                     Button.secondary(controlId("pause", sessionId), "⏸️ Pausar").asDisabled(),
-                    Button.danger(controlId("stop", sessionId), "⏹️ Parar")
+                    Button.danger(controlId("stop", sessionId), "⏹️ Parar"),
+                    Button.primary(controlId("skip", sessionId), "⏭️ Pular")
+                            .withDisabled(presentation.pendingCount() == 0),
+                    Button.secondary(controlId("back", sessionId), "⏮️ Voltar")
+                            .withDisabled(presentation.historySize() == 0),
+                    Button.secondary(controlId("restart", sessionId), "🔄 Reiniciar")
             ));
             case PLAYING -> List.of(ActionRow.of(
                     Button.secondary(controlId("pause", sessionId), "⏸️ Pausar"),
-                    Button.danger(controlId("stop", sessionId), "⏹️ Parar")
+                    Button.danger(controlId("stop", sessionId), "⏹️ Parar"),
+                    Button.primary(controlId("skip", sessionId), "⏭️ Pular")
+                            .withDisabled(presentation.pendingCount() == 0),
+                    Button.secondary(controlId("back", sessionId), "⏮️ Voltar")
+                            .withDisabled(presentation.historySize() == 0),
+                    Button.secondary(controlId("restart", sessionId), "🔄 Reiniciar")
             ));
             case PAUSED -> List.of(ActionRow.of(
                     Button.success(controlId("resume", sessionId), "▶️ Retomar"),
-                    Button.danger(controlId("stop", sessionId), "⏹️ Parar")
+                    Button.danger(controlId("stop", sessionId), "⏹️ Parar"),
+                    Button.primary(controlId("skip", sessionId), "⏭️ Pular")
+                            .withDisabled(presentation.pendingCount() == 0),
+                    Button.secondary(controlId("back", sessionId), "⏮️ Voltar")
+                            .withDisabled(presentation.historySize() == 0),
+                    Button.secondary(controlId("restart", sessionId), "🔄 Reiniciar")
             ));
             case COMPLETED, STOPPED, FAILED -> List.of();
         };
@@ -366,6 +461,9 @@ public class DiscordCommandListener extends ListenerAdapter {
             case "pause" -> DiscordPlaybackSessionService.PlaybackControlAction.PAUSE;
             case "resume" -> DiscordPlaybackSessionService.PlaybackControlAction.RESUME;
             case "stop" -> DiscordPlaybackSessionService.PlaybackControlAction.STOP;
+            case "skip" -> DiscordPlaybackSessionService.PlaybackControlAction.SKIP;
+            case "back" -> DiscordPlaybackSessionService.PlaybackControlAction.BACK;
+            case "restart" -> DiscordPlaybackSessionService.PlaybackControlAction.RESTART;
             default -> null;
         };
         return action == null ? null : new ParsedControl(action, suffix.substring(separator + 1));
@@ -376,6 +474,9 @@ public class DiscordCommandListener extends ListenerAdapter {
             case PAUSE_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.PAUSE;
             case RESUME_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.RESUME;
             case STOP_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.STOP;
+            case SKIP_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.SKIP;
+            case BACK_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.BACK;
+            case RESTART_COMMAND -> DiscordPlaybackSessionService.PlaybackControlAction.RESTART;
             default -> null;
         };
     }
@@ -389,7 +490,11 @@ public class DiscordCommandListener extends ListenerAdapter {
                 || PLAY_COMMAND.equals(event.getName())
                 || PAUSE_COMMAND.equals(event.getName())
                 || RESUME_COMMAND.equals(event.getName())
-                || STOP_COMMAND.equals(event.getName())) {
+                || STOP_COMMAND.equals(event.getName())
+                || SKIP_COMMAND.equals(event.getName())
+                || BACK_COMMAND.equals(event.getName())
+                || RESTART_COMMAND.equals(event.getName())
+                || QUEUE_COMMAND.equals(event.getName())) {
             return event.getName();
         }
         return "unknown";
@@ -438,6 +543,9 @@ public class DiscordCommandListener extends ListenerAdapter {
         addField(embed, "Artista / créditos", presentation.artist());
         addField(embed, "Solicitado por", presentation.requester());
         addField(embed, "Canal de voz", presentation.voiceChannel());
+        if (presentation.pendingCount() > 0) {
+            addField(embed, "Na fila", Integer.toString(presentation.pendingCount()));
+        }
         return embed.build();
     }
 

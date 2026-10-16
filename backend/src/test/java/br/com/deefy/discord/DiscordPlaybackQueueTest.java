@@ -14,7 +14,7 @@ class DiscordPlaybackQueueTest {
 
     @Test
     void preservesFifoAndUsesOneBasedPositionsForPendingEntries() {
-        DiscordPlaybackQueue queue = new DiscordPlaybackQueue(3, 3);
+        DiscordPlaybackQueue<DiscordPlaybackQueue.Entry> queue = new DiscordPlaybackQueue<>(3, 3);
         queue.setCurrent(entry(first));
         assertThat(queue.enqueue(entry(second))).isTrue();
         assertThat(queue.enqueue(entry(third))).isTrue();
@@ -27,7 +27,7 @@ class DiscordPlaybackQueueTest {
 
     @Test
     void backConsumesHistoryAndPlacesThePreviousCurrentAtQueueFront() {
-        DiscordPlaybackQueue queue = new DiscordPlaybackQueue(4, 4);
+        DiscordPlaybackQueue<DiscordPlaybackQueue.Entry> queue = new DiscordPlaybackQueue<>(4, 4);
         queue.setCurrent(entry(first));
         queue.enqueue(entry(second));
         queue.enqueue(entry(third));
@@ -45,7 +45,7 @@ class DiscordPlaybackQueueTest {
 
     @Test
     void restartDoesNotChangeQueueOrHistory() {
-        DiscordPlaybackQueue queue = new DiscordPlaybackQueue(2, 2);
+        DiscordPlaybackQueue<DiscordPlaybackQueue.Entry> queue = new DiscordPlaybackQueue<>(2, 2);
         queue.setCurrent(entry(first));
         queue.enqueue(entry(second));
         assertThat(queue.restart()).contains(entry(first));
@@ -55,7 +55,7 @@ class DiscordPlaybackQueueTest {
 
     @Test
     void queueOperationsDoNotAffectCurrentTrack() {
-        DiscordPlaybackQueue queue = new DiscordPlaybackQueue(4, 2);
+        DiscordPlaybackQueue<DiscordPlaybackQueue.Entry> queue = new DiscordPlaybackQueue<>(4, 2);
         queue.setCurrent(entry(first));
         queue.enqueue(entry(second));
         queue.enqueue(entry(third));
@@ -69,7 +69,7 @@ class DiscordPlaybackQueueTest {
 
     @Test
     void limitsHistoryAndPendingWithoutDroppingCurrent() {
-        DiscordPlaybackQueue queue = new DiscordPlaybackQueue(1, 1);
+        DiscordPlaybackQueue<DiscordPlaybackQueue.Entry> queue = new DiscordPlaybackQueue<>(1, 1);
         queue.setCurrent(entry(first));
         assertThat(queue.enqueue(entry(second))).isTrue();
         assertThat(queue.enqueue(entry(third))).isFalse();
@@ -80,7 +80,7 @@ class DiscordPlaybackQueueTest {
 
     @Test
     void shuffleOnlyChangesPendingEntries() {
-        DiscordPlaybackQueue queue = new DiscordPlaybackQueue(3, 2);
+        DiscordPlaybackQueue<DiscordPlaybackQueue.Entry> queue = new DiscordPlaybackQueue<>(3, 2);
         queue.setCurrent(entry(first));
         queue.enqueue(entry(second));
         queue.enqueue(entry(third));

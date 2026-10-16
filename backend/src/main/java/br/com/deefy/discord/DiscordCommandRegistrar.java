@@ -64,7 +64,38 @@ public class DiscordCommandRegistrar extends ListenerAdapter {
                 Commands.slash("tocar", "Toca uma faixa do catálogo Deefy").addOptions(music),
                 Commands.slash("pausar", "Pausa a faixa atual sem perder a posição"),
                 Commands.slash("retomar", "Retoma a faixa pausada"),
-                Commands.slash("parar", "Encerra a faixa atual e mantém o bot no canal por 10 minutos")
+                Commands.slash("parar", "Encerra a faixa atual e mantém o bot no canal por 10 minutos"),
+                Commands.slash("pular", "Encerra a faixa atual e inicia a próxima da fila"),
+                Commands.slash("voltar", "Volta para a última faixa do histórico"),
+                Commands.slash("reiniciar", "Reinicia a faixa atual desde o começo"),
+                Commands.slash("fila", "Consulta e organiza a fila de reprodução")
+                        .addSubcommands(
+                                new SubcommandData("ver", "Mostra a faixa atual e as pendentes"),
+                                new SubcommandData("remover", "Remove uma posição pendente")
+                                        .addOptions(new OptionData(
+                                                OptionType.INTEGER,
+                                                "posicao",
+                                                "Posição pública da faixa pendente",
+                                                true
+                                        ).setRequiredRange(1, 50)),
+                                new SubcommandData("mover", "Move uma faixa pendente")
+                                        .addOptions(
+                                                new OptionData(
+                                                        OptionType.INTEGER,
+                                                        "origem",
+                                                        "Posição atual",
+                                                        true
+                                                ).setRequiredRange(1, 50),
+                                                new OptionData(
+                                                        OptionType.INTEGER,
+                                                        "destino",
+                                                        "Nova posição",
+                                                        true
+                                                ).setRequiredRange(1, 50)
+                                        ),
+                                new SubcommandData("limpar", "Remove todas as faixas pendentes"),
+                                new SubcommandData("embaralhar", "Embaralha somente as faixas pendentes")
+                        )
         );
     }
 

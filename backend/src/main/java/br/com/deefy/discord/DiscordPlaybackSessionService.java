@@ -35,7 +35,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 @Service
 public class DiscordPlaybackSessionService {
@@ -55,6 +57,7 @@ public class DiscordPlaybackSessionService {
     private final Duration startupTimeout;
     private final Duration inactivityTimeout;
     private final ConcurrentMap<Long, DiscordGuildPlaybackSession> sessionsByGuild = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, GuildQueueState> queuesByGuild = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, IdleVoiceConnection> idleConnectionsByGuild = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, LinkedHashMap<String, Boolean>> recentInteractionsByGuild =
             new ConcurrentHashMap<>();
@@ -208,12 +211,38 @@ public class DiscordPlaybackSessionService {
             String interactionId,
             Consumer<PlaybackProgress> progressObserver
     ) {
+        return startAsyncInternal(
+                guild,
+                requester,
+                track,
+                interactionId,
+                (ignoredSessionId, progress) -> progressObserver.accept(progress)
+        );
+    }
+
+    CompletableFuture<PlaybackStartOutcome> startAsyncWithSession(
+            Guild guild,
+            Member requester,
+            DiscordTrack track,
+            String interactionId,
+            BiConsumer<String, PlaybackProgress> progressObserver
+    ) {
+        return startAsyncInternal(guild, requester, track, interactionId, progressObserver);
+    }
+
+    private CompletableFuture<PlaybackStartOutcome> startAsyncInternal(
+            Guild guild,
+            Member requester,
+            DiscordTrack track,
+            String interactionId,
+            BiConsumer<String, PlaybackProgress> progressObserver
+    ) {
         if (guild == null) {
             return CompletableFuture.completedFuture(outcome(PlaybackStartResult.USER_NOT_IN_VOICE, null));
         }
         return guildExecutor.submit(
                 guild.getIdLong(),
-                () -> reserveStartInGuild(guild, requester, track, interactionId, progressObserver)
+            () -> reserveStartInGuild(guild, requester, track, interactionId, progressObserver)
         ).thenCompose(reservation -> {
             if (reservation.outcome() != null) {
                 return CompletableFuture.completedFuture(reservation.outcome());
@@ -254,6 +283,10 @@ public class DiscordPlaybackSessionService {
             boolean bound = session != null
                     && session.getSessionId().equals(sessionId)
                     && session.bindControlMessage(messageId);
+            GuildQueueState queue = queuesByGuild.get(guildId);
+            if (bound && queue != null) {
+                queue.setControlMessageId(messageId);
+            }
             LOGGER.info(
                     "Discord playback message binding: guildId={}, sessionRef={}, messageRef={}, result={}",
                     guildId,
@@ -288,6 +321,94 @@ public class DiscordPlaybackSessionService {
             PlaybackControlRequest request
     ) {
         return join(controlAsync(guild, requester, request));
+    }
+
+    public CompletableFuture<QueueCommandResult> queueAsync(
+            Guild guild,
+            Member requester,
+            QueueCommandRequest request
+    ) {
+        if (guild == null) {
+            return CompletableFuture.completedFuture(new QueueCommandResult(
+                    QueueCommandStatus.NO_ACTIVE_SESSION,
+                    "Não existe uma fila nesta comunidade.",
+                    QueueSnapshot.empty()
+            ));
+        }
+        return guildExecutor.submit(
+                guild.getIdLong(),
+                () -> queueInGuild(guild, requester, request)
+        );
+    }
+
+    private QueueCommandResult queueInGuild(
+            Guild guild,
+            Member requester,
+            QueueCommandRequest request
+    ) {
+        long guildId = guild.getIdLong();
+        if (isDuplicateInteraction(guildId, request.interactionId())) {
+            return new QueueCommandResult(
+                    QueueCommandStatus.DUPLICATE,
+                    "Esse comando de fila já foi processado.",
+                    queueSnapshot(guildId)
+            );
+        }
+        GuildQueueState queue = queuesByGuild.get(guildId);
+        if (request.action() == QueueAction.VIEW) {
+            return new QueueCommandResult(
+                    QueueCommandStatus.APPLIED,
+                    queue == null || queue.queue().current() == null
+                            ? "Não há uma reprodução ou faixa pendente nesta comunidade."
+                            : "Fila carregada.",
+                    queueSnapshot(guildId)
+            );
+        }
+        DiscordGuildPlaybackSession session = sessionsByGuild.get(guildId);
+        if (queue == null || session == null) {
+            return new QueueCommandResult(
+                    QueueCommandStatus.NO_ACTIVE_SESSION,
+                    "Não existe uma reprodução ativa nesta comunidade.",
+                    queueSnapshot(guildId)
+            );
+        }
+        PlaybackControlResult authorization = authorizeController(session, requester);
+        if (authorization != null) {
+            return new QueueCommandResult(
+                    QueueCommandStatus.REJECTED,
+                    authorization.responseMessage(),
+                    queue.snapshot()
+            );
+        }
+        boolean applied;
+        String message;
+        switch (request.action()) {
+            case REMOVE -> {
+                applied = queue.queue().remove(request.origin()).isPresent();
+                message = applied ? "Faixa removida da fila." : "Essa posição não existe na fila pendente.";
+            }
+            case MOVE -> {
+                applied = queue.queue().move(request.origin(), request.destination());
+                message = applied ? "Fila reorganizada." : "As posições informadas não são válidas.";
+            }
+            case CLEAR -> {
+                queue.queue().clearPending();
+                applied = true;
+                message = "As faixas pendentes foram removidas da fila.";
+            }
+            case SHUFFLE -> {
+                queue.queue().shuffle(ThreadLocalRandom.current());
+                applied = true;
+                message = "A fila pendente foi embaralhada.";
+            }
+            case VIEW -> throw new IllegalStateException("VIEW is handled before authorization");
+            default -> throw new IllegalStateException("Unsupported queue action");
+        }
+        return new QueueCommandResult(
+                applied ? QueueCommandStatus.APPLIED : QueueCommandStatus.INVALID_POSITION,
+                message,
+                queue.snapshot()
+        );
     }
 
     public CompletableFuture<DiscordVoiceConnectionService.VoiceCommandResult> leaveAsync(
@@ -343,6 +464,14 @@ public class DiscordPlaybackSessionService {
         return guildExecutor.activeLaneCount();
     }
 
+    QueueSnapshot queueSnapshot(long guildId) {
+        GuildQueueState state = queuesByGuild.get(guildId);
+        if (state == null) {
+            return QueueSnapshot.empty();
+        }
+        return state.snapshot();
+    }
+
     void awaitGuild(long guildId) {
         join(guildExecutor.submit(guildId, () -> null));
     }
@@ -373,6 +502,7 @@ public class DiscordPlaybackSessionService {
         audioSetupExecutor.shutdownNow();
         guildExecutor.close();
         recentInteractionsByGuild.clear();
+        queuesByGuild.clear();
     }
 
     private DiscordVoiceConnectionService.VoiceCommandResult joinIdleInGuild(
@@ -415,7 +545,7 @@ public class DiscordPlaybackSessionService {
             Member requester,
             DiscordTrack track,
             String interactionId,
-            Consumer<PlaybackProgress> progressObserver
+            BiConsumer<String, PlaybackProgress> progressObserver
     ) {
         long guildId = guild.getIdLong();
         if (isDuplicateInteraction(guildId, interactionId)) {
@@ -432,17 +562,49 @@ public class DiscordPlaybackSessionService {
         if (!guild.getSelfMember().hasPermission(requestedChannel, Permission.VOICE_SPEAK)) {
             return rejectedReservation(PlaybackStartResult.MISSING_PERMISSIONS);
         }
-        if (sessionsByGuild.containsKey(guildId)) {
-            return rejectedReservation(PlaybackStartResult.ALREADY_PLAYING);
+        PlaybackItem item = new PlaybackItem(
+                track,
+                progressObserver,
+                false,
+                requester == null ? "Usuário" : requester.getEffectiveName(),
+                requestedChannel.getName()
+        );
+        DiscordGuildPlaybackSession activeSession = sessionsByGuild.get(guildId);
+        if (activeSession != null) {
+            if (activeSession.getVoiceChannel().getIdLong() != requestedChannel.getIdLong()) {
+                return rejectedReservation(PlaybackStartResult.BOT_IN_ANOTHER_CHANNEL);
+            }
+            GuildQueueState queue = queuesByGuild.computeIfAbsent(
+                    guildId,
+                    ignored -> new GuildQueueState(playbackProperties.getQueueMaxSize(), playbackProperties.getHistoryMaxSize())
+            );
+            if (!queue.queue().enqueue(item)) {
+                return rejectedReservation(PlaybackStartResult.QUEUE_FULL);
+            }
+            return new StartReservation(
+                    null,
+                    new PlaybackStartOutcome(
+                            PlaybackStartResult.QUEUED,
+                            activeSession.getSessionId(),
+                            queue.queue().pendingSize(),
+                            queue.queue().pendingSize()
+                    )
+            );
         }
 
         AudioManager audioManager = guild.getAudioManager();
+        GuildQueueState queue = queuesByGuild.computeIfAbsent(
+                guildId,
+                ignored -> new GuildQueueState(playbackProperties.getQueueMaxSize(), playbackProperties.getHistoryMaxSize())
+        );
+        queue.queue().setCurrent(item);
         DiscordGuildPlaybackSession session = new DiscordGuildPlaybackSession(
                 UUID.randomUUID().toString(),
                 guildId,
                 requestedChannel,
                 audioManager,
                 track,
+                false,
                 progressObserver
         );
         sessionsByGuild.put(guildId, session);
@@ -454,6 +616,7 @@ public class DiscordPlaybackSessionService {
         PlaybackStartResult rejected = mapRejectedVoiceResult(voiceResult);
         if (rejected != null) {
             sessionsByGuild.remove(guildId, session);
+            queuesByGuild.remove(guildId, queue);
             if (rejected == PlaybackStartResult.VOICE_CONNECTION_FAILED) {
                 cancelIdleConnectionInGuild(guildId, null, "fatal_voice_start_failure");
             }
@@ -562,7 +725,24 @@ public class DiscordPlaybackSessionService {
             DiscordGuildPlaybackSession session,
             Throwable failure
     ) {
-        removeAndCloseInGuild(session, true, CleanupReason.AUDIO_SOURCE_START_FAILED, "audio-preparation");
+        if (sessionsByGuild.remove(session.getGuildId(), session)) {
+            GuildQueueState queue = queuesByGuild.get(session.getGuildId());
+            Optional<PlaybackItem> next = queue == null ? Optional.empty() : queue.queue().advance();
+            boolean wasStarting = session.getState() == DiscordGuildPlaybackSession.PlaybackState.STARTING;
+            session.beginStopping();
+            session.close(next.isPresent() ? false : !wasStarting);
+            session.notifyProgress(PlaybackProgress.FAILED);
+            if (next.isPresent()) {
+                startReplacementAfterFailureInGuild(session, next.get());
+            } else {
+                try {
+                    session.getVoiceConnection().closeAudioConnection();
+                } catch (RuntimeException ignored) {
+                    LOGGER.warn("Could not close voice connection after preparation failure: guildId={}",
+                            session.getGuildId());
+                }
+            }
+        }
         LOGGER.warn(
                 "Discord playback preparation failed: guildId={}, sessionRef={}, reason={}",
                 session.getGuildId(),
@@ -583,8 +763,7 @@ public class DiscordPlaybackSessionService {
             AudioSourceOpening opening
     ) {
         if (opening.failure() != null) {
-            removeAndCloseInGuild(session, true, CleanupReason.AUDIO_SOURCE_START_FAILED, null);
-            return outcome(PlaybackStartResult.AUDIO_SOURCE_FAILED, null);
+            return failPreparationInGuild(session, opening.failure());
         }
         DiscordAudioSource source = opening.source();
         if (sessionsByGuild.get(session.getGuildId()) != session
@@ -618,11 +797,15 @@ public class DiscordPlaybackSessionService {
             if (opening.firstFrameObserved().get()) {
                 markPlayingInGuild(session);
             }
+            if (session.shouldRemainPausedAfterStart()
+                    && session.getState() == DiscordGuildPlaybackSession.PlaybackState.PLAYING) {
+                session.pause();
+                session.notifyProgress(PlaybackProgress.PAUSED);
+            }
             return outcome(PlaybackStartResult.STARTED, session.getSessionId());
         } catch (RuntimeException failure) {
             opening.attached().set(true);
-            removeAndCloseInGuild(session, true, CleanupReason.AUDIO_SOURCE_START_FAILED, null);
-            return outcome(PlaybackStartResult.AUDIO_SOURCE_FAILED, null);
+            return failPreparationInGuild(session, failure);
         }
     }
 
@@ -642,6 +825,11 @@ public class DiscordPlaybackSessionService {
         }
         DiscordGuildPlaybackSession session = sessionsByGuild.get(guildId);
         if (session == null) {
+            if (request.action() == PlaybackControlAction.BACK) {
+                PlaybackControlResult idleBack = backFromIdleInGuild(guild, requester, request);
+                logControlOutcome(guildId, request, null, null, idleBack);
+                return idleBack;
+            }
             releaseGuildMetadataIfInactive(guildId);
             PlaybackControlResult missing = result(
                     PlaybackControlStatus.NO_ACTIVE_SESSION,
@@ -680,6 +868,9 @@ public class DiscordPlaybackSessionService {
             case PAUSE -> pauseInGuild(session);
             case RESUME -> resumeInGuild(session);
             case STOP -> stopAndKeepVoiceInGuild(session);
+            case SKIP -> skipInGuild(session);
+            case BACK -> backInGuild(session);
+            case RESTART -> restartInGuild(session);
         };
         logControlOutcome(guildId, request, session, previousState, controlResult);
         return controlResult;
@@ -739,6 +930,10 @@ public class DiscordPlaybackSessionService {
         if (!sessionsByGuild.remove(session.getGuildId(), session)) {
             return result(PlaybackControlStatus.NO_ACTIVE_SESSION, "A reprodução já foi encerrada.");
         }
+        GuildQueueState queue = queuesByGuild.remove(session.getGuildId());
+        if (queue != null) {
+            queue.queue().clearAll();
+        }
         session.beginStopping();
         session.close(false);
         scheduleIdleConnectionInGuild(
@@ -757,6 +952,171 @@ public class DiscordPlaybackSessionService {
                 CleanupReason.USER_REQUESTED_STOP
         );
         return result(PlaybackControlStatus.APPLIED, "Reprodução encerrada.");
+    }
+
+    private PlaybackControlResult skipInGuild(DiscordGuildPlaybackSession session) {
+        GuildQueueState queue = queuesByGuild.get(session.getGuildId());
+        if (queue == null || queue.queue().pendingSize() == 0) {
+            finishCurrentWithoutNextInGuild(session, IdleReason.NATURAL_TRACK_END);
+            return result(PlaybackControlStatus.APPLIED, "Não havia outra faixa; a reprodução foi encerrada.");
+        }
+        Optional<PlaybackItem> next = queue.queue().advance();
+        if (next.isEmpty()) {
+            finishCurrentWithoutNextInGuild(session, IdleReason.NATURAL_TRACK_END);
+            return result(PlaybackControlStatus.APPLIED, "Não havia outra faixa; a reprodução foi encerrada.");
+        }
+        replaceAndStartInGuild(session, next.get());
+        return result(PlaybackControlStatus.APPLIED, "Pulando para a próxima faixa.");
+    }
+
+    private PlaybackControlResult backInGuild(DiscordGuildPlaybackSession session) {
+        GuildQueueState queue = queuesByGuild.get(session.getGuildId());
+        if (queue == null || queue.queue().historySize() == 0) {
+            return result(PlaybackControlStatus.NO_HISTORY, "Ainda não existe uma faixa anterior nesta sessão.");
+        }
+        Optional<PlaybackItem> previous = queue.queue().previous();
+        if (previous.isEmpty()) {
+            return result(PlaybackControlStatus.NO_HISTORY, "Ainda não existe uma faixa anterior nesta sessão.");
+        }
+        replaceAndStartInGuild(session, previous.get());
+        return result(PlaybackControlStatus.APPLIED, "Voltando para a faixa anterior.");
+    }
+
+    private PlaybackControlResult backFromIdleInGuild(
+            Guild guild,
+            Member requester,
+            PlaybackControlRequest request
+    ) {
+        long guildId = guild.getIdLong();
+        if (request.expectedSessionId() != null || request.expectedMessageId() != null) {
+            return result(PlaybackControlStatus.EXPIRED_CONTROL, "Esse controle pertence a uma reprodução encerrada.");
+        }
+        GuildQueueState queue = queuesByGuild.get(guildId);
+        IdleVoiceConnection idle = idleConnectionsByGuild.get(guildId);
+        if (queue == null || queue.queue().historySize() == 0 || idle == null) {
+            return result(PlaybackControlStatus.NO_HISTORY, "Ainda não existe uma faixa anterior nesta sessão.");
+        }
+        VoiceChannel requesterChannel = getStandardVoiceChannel(requester);
+        if (requesterChannel == null) {
+            return result(
+                    requesterHasAudioChannel(requester)
+                            ? PlaybackControlStatus.UNSUPPORTED_CHANNEL
+                            : PlaybackControlStatus.USER_NOT_IN_VOICE,
+                    "Entre no canal de voz do bot para voltar à faixa anterior."
+            );
+        }
+        if (requesterChannel.getIdLong() != idle.channelId()) {
+            return result(PlaybackControlStatus.DIFFERENT_CHANNEL, "Você precisa estar no mesmo canal de voz do bot.");
+        }
+        if (!guild.getSelfMember().hasPermission(requesterChannel, Permission.VOICE_SPEAK)) {
+            return result(PlaybackControlStatus.FAILED, "Não tenho permissão para falar nesse canal.");
+        }
+        Optional<PlaybackItem> previous = queue.queue().previous();
+        if (previous.isEmpty()) {
+            return result(PlaybackControlStatus.NO_HISTORY, "Ainda não existe uma faixa anterior nesta sessão.");
+        }
+        if (!idleConnectionsByGuild.remove(guildId, idle)) {
+            return result(PlaybackControlStatus.EXPIRED_CONTROL, "A conexão ociosa mudou; tente novamente.");
+        }
+        idle.cancelTimeout();
+        DiscordGuildPlaybackSession replacement = new DiscordGuildPlaybackSession(
+                UUID.randomUUID().toString(),
+                guildId,
+                requesterChannel,
+                idle.audioManager(),
+                previous.get().track(),
+                previous.get().remainPaused(),
+                previous.get().progressObserver()
+        );
+        if (queue.controlMessageId() != null) {
+            replacement.bindControlMessage(queue.controlMessageId());
+        }
+        sessionsByGuild.put(guildId, replacement);
+        prepareAudioAsync(replacement)
+                .thenCompose(prepared -> openAudioSourceAsync(replacement, prepared))
+                .thenCompose(opening -> guildExecutor.submit(
+                        guildId,
+                        () -> completeStartInGuild(replacement, opening)
+                ))
+                .exceptionallyCompose(failure -> guildExecutor.submit(
+                        guildId,
+                        () -> failPreparationInGuild(replacement, failure)
+                ));
+        return result(PlaybackControlStatus.APPLIED, "Voltando para a faixa anterior.");
+    }
+
+    private PlaybackControlResult restartInGuild(DiscordGuildPlaybackSession session) {
+        GuildQueueState queue = queuesByGuild.get(session.getGuildId());
+        if (queue == null || queue.queue().current() == null) {
+            return result(PlaybackControlStatus.NO_ACTIVE_SESSION, "Não existe uma faixa ativa para reiniciar.");
+        }
+        PlaybackItem current = queue.queue().current();
+        boolean paused = session.getState() == DiscordGuildPlaybackSession.PlaybackState.PAUSED;
+        queue.queue().setCurrent(new PlaybackItem(
+                current.track(),
+                current.progressObserver(),
+                paused,
+                current.requesterName(),
+                current.voiceChannel()
+        ));
+        replaceAndStartInGuild(session, queue.queue().current());
+        return result(PlaybackControlStatus.APPLIED, "Reiniciando a faixa atual.");
+    }
+
+    private void finishCurrentWithoutNextInGuild(
+            DiscordGuildPlaybackSession session,
+            IdleReason idleReason
+    ) {
+        if (!sessionsByGuild.remove(session.getGuildId(), session)) {
+            return;
+        }
+        GuildQueueState queue = queuesByGuild.get(session.getGuildId());
+        if (queue != null) {
+            queue.queue().advance();
+        }
+        session.beginStopping();
+        session.close(false);
+        scheduleIdleConnectionInGuild(
+                session.getGuildId(),
+                session.getVoiceChannel(),
+                session.getVoiceConnection(),
+                session,
+                idleReason
+        );
+        session.notifyProgress(PlaybackProgress.COMPLETED);
+    }
+
+    private void replaceAndStartInGuild(DiscordGuildPlaybackSession previous, PlaybackItem item) {
+        long guildId = previous.getGuildId();
+        if (!sessionsByGuild.remove(guildId, previous)) {
+            return;
+        }
+        previous.beginStopping();
+        previous.close(false);
+        DiscordGuildPlaybackSession replacement = new DiscordGuildPlaybackSession(
+                UUID.randomUUID().toString(),
+                guildId,
+                previous.getVoiceChannel(),
+                previous.getVoiceConnection(),
+                item.track(),
+                item.remainPaused(),
+                item.progressObserver()
+        );
+        GuildQueueState queue = queuesByGuild.get(guildId);
+        if (queue != null && queue.controlMessageId() != null) {
+            replacement.bindControlMessage(queue.controlMessageId());
+        }
+        sessionsByGuild.put(guildId, replacement);
+        prepareAudioAsync(replacement)
+                .thenCompose(prepared -> openAudioSourceAsync(replacement, prepared))
+                .thenCompose(opening -> guildExecutor.submit(
+                        guildId,
+                        () -> completeStartInGuild(replacement, opening)
+                ))
+                .exceptionallyCompose(failure -> guildExecutor.submit(
+                        guildId,
+                        () -> failPreparationInGuild(replacement, failure)
+                ));
     }
 
     private PlaybackControlResult authorizeController(DiscordGuildPlaybackSession session, Member requester) {
@@ -841,6 +1201,12 @@ public class DiscordPlaybackSessionService {
             return;
         }
         cancelIdleConnectionInGuild(session.getGuildId(), null, "terminal_playback_cleanup");
+        if (closeVoiceConnection) {
+            GuildQueueState queue = queuesByGuild.remove(session.getGuildId());
+            if (queue != null) {
+                queue.queue().clearAll();
+            }
+        }
         session.beginStopping();
         session.close(closeVoiceConnection);
         LOGGER.info(
@@ -867,9 +1233,14 @@ public class DiscordPlaybackSessionService {
         DiscordGuildPlaybackSession.PlaybackState previousState = session.getState();
         boolean completed = previousState == DiscordGuildPlaybackSession.PlaybackState.PLAYING
                 || previousState == DiscordGuildPlaybackSession.PlaybackState.PAUSED;
+        GuildQueueState queue = queuesByGuild.get(session.getGuildId());
+            Optional<PlaybackItem> next = queue == null ? Optional.empty() : queue.queue().advance();
         session.beginStopping();
-        session.close(!completed);
-        if (completed) {
+        session.close(next.isPresent() ? false : !completed);
+        if (next.isPresent()) {
+            session.notifyProgress(completed ? PlaybackProgress.COMPLETED : PlaybackProgress.FAILED);
+            startReplacementAfterFailureInGuild(session, next.get());
+        } else if (completed) {
             scheduleIdleConnectionInGuild(
                     session.getGuildId(),
                     session.getVoiceChannel(),
@@ -885,8 +1256,41 @@ public class DiscordPlaybackSessionService {
                 session.getCurrentTrack().id(),
                 CleanupReason.AUDIO_SOURCE_TERMINATED
         );
-        session.notifyProgress(completed ? PlaybackProgress.COMPLETED : PlaybackProgress.FAILED);
+        if (next.isEmpty()) {
+            session.notifyProgress(completed ? PlaybackProgress.COMPLETED : PlaybackProgress.FAILED);
+        }
         releaseGuildMetadataIfInactive(session.getGuildId());
+    }
+
+    private void startReplacementAfterFailureInGuild(
+            DiscordGuildPlaybackSession previous,
+            PlaybackItem item
+    ) {
+        previous.close(false);
+        DiscordGuildPlaybackSession replacement = new DiscordGuildPlaybackSession(
+                UUID.randomUUID().toString(),
+                previous.getGuildId(),
+                previous.getVoiceChannel(),
+                previous.getVoiceConnection(),
+                item.track(),
+                item.remainPaused(),
+                item.progressObserver()
+        );
+        GuildQueueState queue = queuesByGuild.get(previous.getGuildId());
+        if (queue != null && queue.controlMessageId() != null) {
+            replacement.bindControlMessage(queue.controlMessageId());
+        }
+        sessionsByGuild.put(previous.getGuildId(), replacement);
+        prepareAudioAsync(replacement)
+                .thenCompose(prepared -> openAudioSourceAsync(replacement, prepared))
+                .thenCompose(opening -> guildExecutor.submit(
+                        previous.getGuildId(),
+                        () -> completeStartInGuild(replacement, opening)
+                ))
+                .exceptionallyCompose(failure -> guildExecutor.submit(
+                        previous.getGuildId(),
+                        () -> failPreparationInGuild(replacement, failure)
+                ));
     }
 
     private void handleVoiceStatusInGuild(DiscordGuildPlaybackSession session, ConnectionStatus status) {
@@ -1009,6 +1413,10 @@ public class DiscordPlaybackSessionService {
     private void stopForLeaveInGuild(long guildId) {
         DiscordGuildPlaybackSession session = sessionsByGuild.remove(guildId);
         cancelIdleConnectionInGuild(guildId, null, "user_requested_leave");
+        GuildQueueState queue = queuesByGuild.remove(guildId);
+        if (queue != null) {
+            queue.queue().clearAll();
+        }
         if (session != null) {
             session.beginStopping();
             session.close(false);
@@ -1024,6 +1432,10 @@ public class DiscordPlaybackSessionService {
 
     private void closeGuildForShutdown(long guildId) {
         DiscordGuildPlaybackSession session = sessionsByGuild.remove(guildId);
+        GuildQueueState queue = queuesByGuild.remove(guildId);
+        if (queue != null) {
+            queue.queue().clearAll();
+        }
         if (session != null) {
             session.beginStopping();
             session.close(true);
@@ -1198,7 +1610,16 @@ public class DiscordPlaybackSessionService {
         }
     }
 
-    public record PlaybackStartOutcome(PlaybackStartResult result, String sessionId) {
+    public record PlaybackStartOutcome(
+            PlaybackStartResult result,
+            String sessionId,
+            int queuePosition,
+            int pendingCount
+    ) {
+
+        public PlaybackStartOutcome(PlaybackStartResult result, String sessionId) {
+            this(result, sessionId, 0, 0);
+        }
     }
 
     private record StartReservation(
@@ -1276,10 +1697,50 @@ public class DiscordPlaybackSessionService {
         }
     }
 
+    public record QueueCommandRequest(
+            QueueAction action,
+            int origin,
+            int destination,
+            String interactionId
+    ) {
+
+        public QueueCommandRequest {
+            if (action == null) {
+                throw new IllegalArgumentException("queue action is required");
+            }
+        }
+    }
+
+    public record QueueCommandResult(
+            QueueCommandStatus status,
+            String responseMessage,
+            QueueSnapshot snapshot
+    ) {
+    }
+
+    public enum QueueAction {
+        VIEW,
+        REMOVE,
+        MOVE,
+        CLEAR,
+        SHUFFLE
+    }
+
+    public enum QueueCommandStatus {
+        APPLIED,
+        INVALID_POSITION,
+        NO_ACTIVE_SESSION,
+        REJECTED,
+        DUPLICATE
+    }
+
     public enum PlaybackControlAction {
         PAUSE,
         RESUME,
-        STOP
+        STOP,
+        SKIP,
+        BACK,
+        RESTART
     }
 
     public enum PlaybackControlStatus {
@@ -1291,12 +1752,15 @@ public class DiscordPlaybackSessionService {
         USER_NOT_IN_VOICE,
         UNSUPPORTED_CHANNEL,
         DIFFERENT_CHANNEL,
+        NO_HISTORY,
         DUPLICATE,
         FAILED
     }
 
     public enum PlaybackStartResult {
         STARTED,
+        QUEUED,
+        QUEUE_FULL,
         ALREADY_PLAYING,
         DUPLICATE_INTERACTION,
         USER_NOT_IN_VOICE,
@@ -1339,6 +1803,64 @@ public class DiscordPlaybackSessionService {
         USER_STOPPED_TRACK,
         IDLE_TIMEOUT,
         APPLICATION_SHUTDOWN
+    }
+
+    private record PlaybackItem(
+            DiscordTrack track,
+            BiConsumer<String, PlaybackProgress> progressObserver,
+            boolean remainPaused,
+            String requesterName,
+            String voiceChannel
+    ) {
+    }
+
+    private static final class GuildQueueState {
+
+        private final DiscordPlaybackQueue<PlaybackItem> queue;
+        private Long controlMessageId;
+
+        private GuildQueueState(int maxPending, int maxHistory) {
+            this.queue = new DiscordPlaybackQueue<>(maxPending, maxHistory);
+        }
+
+        private DiscordPlaybackQueue<PlaybackItem> queue() {
+            return queue;
+        }
+
+        private Long controlMessageId() {
+            return controlMessageId;
+        }
+
+        private void setControlMessageId(long controlMessageId) {
+            this.controlMessageId = controlMessageId;
+        }
+
+        private QueueSnapshot snapshot() {
+            PlaybackItem current = queue.current();
+            return new QueueSnapshot(
+                    current == null ? null : view(current),
+                    queue.pendingSnapshot().stream().map(this::view).toList(),
+                    queue.historySize()
+            );
+        }
+
+        private QueueEntryView view(PlaybackItem item) {
+            return new QueueEntryView(item.track(), item.requesterName(), item.voiceChannel());
+        }
+    }
+
+    record QueueSnapshot(
+            QueueEntryView current,
+            java.util.List<QueueEntryView> pending,
+            int historySize
+    ) {
+
+        static QueueSnapshot empty() {
+            return new QueueSnapshot(null, java.util.List.of(), 0);
+        }
+    }
+
+    record QueueEntryView(DiscordTrack track, String requester, String voiceChannel) {
     }
 
     private static final class IdleVoiceConnection {

@@ -73,6 +73,19 @@ public class DiscordPlaybackService {
                 ));
     }
 
+    public CompletableFuture<DiscordPlaybackSessionService.QueueCommandResult> queueAsync(
+            Guild guild,
+            Member requester,
+            DiscordPlaybackSessionService.QueueCommandRequest request
+    ) {
+        return sessionService.queueAsync(guild, requester, request)
+                .exceptionally(failure -> new DiscordPlaybackSessionService.QueueCommandResult(
+                        DiscordPlaybackSessionService.QueueCommandStatus.REJECTED,
+                        "Não consegui atualizar a fila agora.",
+                        DiscordPlaybackSessionService.QueueSnapshot.empty()
+                ));
+    }
+
     public CompletableFuture<Boolean> bindControlMessageAsync(
             long guildId,
             String sessionId,
@@ -130,12 +143,12 @@ public class DiscordPlaybackService {
         }
 
         PlaybackContext context = playbackContext(lookup.track(), requester);
-        return sessionService.startAsync(
+        return sessionService.startAsyncWithSession(
                 guild,
                 requester,
                 lookup.track(),
                 interactionId,
-                progress -> progressObserver.accept(progressUpdate(progress, context))
+                (sessionId, progress) -> progressObserver.accept(progressUpdate(progress, context, sessionId))
         ).thenApply(start -> switch (start.result()) {
             case STARTED -> pendingResult(presentation(
                     PlaybackMessageState.PREPARING,
@@ -143,6 +156,13 @@ public class DiscordPlaybackService {
                     "Estou preparando a faixa e a conexão de voz.",
                     context
             ), start.sessionId());
+            case QUEUED -> queuedResult(presentation(
+                    PlaybackMessageState.PREPARING,
+                    "Faixa adicionada à fila",
+                    "Posição %d na fila pendente.".formatted(start.queuePosition()),
+                    context
+            ), start.queuePosition(), start.pendingCount());
+            case QUEUE_FULL -> result(error("A fila desta comunidade está cheia no momento."));
             case ALREADY_PLAYING -> result(error("Já existe uma faixa em reprodução nesta comunidade."));
             case DUPLICATE_INTERACTION -> result(error("Esse pedido já foi processado."));
             case USER_NOT_IN_VOICE -> result(error("Entre em um canal de voz comum para usar este comando."));
@@ -169,16 +189,25 @@ public class DiscordPlaybackService {
     }
 
     private PlaybackCommandResult result(PlaybackPresentation presentation) {
-        return new PlaybackCommandResult(presentation, false, null);
+        return new PlaybackCommandResult(presentation, false, null, false, 0, 0);
     }
 
     private PlaybackCommandResult pendingResult(PlaybackPresentation presentation, String sessionId) {
-        return new PlaybackCommandResult(presentation, true, sessionId);
+        return new PlaybackCommandResult(presentation, true, sessionId, false, 0, 0);
+    }
+
+    private PlaybackCommandResult queuedResult(
+            PlaybackPresentation presentation,
+            int queuePosition,
+            int pendingCount
+    ) {
+        return new PlaybackCommandResult(presentation, false, null, true, queuePosition, pendingCount);
     }
 
     private PlaybackProgressUpdate progressUpdate(
             DiscordPlaybackSessionService.PlaybackProgress progress,
-            PlaybackContext context
+            PlaybackContext context,
+            String sessionId
     ) {
         PlaybackPresentation presentation = switch (progress) {
             case VOICE_CONNECTED -> presentation(
@@ -225,7 +254,7 @@ public class DiscordPlaybackService {
                     context
             );
         };
-        return new PlaybackProgressUpdate(presentation);
+        return new PlaybackProgressUpdate(presentation, sessionId);
     }
 
     private String ambiguousMessage(List<DiscordTrackCatalog.TrackChoice> choices) {
@@ -240,7 +269,9 @@ public class DiscordPlaybackService {
         GuildVoiceState voiceState = requester == null ? null : requester.getVoiceState();
         AudioChannelUnion channel = voiceState == null ? null : voiceState.getChannel();
         String voiceChannelName = channel == null ? null : channel.getName();
-        return new PlaybackContext(track, requesterName, voiceChannelName);
+        return new PlaybackContext(requester == null || requester.getGuild() == null
+                ? 0L
+                : requester.getGuild().getIdLong(), track, requesterName, voiceChannelName);
     }
 
     private PlaybackPresentation failure(PlaybackContext context) {
@@ -270,6 +301,9 @@ public class DiscordPlaybackService {
             String description,
             PlaybackContext context
     ) {
+        DiscordPlaybackSessionService.QueueSnapshot queue = context.guildId() == 0L
+                ? DiscordPlaybackSessionService.QueueSnapshot.empty()
+                : sessionService.queueSnapshot(context.guildId());
         return new PlaybackPresentation(
                 state,
                 heading,
@@ -277,7 +311,9 @@ public class DiscordPlaybackService {
                 context.track().title(),
                 context.track().artist(),
                 context.requesterName(),
-                context.voiceChannelName()
+                context.voiceChannelName(),
+                queue.pending().size(),
+                queue.historySize()
         );
     }
 
@@ -289,11 +325,14 @@ public class DiscordPlaybackService {
                 null,
                 null,
                 null,
-                null
+                null,
+                0,
+                0
         );
     }
 
     private record PlaybackContext(
+            long guildId,
             DiscordTrack track,
             String requesterName,
             String voiceChannelName
@@ -303,19 +342,34 @@ public class DiscordPlaybackService {
     public record PlaybackCommandResult(
             PlaybackPresentation presentation,
             boolean awaitingProgress,
-            String sessionId
+            String sessionId,
+            boolean queued,
+            int queuePosition,
+            int pendingCount
     ) {
 
         public PlaybackCommandResult(PlaybackPresentation presentation) {
-            this(presentation, false, null);
+            this(presentation, false, null, false, 0, 0);
         }
 
         public PlaybackCommandResult(PlaybackPresentation presentation, boolean awaitingProgress) {
-            this(presentation, awaitingProgress, null);
+            this(presentation, awaitingProgress, null, false, 0, 0);
+        }
+
+        public PlaybackCommandResult(
+                PlaybackPresentation presentation,
+                boolean awaitingProgress,
+                String sessionId
+        ) {
+            this(presentation, awaitingProgress, sessionId, false, 0, 0);
         }
     }
 
-    public record PlaybackProgressUpdate(PlaybackPresentation presentation) {
+    public record PlaybackProgressUpdate(PlaybackPresentation presentation, String sessionId) {
+
+        public PlaybackProgressUpdate(PlaybackPresentation presentation) {
+            this(presentation, null);
+        }
     }
 
     public record PlaybackSuggestion(String label, String value) {
@@ -328,8 +382,22 @@ public class DiscordPlaybackService {
             String trackTitle,
             String artist,
             String requester,
-            String voiceChannel
+            String voiceChannel,
+            int pendingCount,
+            int historySize
     ) {
+
+        public PlaybackPresentation(
+                PlaybackMessageState state,
+                String heading,
+                String description,
+                String trackTitle,
+                String artist,
+                String requester,
+                String voiceChannel
+        ) {
+            this(state, heading, description, trackTitle, artist, requester, voiceChannel, 0, 0);
+        }
     }
 
     public enum PlaybackMessageState {

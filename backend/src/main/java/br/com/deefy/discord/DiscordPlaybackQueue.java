@@ -12,13 +12,13 @@ import java.util.Optional;
  * Mutable queue state owned by one guild lane. It never performs I/O and is
  * therefore safe to exercise deterministically without Discord or audio.
  */
-final class DiscordPlaybackQueue {
+final class DiscordPlaybackQueue<T> {
 
     private final int maxPending;
     private final int maxHistory;
-    private final Deque<Entry> pending = new ArrayDeque<>();
-    private final Deque<Entry> history = new ArrayDeque<>();
-    private Entry current;
+    private final Deque<T> pending = new ArrayDeque<>();
+    private final Deque<T> history = new ArrayDeque<>();
+    private T current;
 
     DiscordPlaybackQueue(int maxPending, int maxHistory) {
         if (maxPending < 1 || maxHistory < 1) {
@@ -28,15 +28,15 @@ final class DiscordPlaybackQueue {
         this.maxHistory = maxHistory;
     }
 
-    void setCurrent(Entry entry) {
+    synchronized void setCurrent(T entry) {
         current = Objects.requireNonNull(entry);
     }
 
-    Entry current() {
+    synchronized T current() {
         return current;
     }
 
-    boolean enqueue(Entry entry) {
+    synchronized boolean enqueue(T entry) {
         Objects.requireNonNull(entry);
         if (pending.size() >= maxPending) {
             return false;
@@ -45,17 +45,17 @@ final class DiscordPlaybackQueue {
         return true;
     }
 
-    Optional<Entry> advance() {
+    synchronized Optional<T> advance() {
         rememberCurrent();
         current = pending.pollFirst();
         return Optional.ofNullable(current);
     }
 
-    Optional<Entry> previous() {
+    synchronized Optional<T> previous() {
         if (history.isEmpty()) {
             return Optional.empty();
         }
-        Entry previous = history.removeLast();
+        T previous = history.removeLast();
         if (current != null) {
             if (pending.size() >= maxPending) {
                 pending.removeLast();
@@ -66,16 +66,16 @@ final class DiscordPlaybackQueue {
         return Optional.of(previous);
     }
 
-    Optional<Entry> restart() {
+    synchronized Optional<T> restart() {
         return Optional.ofNullable(current);
     }
 
-    Optional<Entry> pendingAt(int publicPosition) {
+    synchronized Optional<T> pendingAt(int publicPosition) {
         if (publicPosition < 1 || publicPosition > pending.size()) {
             return Optional.empty();
         }
         int index = 1;
-        for (Entry entry : pending) {
+        for (T entry : pending) {
             if (index++ == publicPosition) {
                 return Optional.of(entry);
             }
@@ -83,13 +83,13 @@ final class DiscordPlaybackQueue {
         return Optional.empty();
     }
 
-    Optional<Entry> remove(int publicPosition) {
+    synchronized Optional<T> remove(int publicPosition) {
         if (publicPosition < 1 || publicPosition > pending.size()) {
             return Optional.empty();
         }
         int index = 1;
         for (var iterator = pending.iterator(); iterator.hasNext(); ) {
-            Entry entry = iterator.next();
+            T entry = iterator.next();
             if (index++ == publicPosition) {
                 iterator.remove();
                 return Optional.of(entry);
@@ -98,7 +98,7 @@ final class DiscordPlaybackQueue {
         return Optional.empty();
     }
 
-    boolean move(int publicOrigin, int publicDestination) {
+    synchronized boolean move(int publicOrigin, int publicDestination) {
         if (publicOrigin < 1 || publicOrigin > pending.size()
                 || publicDestination < 1 || publicDestination > pending.size()) {
             return false;
@@ -106,44 +106,44 @@ final class DiscordPlaybackQueue {
         if (publicOrigin == publicDestination) {
             return true;
         }
-        List<Entry> entries = new ArrayList<>(pending);
-        Entry moved = entries.remove(publicOrigin - 1);
+        List<T> entries = new ArrayList<>(pending);
+        T moved = entries.remove(publicOrigin - 1);
         entries.add(publicDestination - 1, moved);
         pending.clear();
         pending.addAll(entries);
         return true;
     }
 
-    void clearPending() {
+    synchronized void clearPending() {
         pending.clear();
     }
 
-    void clearAll() {
+    synchronized void clearAll() {
         pending.clear();
         history.clear();
         current = null;
     }
 
-    void shuffle(java.util.Random random) {
-        List<Entry> entries = new ArrayList<>(pending);
+    synchronized void shuffle(java.util.Random random) {
+        List<T> entries = new ArrayList<>(pending);
         Collections.shuffle(entries, Objects.requireNonNull(random));
         pending.clear();
         pending.addAll(entries);
     }
 
-    List<Entry> pendingSnapshot() {
+    synchronized List<T> pendingSnapshot() {
         return List.copyOf(pending);
     }
 
-    List<Entry> historySnapshot() {
+    synchronized List<T> historySnapshot() {
         return List.copyOf(history);
     }
 
-    int pendingSize() {
+    synchronized int pendingSize() {
         return pending.size();
     }
 
-    int historySize() {
+    synchronized int historySize() {
         return history.size();
     }
 
