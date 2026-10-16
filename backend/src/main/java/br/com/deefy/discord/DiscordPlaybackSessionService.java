@@ -306,12 +306,25 @@ public class DiscordPlaybackSessionService {
         if (guild == null) {
             return CompletableFuture.completedFuture(result(
                     PlaybackControlStatus.NO_ACTIVE_SESSION,
-                    "Não existe uma reprodução ativa nesta comunidade."
+                "Não existe uma reprodução ativa nesta comunidade."
             ));
         }
+        PlaybackControlRequest serializedRequest = request;
+        if (request != null && request.expectedSessionId() == null) {
+            DiscordGuildPlaybackSession current = sessionsByGuild.get(guild.getIdLong());
+            if (current != null) {
+                serializedRequest = new PlaybackControlRequest(
+                        request.action(),
+                        current.getSessionId(),
+                        request.expectedMessageId(),
+                        request.interactionId()
+                );
+            }
+        }
+        PlaybackControlRequest requestForLane = serializedRequest;
         return guildExecutor.submit(
                 guild.getIdLong(),
-                () -> controlInGuild(guild, requester, request)
+                () -> controlInGuild(guild, requester, requestForLane)
         );
     }
 

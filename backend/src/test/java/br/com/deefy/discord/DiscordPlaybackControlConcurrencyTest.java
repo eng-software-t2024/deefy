@@ -91,6 +91,58 @@ class DiscordPlaybackControlConcurrencyTest {
     }
 
     @Test
+    void shouldAdvanceExactlyOnceWhenNaturalEndAndSkipAreQueuedTogether() throws Exception {
+        DiscordGuildCommandExecutor executor = new DiscordGuildCommandExecutor();
+        try (Harness harness = new Harness(executor)) {
+            Fixture fixture = harness.fixture(1L, 10L);
+            DiscordTrack secondTrack = new DiscordTrack(2L, "Segunda", "Artista", fixture.track().audioUrl());
+            DiscordTrack thirdTrack = new DiscordTrack(3L, "Terceira", "Artista", fixture.track().audioUrl());
+            DiscordAudioSource firstSource = harness.sourceFor(fixture);
+            DiscordAudioSource secondSource = harness.sourceFor(fixture, secondTrack);
+            DiscordAudioSource thirdSource = harness.sourceFor(fixture, thirdTrack);
+
+            Started started = harness.startPlaying(fixture, "play-1");
+            assertThat(harness.service.start(fixture.guild(), fixture.requester(), secondTrack))
+                    .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.QUEUED);
+            assertThat(harness.service.start(fixture.guild(), fixture.requester(), thirdTrack))
+                    .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.QUEUED);
+
+            CountDownLatch laneStarted = new CountDownLatch(1);
+            CountDownLatch releaseLane = new CountDownLatch(1);
+            executor.submit(fixture.guild().getIdLong(), () -> {
+                laneStarted.countDown();
+                try {
+                    releaseLane.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+                return null;
+            });
+            assertThat(laneStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            harness.terminationFor(fixture.track()).run();
+            CompletableFuture<DiscordPlaybackSessionService.PlaybackControlResult> skip = harness.service.controlAsync(
+                    fixture.guild(),
+                    fixture.requester(),
+                    slash(DiscordPlaybackSessionService.PlaybackControlAction.SKIP, "skip-racing-natural-end")
+            );
+            releaseLane.countDown();
+            assertThat(skip.get(5, TimeUnit.SECONDS).status())
+                    .isEqualTo(DiscordPlaybackSessionService.PlaybackControlStatus.EXPIRED_CONTROL);
+            harness.service.awaitGuild(fixture.guild().getIdLong());
+
+            assertThat(harness.service.sessionFor(fixture.guild().getIdLong()).orElseThrow().getCurrentTrack())
+                    .isEqualTo(secondTrack);
+            assertThat(harness.service.queueSnapshot(fixture.guild().getIdLong()).pending())
+                    .extracting(DiscordPlaybackSessionService.QueueEntryView::track)
+                    .containsExactly(thirdTrack);
+            verify(firstSource).close();
+            verify(secondSource, never()).close();
+            verify(thirdSource, never()).close();
+            assertThat(started.sessionId()).isNotBlank();
+        }
+    }
+
+    @Test
     void shouldLetResumeWinAgainstAlreadyQueuedPauseTimeout() throws Exception {
         ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
         ScheduledFuture<?> startup = mock(ScheduledFuture.class);
@@ -420,21 +472,32 @@ class DiscordPlaybackControlConcurrencyTest {
     private static final class Harness implements AutoCloseable {
         private final DiscordVoiceConnectionService voiceService = mock(DiscordVoiceConnectionService.class);
         private final DiscordAudioSourceFactory sourceFactory = mock(DiscordAudioSourceFactory.class);
+        private final DiscordGuildCommandExecutor guildExecutor;
         private final ScheduledExecutorService scheduler;
         private final DiscordPlaybackSessionService service;
         private final Map<Long, DiscordAudioSource> sources = new ConcurrentHashMap<>();
         private final Map<Long, Runnable> firstFrames = new ConcurrentHashMap<>();
+        private final Map<Long, Runnable> terminations = new ConcurrentHashMap<>();
 
         private Harness() {
-            this(Executors.newSingleThreadScheduledExecutor());
+            this(new DiscordGuildCommandExecutor(), Executors.newSingleThreadScheduledExecutor());
         }
 
         private Harness(ScheduledExecutorService scheduler) {
+            this(new DiscordGuildCommandExecutor(), scheduler);
+        }
+
+        private Harness(DiscordGuildCommandExecutor guildExecutor) {
+            this(guildExecutor, Executors.newSingleThreadScheduledExecutor());
+        }
+
+        private Harness(DiscordGuildCommandExecutor guildExecutor, ScheduledExecutorService scheduler) {
+            this.guildExecutor = guildExecutor;
             this.scheduler = scheduler;
             this.service = new DiscordPlaybackSessionService(
                     voiceService,
                     sourceFactory,
-                    new DiscordGuildCommandExecutor(),
+                    guildExecutor,
                     scheduler,
                     Duration.ofSeconds(20),
                     Duration.ofMinutes(10)
@@ -443,6 +506,7 @@ class DiscordPlaybackControlConcurrencyTest {
                 when(sourceFactory.open(any(), any(), any())).thenAnswer(invocation -> {
                     DiscordTrack track = invocation.getArgument(0);
                     firstFrames.put(track.id(), invocation.getArgument(1));
+                    terminations.put(track.id(), invocation.getArgument(2));
                     return sources.get(track.id());
                 });
             } catch (Exception impossible) {
@@ -488,9 +552,17 @@ class DiscordPlaybackControlConcurrencyTest {
         }
 
         private DiscordAudioSource sourceFor(Fixture fixture) {
+            return sourceFor(fixture, fixture.track());
+        }
+
+        private DiscordAudioSource sourceFor(Fixture fixture, DiscordTrack track) {
             DiscordAudioSource source = mock(DiscordAudioSource.class);
-            sources.put(fixture.track().id(), source);
+            sources.put(track.id(), source);
             return source;
+        }
+
+        private Runnable terminationFor(DiscordTrack track) {
+            return terminations.get(track.id());
         }
 
         private Started startPlaying(Fixture fixture, String interactionId) throws Exception {
