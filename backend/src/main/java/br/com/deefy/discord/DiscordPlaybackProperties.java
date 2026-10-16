@@ -36,6 +36,8 @@ public class DiscordPlaybackProperties {
     private Duration audioReadTimeout = Duration.ofSeconds(20);
     private Duration decodeValidationTimeout = Duration.ofSeconds(20);
     private Duration decodeValidationSample = Duration.ofSeconds(15);
+    private int queueMaxSize = 50;
+    private int historyMaxSize = 50;
 
     public String getApiUrl() {
         return apiUrl;
@@ -175,6 +177,22 @@ public class DiscordPlaybackProperties {
 
     public void setDecodeValidationSample(Duration decodeValidationSample) {
         this.decodeValidationSample = decodeValidationSample;
+    }
+
+    public int getQueueMaxSize() {
+        return queueMaxSize;
+    }
+
+    public void setQueueMaxSize(int queueMaxSize) {
+        this.queueMaxSize = queueMaxSize;
+    }
+
+    public int getHistoryMaxSize() {
+        return historyMaxSize;
+    }
+
+    public void setHistoryMaxSize(int historyMaxSize) {
+        this.historyMaxSize = historyMaxSize;
     }
 
     public boolean isSelfHostedAudioUrl(String candidate) {
