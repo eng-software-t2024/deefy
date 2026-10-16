@@ -20,6 +20,7 @@ import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 @Component
 public class DiscordCommandListener extends ListenerAdapter {
@@ -206,8 +207,34 @@ public class DiscordCommandListener extends ListenerAdapter {
                     AtomicReference<String> sessionId = new AtomicReference<>();
                     AtomicReference<DiscordPlaybackService.PlaybackPresentation> latestProgressBeforeBinding =
                             new AtomicReference<>();
+                    AtomicReference<String> latestProgressSession = new AtomicReference<>();
                     AtomicBoolean controlsReady = new AtomicBoolean(false);
+                    AtomicBoolean resultReady = new AtomicBoolean(false);
+                    AtomicBoolean queuedResult = new AtomicBoolean(false);
+                    AtomicBoolean bindingStarted = new AtomicBoolean(false);
                     Object publicationGate = new Object();
+
+                    BiConsumer<String, DiscordPlaybackService.PlaybackPresentation> bindAndPublish =
+                            (bindingSessionId, fallbackPresentation) -> bindControlMessage(event, hook, bindingSessionId)
+                                    .whenComplete((bound, bindFailure) -> {
+                                        synchronized (publicationGate) {
+                                            DiscordPlaybackService.PlaybackPresentation latest =
+                                                    latestProgressBeforeBinding.getAndSet(null);
+                                            DiscordPlaybackService.PlaybackPresentation current = latest != null
+                                                    ? latest
+                                                    : fallbackPresentation;
+                                            boolean controlsBound = bindFailure == null && Boolean.TRUE.equals(bound);
+                                            LOGGER.info(
+                                                    "Discord playback snapshot after binding: state={}, sessionRef={}, controlsBound={}, bindingResult={}",
+                                                    current.state(),
+                                                    DiscordDiagnosticSupport.pseudonymize(bindingSessionId),
+                                                    controlsBound,
+                                                    bindFailure == null ? "completed" : "failed"
+                                            );
+                                            messages.publish(current, controlsBound ? bindingSessionId : null);
+                                            controlsReady.set(controlsBound);
+                                        }
+                                    });
 
                     playbackService.playAsync(
                             event.getGuild(),
@@ -218,6 +245,7 @@ public class DiscordCommandListener extends ListenerAdapter {
                                 synchronized (publicationGate) {
                                     if (progress.sessionId() != null) {
                                         sessionId.set(progress.sessionId());
+                                        latestProgressSession.set(progress.sessionId());
                                     }
                                     String activeSession = sessionId.get();
                                     if (activeSession == null || !controlsReady.get()) {
@@ -230,6 +258,12 @@ public class DiscordCommandListener extends ListenerAdapter {
                                     } else {
                                         messages.publish(progress.presentation(), activeSession);
                                     }
+                                    if (activeSession != null
+                                            && resultReady.get()
+                                            && queuedResult.get()
+                                            && bindingStarted.compareAndSet(false, true)) {
+                                        bindAndPublish.accept(activeSession, progress.presentation());
+                                    }
                                 }
                             }
                     ).whenComplete((result, failure) -> {
@@ -237,30 +271,21 @@ public class DiscordCommandListener extends ListenerAdapter {
                             messages.publish(unexpectedFailure(), null);
                             return;
                         }
+                        resultReady.set(true);
                         sessionId.set(result.sessionId());
                         if (result.sessionId() == null) {
+                            queuedResult.set(result.queued());
                             messages.publish(result.presentation(), null);
+                            String activeQueuedSession = latestProgressSession.get();
+                            if (result.queued()
+                                    && activeQueuedSession != null
+                                    && bindingStarted.compareAndSet(false, true)) {
+                                bindAndPublish.accept(activeQueuedSession, result.presentation());
+                            }
                             return;
                         }
-                        bindControlMessage(event, hook, result.sessionId()).whenComplete((bound, bindFailure) -> {
-                            synchronized (publicationGate) {
-                                DiscordPlaybackService.PlaybackPresentation latest =
-                                        latestProgressBeforeBinding.getAndSet(null);
-                                DiscordPlaybackService.PlaybackPresentation current = latest != null
-                                        ? latest
-                                        : result.presentation();
-                                boolean controlsBound = bindFailure == null && Boolean.TRUE.equals(bound);
-                                LOGGER.info(
-                                        "Discord playback snapshot after binding: state={}, sessionRef={}, controlsBound={}, bindingResult={}",
-                                        current.state(),
-                                        DiscordDiagnosticSupport.pseudonymize(result.sessionId()),
-                                        controlsBound,
-                                        bindFailure == null ? "completed" : "failed"
-                                );
-                                messages.publish(current, controlsBound ? result.sessionId() : null);
-                                controlsReady.set(controlsBound);
-                            }
-                        });
+                        bindingStarted.set(true);
+                        bindAndPublish.accept(result.sessionId(), result.presentation());
                     });
                 });
     }

@@ -735,6 +735,7 @@ public class DiscordPlaybackSessionService {
             if (next.isPresent()) {
                 startReplacementAfterFailureInGuild(session, next.get());
             } else {
+                queuesByGuild.remove(session.getGuildId(), queue);
                 try {
                     session.getVoiceConnection().closeAudioConnection();
                 } catch (RuntimeException ignored) {
@@ -973,6 +974,10 @@ public class DiscordPlaybackSessionService {
         GuildQueueState queue = queuesByGuild.get(session.getGuildId());
         if (queue == null || queue.queue().historySize() == 0) {
             return result(PlaybackControlStatus.NO_HISTORY, "Ainda não existe uma faixa anterior nesta sessão.");
+        }
+        if (queue.queue().current() != null
+                && queue.queue().pendingSize() >= playbackProperties.getQueueMaxSize()) {
+            return result(PlaybackControlStatus.QUEUE_FULL, "A fila está cheia para voltar sem perder uma faixa pendente.");
         }
         Optional<PlaybackItem> previous = queue.queue().previous();
         if (previous.isEmpty()) {
@@ -1248,6 +1253,8 @@ public class DiscordPlaybackSessionService {
                     session,
                     IdleReason.NATURAL_TRACK_END
             );
+        } else {
+            queuesByGuild.remove(session.getGuildId(), queue);
         }
         LOGGER.info(
                 "Discord playback cleanup completed: guildId={}, sessionRef={}, trackId={}, reason={}, detail=none",
@@ -1753,6 +1760,7 @@ public class DiscordPlaybackSessionService {
         UNSUPPORTED_CHANNEL,
         DIFFERENT_CHANNEL,
         NO_HISTORY,
+        QUEUE_FULL,
         DUPLICATE,
         FAILED
     }

@@ -89,6 +89,20 @@ class DiscordPlaybackQueueTest {
         assertThat(queue.pendingSize()).isEqualTo(2);
     }
 
+    @Test
+    void backDoesNotDropPendingEntryWhenQueueIsFull() {
+        DiscordPlaybackQueue<DiscordPlaybackQueue.Entry> queue = new DiscordPlaybackQueue<>(1, 2);
+        queue.setCurrent(entry(first));
+        queue.enqueue(entry(second));
+        queue.advance();
+        queue.enqueue(entry(third));
+
+        assertThat(queue.previous()).isEmpty();
+        assertThat(queue.pendingSnapshot()).containsExactly(entry(third));
+        assertThat(queue.historySnapshot()).containsExactly(entry(first));
+        assertThat(queue.current()).isEqualTo(entry(second));
+    }
+
     private DiscordPlaybackQueue.Entry entry(DiscordTrack track) {
         return new DiscordPlaybackQueue.Entry(track, "tester", "voice");
     }

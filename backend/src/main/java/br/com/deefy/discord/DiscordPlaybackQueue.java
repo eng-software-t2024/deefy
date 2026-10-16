@@ -58,7 +58,8 @@ final class DiscordPlaybackQueue<T> {
         T previous = history.removeLast();
         if (current != null) {
             if (pending.size() >= maxPending) {
-                pending.removeLast();
+                history.addLast(previous);
+                return Optional.empty();
             }
             pending.addFirst(current);
         }
