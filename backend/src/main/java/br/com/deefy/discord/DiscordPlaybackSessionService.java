@@ -1161,7 +1161,11 @@ public class DiscordPlaybackSessionService {
                     DiscordDiagnosticSupport.pseudonymize(session.getSessionId()),
                     session.getCurrentTrack().id()
             );
-            session.notifyProgress(PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
+            if (session.shouldRemainPausedAfterStart() && session.pause()) {
+                session.notifyProgress(PlaybackProgress.PAUSED);
+            } else {
+                session.notifyProgress(PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
+            }
         }
     }
 

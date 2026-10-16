@@ -35,6 +35,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -167,6 +168,140 @@ class DiscordPlaybackSessionServiceTest {
     }
 
     @Test
+    void shouldQueueDuringPlaybackAndSkipExactlyOnce() throws Exception {
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordTrack nextTrack = new DiscordTrack(2L, "Próxima", "Artista", fixture.track.audioUrl());
+        DiscordAudioSource firstSource = mock(DiscordAudioSource.class);
+        DiscordAudioSource nextSource = mock(DiscordAudioSource.class);
+        when(sourceFactory.open(eq(fixture.track), any(), any())).thenReturn(firstSource);
+        when(sourceFactory.open(eq(nextTrack), any(), any())).thenReturn(nextSource);
+
+        assertThat(service.start(fixture.guild, fixture.requester, fixture.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+        assertThat(service.start(fixture.guild, fixture.requester, nextTrack))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.QUEUED);
+
+        DiscordPlaybackSessionService.PlaybackControlResult result = service.control(
+                fixture.guild,
+                fixture.requester,
+                DiscordPlaybackSessionService.PlaybackControlRequest.slash(
+                        DiscordPlaybackSessionService.PlaybackControlAction.SKIP,
+                        "skip-1"
+                )
+        );
+        service.awaitGuild(fixture.guild.getIdLong());
+
+        assertThat(result.status()).isEqualTo(DiscordPlaybackSessionService.PlaybackControlStatus.APPLIED);
+        assertThat(service.sessionFor(1L).orElseThrow().getCurrentTrack()).isEqualTo(nextTrack);
+        verify(firstSource).close();
+        verify(fixture.audioManager, timeout(5_000)).setSendingHandler(nextSource);
+    }
+
+    @Test
+    void shouldPreventLateAudioStartWhenStoppedDuringPreparation() throws Exception {
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordAudioSource source = mock(DiscordAudioSource.class);
+        CountDownLatch opening = new CountDownLatch(1);
+        CountDownLatch releaseOpening = new CountDownLatch(1);
+        when(sourceFactory.open(eq(fixture.track), any(), any())).thenAnswer(invocation -> {
+            opening.countDown();
+            releaseOpening.await(5, TimeUnit.SECONDS);
+            return source;
+        });
+
+        CompletableFuture<DiscordPlaybackSessionService.PlaybackStartOutcome> start = service.startAsync(
+                fixture.guild,
+                fixture.requester,
+                fixture.track,
+                "prepare-1",
+                ignored -> { }
+        );
+        assertThat(opening.await(5, TimeUnit.SECONDS)).isTrue();
+
+        service.stop(fixture.guild);
+        releaseOpening.countDown();
+
+        assertThat(start.get(5, TimeUnit.SECONDS).result())
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.VOICE_CONNECTION_FAILED);
+        assertThat(service.sessionFor(1L)).isEmpty();
+        verify(source).close();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldRestartPausedTrackFromBeginningAndRemainPaused() throws Exception {
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordAudioSource firstSource = mock(DiscordAudioSource.class);
+        DiscordAudioSource restartedSource = mock(DiscordAudioSource.class);
+        ArgumentCaptor<Runnable> firstFrames = ArgumentCaptor.forClass(Runnable.class);
+        when(sourceFactory.open(eq(fixture.track), firstFrames.capture(), any()))
+                .thenReturn(firstSource, restartedSource);
+
+        assertThat(service.start(fixture.guild, fixture.requester, fixture.track))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.STARTED);
+        firstFrames.getAllValues().getFirst().run();
+        service.awaitGuild(fixture.guild.getIdLong());
+        assertThat(service.control(
+                fixture.guild,
+                fixture.requester,
+                DiscordPlaybackSessionService.PlaybackControlRequest.slash(
+                        DiscordPlaybackSessionService.PlaybackControlAction.PAUSE,
+                        "pause-before-restart"
+                )
+        ).status()).isEqualTo(DiscordPlaybackSessionService.PlaybackControlStatus.APPLIED);
+
+        assertThat(service.control(
+                fixture.guild,
+                fixture.requester,
+                DiscordPlaybackSessionService.PlaybackControlRequest.slash(
+                        DiscordPlaybackSessionService.PlaybackControlAction.RESTART,
+                        "restart-paused"
+                )
+        ).status()).isEqualTo(DiscordPlaybackSessionService.PlaybackControlStatus.APPLIED);
+        service.awaitGuild(fixture.guild.getIdLong());
+
+        assertThat(firstFrames.getAllValues()).hasSize(2);
+        firstFrames.getAllValues().get(1).run();
+        service.awaitGuild(fixture.guild.getIdLong());
+        assertThat(service.stateFor(1L))
+                .isEqualTo(DiscordGuildPlaybackSession.PlaybackState.PAUSED);
+        verify(fixture.audioManager).setSendingHandler(restartedSource);
+    }
+
+    @Test
+    void shouldAdvanceToQueuedTrackAfterPreparationFailureWithoutLooping() throws Exception {
+        PlaybackFixture fixture = fixture(1L, 10L);
+        DiscordTrack nextTrack = new DiscordTrack(2L, "Válida", "Artista", fixture.track.audioUrl());
+        DiscordAudioSource nextSource = mock(DiscordAudioSource.class);
+        CountDownLatch opening = new CountDownLatch(1);
+        CountDownLatch releaseOpening = new CountDownLatch(1);
+        when(sourceFactory.open(eq(fixture.track), any(), any())).thenAnswer(invocation -> {
+            opening.countDown();
+            releaseOpening.await(5, TimeUnit.SECONDS);
+            throw new IllegalStateException("simulated preparation failure");
+        });
+        when(sourceFactory.open(eq(nextTrack), any(), any())).thenReturn(nextSource);
+
+        CompletableFuture<DiscordPlaybackSessionService.PlaybackStartOutcome> failed = service.startAsync(
+                fixture.guild,
+                fixture.requester,
+                fixture.track,
+                "failed-1",
+                ignored -> { }
+        );
+        assertThat(opening.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(service.start(fixture.guild, fixture.requester, nextTrack))
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.QUEUED);
+        releaseOpening.countDown();
+
+        assertThat(failed.get(5, TimeUnit.SECONDS).result())
+                .isEqualTo(DiscordPlaybackSessionService.PlaybackStartResult.AUDIO_SOURCE_FAILED);
+        service.awaitGuild(fixture.guild.getIdLong());
+        assertThat(service.sessionFor(1L).orElseThrow().getCurrentTrack()).isEqualTo(nextTrack);
+        verify(fixture.audioManager, timeout(5_000)).setSendingHandler(nextSource);
+    }
+
+    @Test
     void shouldAllowBackFromIdleUsingTheLastHistoryEntry() throws Exception {
         PlaybackFixture fixture = fixture(1L, 10L);
         DiscordAudioSource firstSource = mock(DiscordAudioSource.class);
@@ -195,7 +330,7 @@ class DiscordPlaybackSessionServiceTest {
         service.awaitGuild(fixture.guild.getIdLong());
         assertThat(service.sessionFor(1L)).isPresent();
         assertThat(service.sessionFor(1L).orElseThrow().getCurrentTrack()).isEqualTo(fixture.track);
-        verify(fixture.audioManager).setSendingHandler(replaySource);
+        verify(fixture.audioManager, timeout(5_000)).setSendingHandler(replaySource);
     }
 
     @Test
@@ -628,6 +763,7 @@ class DiscordPlaybackSessionServiceTest {
         when(requester.getVoiceState()).thenReturn(voiceState);
         when(voiceState.getChannel()).thenReturn(channelUnion);
         when(channelUnion.getType()).thenReturn(ChannelType.VOICE);
+        when(channelUnion.getIdLong()).thenReturn(channelId);
         when(channelUnion.asVoiceChannel()).thenReturn(voiceChannel);
         when(audioManager.getConnectedChannel()).thenReturn(channelUnion);
         when(voiceChannel.getIdLong()).thenReturn(channelId);
