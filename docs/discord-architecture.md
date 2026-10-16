@@ -394,8 +394,8 @@ Nenhum teste unitário deve conectar ao Discord real.
 | #75 | Parcialmente entregue | #74 e JDA | Ciclo de conexão e comando básico testável | Sem player ou fila |
 | #76 | Implementada | #74, #75 e intents padrão do JDA | Entrada e saída de canal de voz comum por guild | Sem reprodução, fila ou Stage Channel |
 | #77 | Implementada | #76 e catálogo self-hosted | Uma faixa por guild via FFmpeg/JDA, com cleanup explícito | Sem fila |
-| #78 | Implementada localmente, ainda sem commit/deploy | #77 e autorização por canal | Pausar, retomar e parar por botão/slash, com concorrência serializada | Não adiciona fila paralela |
-| #79 | Implementada localmente nesta branch, ainda sem commit/deploy | #77/#78 e catálogo existente | Fila FIFO em memória, histórico limitado e controles de avanço | Sem persistência, repetição, playlist externa ou reprodução progressiva |
+| #78 | Implementada no histórico local da linha funcional | #77 e autorização por canal | Pausar, retomar e parar por botão/slash, com concorrência serializada | Não adiciona fila paralela |
+| #79 | Implementada nesta branch em commits locais, ainda sem push/deploy | #77/#78 e catálogo existente | Fila FIFO em memória, histórico limitado e controles de avanço | Sem persistência, repetição, playlist externa ou reprodução progressiva |
 | #80 | Não implementada | Estado de #75/#77 | Presença coerente e sanitizada | Sem regras de player |
 | #81 | Não implementada | Contexto de comandos e voz | Política explícita de permissões | Sem credenciais ou regra de fila |
 | #82 | Não implementada | Incrementos anteriores estabilizados | Testes adicionais e documentação operacional | Sem funcionalidade nova incidental |
