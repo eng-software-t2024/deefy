@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar.jsx'
 import SongList from '../components/SongList.jsx'
 import SongListSkeleton from '../components/SongListSkeleton.jsx'
 import PlaylistSharingModal from '../components/PlaylistSharingModal.jsx'
+import BreadcrumbNav from '../components/BreadcrumbNav.jsx'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -200,6 +201,13 @@ function UserPlaylistDetailContent() {
         <Sidebar />
         <main className="user-playlist-main">
           <div className="user-playlist-close-row">
+            <BreadcrumbNav
+              items={[
+                { label: 'Início', to: '/home' },
+                { label: 'Playlists', to: '/playlists' },
+                { label: 'Carregando...' },
+              ]}
+            />
             <Link
               to="/playlists"
               className="user-playlist-close-btn"
@@ -237,6 +245,13 @@ function UserPlaylistDetailContent() {
         <Sidebar />
         <main className="user-playlist-main">
           <div className="user-playlist-close-row">
+            <BreadcrumbNav
+              items={[
+                { label: 'Início', to: '/home' },
+                { label: 'Playlists', to: '/playlists' },
+                { label: 'Playlist não encontrada' },
+              ]}
+            />
             <Link
               to="/playlists"
               className="user-playlist-close-btn"
@@ -258,6 +273,13 @@ function UserPlaylistDetailContent() {
 
       <main className="user-playlist-main">
         <div className="user-playlist-close-row">
+          <BreadcrumbNav
+            items={[
+              { label: 'Início', to: '/home' },
+              { label: 'Playlists', to: '/playlists' },
+              { label: playlist.name ? `Playlist: ${playlist.name}` : 'Playlist' },
+            ]}
+          />
           <Link
             to="/playlists"
             className="user-playlist-close-btn"

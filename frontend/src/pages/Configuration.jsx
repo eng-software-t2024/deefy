@@ -13,6 +13,7 @@ import "./Configuration.css";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import ButtonSpinner from "../components/ButtonSpinner";
+import BreadcrumbNav from "../components/BreadcrumbNav";
 import { getApiErrorMessage } from "../utils/apiError";
 import { showMusicError } from "../utils/musicToast";
 import { removeToken } from "../utils/auth";
@@ -71,6 +72,13 @@ function Configuration() {
       <div className="configuration-overlay"></div>
 
       <section className="configuration-wrapper">
+        <BreadcrumbNav
+          items={[
+            { label: 'Início', to: '/home' },
+            { label: 'Configurações' },
+          ]}
+        />
+
         {/* Back button */}
         <div className="custom-profile-back-login custom-profile-back-top" onClick={() => navigate(-1)}>
           <IoChevronBack />
