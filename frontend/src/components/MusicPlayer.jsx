@@ -196,7 +196,7 @@ function isTrackInPlaylist(playlist, track) {
   });
 }
 
-function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
+function MusicPlayer({ onAddToPlaylist, isHidden = false }) {
   const navigate = useNavigate();
   const audioRef = useRef(null);
   const compactDragActiveRef = useRef(false);
@@ -239,7 +239,6 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [playlistError, setPlaylistError] = useState("");
   const [addingPlaylistId, setAddingPlaylistId] = useState(null);
-  const [addedPlaylistIds, setAddedPlaylistIds] = useState(() => new Set());
   const [isExpanded, setIsExpanded] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isExpandedClosing, setIsExpandedClosing] = useState(false);
@@ -263,14 +262,6 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   const hasAudioUrl = Boolean(currentTrack.audioUrl);
   const hasPrevious = tracks.length > 1 && activeTrackIndex > 0;
   const hasNext = tracks.length > 1 && activeTrackIndex < tracks.length - 1;
-  const providedPlaylists = useMemo(
-    () => (Array.isArray(playlists) ? playlists : []),
-    [playlists],
-  );
-  const effectivePlaylists = useMemo(() => {
-    if (providedPlaylists.length > 0) return providedPlaylists;
-    return userPlaylists;
-  }, [providedPlaylists, userPlaylists]);
   const progressPercent = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
 
   const progressStyle = {
@@ -397,7 +388,6 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   }, []);
 
   useEffect(() => {
-    setAddedPlaylistIds(new Set());
     lastPersistedSecondRef.current = -1;
   }, [currentTrack.id]);
 
@@ -625,11 +615,6 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   };
 
   const loadUserPlaylists = useCallback(async () => {
-    if (providedPlaylists.length > 0) {
-      setPlaylistError("");
-      return;
-    }
-
     try {
       setIsLoadingPlaylists(true);
       setPlaylistError("");
@@ -641,7 +626,7 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
     } finally {
       setIsLoadingPlaylists(false);
     }
-  }, [providedPlaylists]);
+  }, []);
 
   const togglePlaylistMenu = (context) => {
     setPlaylistMenuContext((current) => (current === context ? null : context));
@@ -713,16 +698,12 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
         await musicService.addMusicToPlaylist(playlistId, currentTrack);
       }
 
-      setAddedPlaylistIds((currentIds) => {
-        const nextIds = new Set(currentIds);
-        nextIds.add(String(playlistId));
-        return nextIds;
-      });
       setUserPlaylists((currentPlaylists) =>
         currentPlaylists.map((p) => {
           if (String(getPlaylistId(p)) === String(playlistId)) {
-            const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
-            return {...p, tracks};
+            const tracks = Array.isArray(p.tracks) ? p.tracks : [];
+            if (isTrackInPlaylist(p, currentTrack)) return p;
+            return { ...p, tracks: [...tracks, currentTrack] };
           }
           return p;
         })
@@ -741,16 +722,12 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
         (status === 400 && (messages.some((m) => m?.includes("já está presente")) || errorMsg.includes("já está presente")));
 
       if (isDuplicate) {
-        setAddedPlaylistIds((currentIds) => {
-          const nextIds = new Set(currentIds);
-          nextIds.add(String(playlistId));
-          return nextIds;
-        });
         setUserPlaylists((currentPlaylists) =>
           currentPlaylists.map((p) => {
             if (String(getPlaylistId(p)) === String(playlistId)) {
-              const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
-              return {...p, tracks};
+              const tracks = Array.isArray(p.tracks) ? p.tracks : [];
+              if (isTrackInPlaylist(p, currentTrack)) return p;
+              return { ...p, tracks: [...tracks, currentTrack] };
             }
             return p;
           })
@@ -1006,7 +983,7 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   };
 
   const renderPlaylistMenuItems = () => {
-    const hasPlaylists = effectivePlaylists.length > 0;
+    const hasPlaylists = userPlaylists.length > 0;
 
     if (isLoadingPlaylists) {
       return (
@@ -1025,13 +1002,11 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
     }
 
     if (hasPlaylists) {
-      return effectivePlaylists.map((playlist) => {
+      return userPlaylists.map((playlist) => {
         const playlistId = getPlaylistId(playlist);
         const playlistIdKey = playlistId === null ? "" : String(playlistId);
         const isAdding = addingPlaylistId === playlistIdKey;
-        const isAdded =
-          Boolean(playlistIdKey && addedPlaylistIds.has(playlistIdKey)) ||
-          isTrackInPlaylist(playlist, currentTrack);
+        const isAdded = isTrackInPlaylist(playlist, currentTrack);
 
         return (
           <button
