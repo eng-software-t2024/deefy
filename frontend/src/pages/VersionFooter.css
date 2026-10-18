@@ -1,183 +1,71 @@
 /* ═══════════════════════════════════════════════════════════
-   DEEFY - VERSION FOOTER (RODAPÉ ESCALÁVEL E RESPONSIVO)
+   DEEFY - VERSION FOOTER (BARRA LATERAL)
+   Integrado à base da barra lateral, respeitando sua largura.
    ═══════════════════════════════════════════════════════════ */
 
 .version-footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
   width: 100%;
-  height: 36px;
-  padding: 0 24px;
+  max-width: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-sizing: border-box;
-  z-index: 990;
-
-  /* Glassmorphism e identidade visual Deefy */
-  background: rgba(10, 10, 12, 0.9);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.6);
+  gap: 8px;
+  padding: 10px 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
   font-family: 'Inter', sans-serif;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   letter-spacing: 0.2px;
-  pointer-events: auto;
-
-  /* Transição suave ao alternar entre páginas */
-  transition: left 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-    width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-    bottom 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ── Seções internas de texto ── */
+/* ── Seções internas de texto e links ── */
 .version-footer-left,
 .version-footer-right {
   display: flex;
   align-items: center;
-  gap: 8px;
   min-width: 0;
-  white-space: nowrap;
 }
 
-.version-footer-left p,
-.version-footer-right p {
+.version-footer-left {
+  flex-shrink: 1;
+}
+
+.version-footer-left p {
   margin: 0;
-  line-height: 1;
+  line-height: 1.2;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .version-footer-brand {
-  color: rgba(255, 255, 255, 0.92);
-  font-weight: 700;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 600;
   letter-spacing: -0.2px;
+}
+
+.version-footer-right {
+  flex-shrink: 0;
 }
 
 .version-footer-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 1px 12px;
-  font-size: 0.72rem;
-  font-weight: 700;
+  gap: 5px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  color: #a0a0a0;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.7);
   text-decoration: none;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.version-footer-badge:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.15);
-  transform: translateY(-1px);
-}
 
 .release-icon {
-  font-size: 0.85rem;
-}
-
-.creator-text {
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.creator-link {
-  color: #39f0d0;
-  text-decoration: none;
-  font-weight: 600;
-  transition: color 0.2s ease, text-shadow 0.2s ease;
-}
-
-.creator-link:hover {
-  color: #8ff3df;
-  text-shadow: 0 0 8px rgba(57, 240, 208, 0.4);
-}
-
-
-@keyframes version-footer-pulse {
-
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  50% {
-    opacity: 0.55;
-    transform: scale(0.85);
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   DESKTOP (> 768px): ADAPTAÇÃO AUTOMÁTICA AO SIDEBAR
-   Evita que a barra lateral cubra o texto do rodapé.
-   ═══════════════════════════════════════════════════════════ */
-@media (min-width: 769px) {
-
-  body:has(.sidebar) .version-footer,
-  .version-footer.has-sidebar {
-    left: 240px !important;
-    width: calc(100% - 240px) !important;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   TABLET / MOBILE (≤ 768px): ADAPTAÇÃO AO BOTTOM-NAV
-   ═══════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  .version-footer {
-    height: 32px;
-    padding: 0 16px;
-    font-size: 0.72rem;
-    left: 0 !important;
-    width: 100% !important;
-  }
-
-  /* Removido o override do bottom para permitir o rodapé na parte mais inferior */
-}
-
-/* ═══════════════════════════════════════════════════════════
-   DISPOSITIVOS PEQUENOS (≤ 480px)
-   ═══════════════════════════════════════════════════════════ */
-@media (max-width: 480px) {
-  .version-footer {
-    padding: 0 12px;
-    font-size: 0.67rem;
-    gap: 8px;
-  }
-
-  .version-footer-left p {
-    font-size: 0.67rem;
-  }
-
-  .creator-text {
-    display: none;
-  }
-
-  .version-footer-badge {
-    padding: 2px 7px;
-    font-size: 0.68rem;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   HARMONIZAÇÃO COM O MUSIC PLAYER FLUTUANTE
-   ═══════════════════════════════════════════════════════════ */
-@media (min-width: 861px) {
-  body:has(.version-footer) .deefy-player-shell {
-    bottom: 36px;
-  }
-}
-
-@media (max-width: 860px) {
-  body:has(.version-footer) .deefy-player-shell {
-    bottom: 96px;
-  }
+  font-size: 0.8rem;
 }
