@@ -1,0 +1,13 @@
+.artist-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.artist-link:hover,
+.artist-link:focus-visible {
+  color: #39f0d0;
+  text-decoration: underline;
+  outline: none;
+}

@@ -4,6 +4,7 @@ import { FaHeart, FaMusic, FaPlus } from 'react-icons/fa'
 
 import './Playlists.css'
 import Sidebar from '../components/Sidebar.jsx'
+import InlineError from '../components/InlineError.jsx'
 
 const mainPlaylists = [
   {
@@ -19,41 +20,64 @@ import { normalizeMusic } from '../utils/musicNormalizer'
 
 function Playlists() {
   const [userPlaylistsApi, setUserPlaylistsApi] = useState([])
-  const [isLoadingUser, setIsLoadingUser] = useState(true)
   const [publicPlaylists, setPublicPlaylists] = useState([])
-  const [isLoadingPublic, setIsLoadingPublic] = useState(true)
   const [genresApi, setGenresApi] = useState([])
-  const [isLoadingGenres, setIsLoadingGenres] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
-    musicService.getUserPlaylists()
-      .then(data => {
-        setUserPlaylistsApi(data)
-        setIsLoadingUser(false)
+    let isMounted = true
+
+    Promise.resolve().then(() => {
+      if (!isMounted) return
+      setIsLoading(true)
+      setLoadError('')
+    })
+
+    Promise.allSettled([
+      musicService.getUserPlaylists(),
+      musicService.getPublicPlaylists(),
+      api.get('/genres'),
+    ])
+      .then(([userResult, publicResult, genresResult]) => {
+        if (!isMounted) return
+
+        const results = [userResult, publicResult, genresResult]
+        if (results.every((result) => result.status === 'rejected')) {
+          setUserPlaylistsApi([])
+          setPublicPlaylists([])
+          setGenresApi([])
+          setLoadError('O palco ficou em silêncio: não foi possível carregar as playlists. Tente novamente.')
+          return
+        }
+
+        setLoadError('')
+
+        if (userResult.status === 'fulfilled') {
+          setUserPlaylistsApi(userResult.value)
+        }
+
+        if (publicResult.status === 'fulfilled') {
+          setPublicPlaylists(Array.from(new Map(
+            publicResult.value
+              .filter((playlist) => !playlist.canManage)
+              .map((playlist) => [String(playlist.id), playlist])
+          ).values()))
+        }
+
+        if (genresResult.status === 'fulfilled') {
+          setGenresApi(genresResult.value.data?.content || genresResult.value.data || [])
+        }
       })
-      .catch(err => {
-        console.error("Erro ao buscar playlists", err)
-        setIsLoadingUser(false)
+      .finally(() => {
+        if (isMounted) setIsLoading(false)
       })
 
-    musicService.getPublicPlaylists()
-      .then(data => setPublicPlaylists(Array.from(new Map(
-        data.filter(playlist => !playlist.canManage).map(playlist => [String(playlist.id), playlist])
-      ).values())))
-      .catch(err => console.error('Erro ao buscar playlists públicas', err))
-      .finally(() => setIsLoadingPublic(false))
-
-    // Search real genres from backend
-    api.get('/genres')
-      .then(res => {
-        setGenresApi(res.data?.content || res.data || [])
-        setIsLoadingGenres(false)
-      })
-      .catch(err => {
-        console.error("Erro ao buscar gêneros", err)
-        setIsLoadingGenres(false)
-      })
-  }, [])
+    return () => {
+      isMounted = false
+    }
+  }, [reloadKey])
   return (
     <div className="playlists-page">
       <Sidebar />
@@ -105,18 +129,32 @@ function Playlists() {
 </Link>
         </section>
 
+        {isLoading && (
+          <section className="playlists-user-section">
+            <div className="playlists-user-grid">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={`skel-${i}`} className="playlist-user-skeleton"></div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {!isLoading && loadError && (
+          <InlineError
+            message={loadError}
+            onRetry={() => setReloadKey((current) => current + 1)}
+          />
+        )}
+
         {/* PLAYLISTS DO USUÁRIO */}
 
+        {!isLoading && !loadError && (
+        <>
         <section className="playlists-user-section">
           <h2>Suas playlists</h2>
 
           <div className="playlists-user-grid">
-            {isLoadingUser ? (
-              // Skeletons
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={`skel-${i}`} className="playlist-user-skeleton"></div>
-              ))
-            ) : userPlaylistsApi.length > 0 ? (
+            {userPlaylistsApi.length > 0 ? (
               userPlaylistsApi.map((playlist) => {
                 const songs = (playlist.tracks || []).map(normalizeMusic).filter(Boolean)
                 const manualCover = playlist.coverUrl || playlist.capaUrl || ''
@@ -165,9 +203,8 @@ function Playlists() {
         <section className="playlists-user-section">
           <h2>Playlists públicas</h2>
           <div className="playlists-user-grid">
-            {isLoadingPublic && <p>Carregando playlists públicas...</p>}
-            {!isLoadingPublic && publicPlaylists.length === 0 && <p>Nenhuma playlist pública disponível.</p>}
-            {!isLoadingPublic && publicPlaylists.map(playlist => (
+            {publicPlaylists.length === 0 && <p>Nenhuma playlist pública disponível.</p>}
+            {publicPlaylists.map(playlist => (
                 <Link
                   to={`/user-playlist-detail/${playlist.id}`}
                   className="playlist-user-card"
@@ -192,11 +229,7 @@ function Playlists() {
           </div>
 
           <div className="playlists-grid">
-            {isLoadingGenres ? (
-              Array.from({ length: 8 }).map((_, i) => (
-                <div key={`g-skel-${i}`} style={{ width: '100%', height: '140px', borderRadius: '16px', background: '#222', animation: 'loading-shimmer 1.5s infinite linear', backgroundSize: '200% 100%', backgroundImage: 'linear-gradient(90deg, #1f1f22 25%, #2a2a2e 50%, #1f1f22 75%)' }}></div>
-              ))
-            ) : genresApi.length > 0 ? (
+            {genresApi.length > 0 ? (
               genresApi.map((genre, idx) => {
                 // Pick a random preset class for colors just for style
                 const colorClasses = ['sertanejo', 'gospel', 'kpop', 'samba', 'pagode', 'pop', 'rock', 'mpb']
@@ -217,6 +250,8 @@ function Playlists() {
             )}
           </div>
         </section>
+        </>
+        )}
       </main>
     </div>
   )

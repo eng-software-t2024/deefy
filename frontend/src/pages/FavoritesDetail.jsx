@@ -7,6 +7,7 @@ import { MdClose, MdPlayArrow, MdShuffle } from 'react-icons/md'
 import Sidebar from '../components/Sidebar.jsx'
 import SongList from '../components/SongList.jsx'
 import SongListSkeleton from '../components/SongListSkeleton.jsx'
+import BreadcrumbNav from '../components/BreadcrumbNav.jsx'
 import { usePlayer } from '../contexts/PlayerContext.jsx'
 import { musicService } from '../services/musicService.js'
 import { getMusicIdFromTrack, normalizeMusic } from '../utils/musicNormalizer.js'
@@ -128,6 +129,13 @@ function FavoritesDetail() {
 
       <main className="favorites-main">
         <div className="favorites-close-row">
+          <BreadcrumbNav
+            items={[
+              { label: 'Início', to: '/home' },
+              { label: 'Playlists', to: '/playlists' },
+              { label: 'Favoritos' },
+            ]}
+          />
           <Link
             to="/playlists"
             className="favorites-close-btn"

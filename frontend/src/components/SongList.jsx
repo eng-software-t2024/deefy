@@ -6,6 +6,7 @@ import { getMusicIdFromTrack, normalizeMusic } from "../utils/musicNormalizer";
 import { recordListeningSignal } from "../utils/recommendationEngine";
 import "./SongList.css";
 import SongOptionsMenu from './SongOptionsMenu.jsx'
+import ArtistLink from './ArtistLink.jsx'
 
 function getSongId(song) {
   const songId = getMusicIdFromTrack(song) ?? song?.id;
@@ -199,7 +200,7 @@ function SongList({
                   <span className={`song-title${isActive ? " song-title--active" : ""}`}>
                     {song.title || "Título não informado"}
                   </span>
-                  <span className="song-artist">{song.artist || "Artista não informado"}</span>
+                  <span className="song-artist">{song.artist ? <ArtistLink name={song.artist} /> : "Artista não informado"}</span>
                 </div>
               </div>
 

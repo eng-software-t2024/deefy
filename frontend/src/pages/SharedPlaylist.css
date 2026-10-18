@@ -1,0 +1,123 @@
+.shared-playlist-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(57, 240, 208, 0.2), transparent 30%),
+    linear-gradient(145deg, #070909, #11191a);
+  color: #f3fffc;
+}
+
+.shared-playlist-card {
+  width: min(560px, 100%);
+  padding: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  background: rgba(15, 18, 19, 0.9);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.55);
+  text-align: center;
+}
+
+.shared-playlist-brand,
+.shared-playlist-label {
+  color: #39f0d0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.shared-playlist-art {
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 150px;
+  margin: 30px auto 24px;
+  border-radius: 24px;
+  background: linear-gradient(145deg, #1e756c, #152c2d);
+  color: #a4ffed;
+  font-size: 5rem;
+}
+
+.shared-playlist-card h1 {
+  margin: 12px 0;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  letter-spacing: -2px;
+}
+
+.shared-playlist-description,
+.shared-playlist-meta {
+  color: #aebdb9;
+  line-height: 1.5;
+}
+
+.shared-playlist-meta {
+  font-size: 0.9rem;
+}
+
+.shared-playlist-track-preview {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 24px 0;
+}
+
+.shared-playlist-track-preview span {
+  padding: 7px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  color: #d8e6e2;
+  font-size: 0.8rem;
+}
+
+.shared-playlist-accept-button,
+.shared-playlist-card--error button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 24px;
+  background: #9fffe8;
+  color: #061512;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.shared-playlist-accept-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.shared-playlist-login-hint {
+  display: block;
+  margin-top: 14px;
+  color: #8c9b97;
+}
+
+.shared-playlist-status {
+  color: #aebdb9;
+}
+
+.shared-playlist-card--error svg {
+  color: #ff9a9a;
+  font-size: 3rem;
+}
+
+.shared-playlist-card--error button {
+  margin-top: 16px;
+}
+
+@media (max-width: 520px) {
+  .shared-playlist-card {
+    padding: 28px 20px;
+  }
+
+  .shared-playlist-art {
+    width: 125px;
+    height: 125px;
+    font-size: 4rem;
+  }
+}

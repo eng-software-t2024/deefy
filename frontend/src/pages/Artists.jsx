@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { FaChevronRight } from 'react-icons/fa'
 import { MdClose, MdSearch } from 'react-icons/md'
 import Sidebar from '../components/Sidebar.jsx'
+import BreadcrumbNav from '../components/BreadcrumbNav.jsx'
 import { musicService } from '../services/musicService.js'
 import { pickWeightedRecommendations } from '../utils/recommendationEngine.js'
 import { filterBySearch, getSearchableText, sanitizeSearchQuery, scoreSearchMatch } from '../utils/search.js'
@@ -106,6 +107,13 @@ function Artists() {
       <Sidebar />
 
       <main className="catalog-main">
+        <BreadcrumbNav
+          items={[
+            { label: 'Início', to: '/home' },
+            { label: 'Artistas' },
+          ]}
+        />
+
         <section className="catalog-header">
           <span>CATÁLOGO</span>
           <h1>Artistas</h1>
@@ -157,7 +165,7 @@ function Artists() {
                         className={`catalog-featured-card catalog-featured-card--artist ${
                           index === 0 ? 'is-main' : ''
                         }`}
-                        to={`/home?artist=${encodeURIComponent(artistName)}`}
+                        to={`/artists/${artist.id}`}
                         key={artist.id || artistName}
                         style={image ? { backgroundImage: `url(${image})` } : undefined}
                       >
@@ -195,7 +203,7 @@ function Artists() {
                     return (
                       <Link
                         className="catalog-artist-card"
-                        to={`/home?artist=${encodeURIComponent(artistName)}`}
+                        to={`/artists/${artist.id}`}
                         key={artist.id || artistName}
                       >
                         {image ? (

@@ -7,6 +7,7 @@ import SearchBar from "../components/SearchBar";
 import SongList from "../components/SongList";
 import SongListSkeleton from "../components/SongListSkeleton";
 import EmptyState from "../components/EmptyState";
+import InlineError from "../components/InlineError";
 import { useMusicSearch } from "../hooks/useMusicSearch";
 import { useDebounce } from "../hooks/useDebounce";
 import { musicService } from "../services/musicService";
@@ -288,6 +289,8 @@ function Home() {
   const [recommendedPlaylists, setRecommendedPlaylists] = useState([]);
   const [recommendedArtists, setRecommendedArtists] = useState([]);
   const [isLoadingHome, setIsLoadingHome] = useState(true);
+  const [homeError, setHomeError] = useState("");
+  const [homeReloadKey, setHomeReloadKey] = useState(0);
   const [activeSearchType, setActiveSearchType] = useState(() => (searchParams.has("genre") ? "genres" : "all"));
   const [hasSearchFocus, setHasSearchFocus] = useState(false);
 
@@ -298,6 +301,13 @@ function Home() {
   useEffect(() => {
     let isMounted = true;
 
+    Promise.resolve().then(() => {
+      if (isMounted) {
+        setIsLoadingHome(true);
+        setHomeError("");
+      }
+    });
+
     Promise.allSettled([
       musicService.getHomeMusics(32),
       musicService.getGlobalPlaylists(),
@@ -305,6 +315,17 @@ function Home() {
     ])
       .then(([musicResult, playlistResult, artistResult]) => {
         if (!isMounted) return;
+
+        const results = [musicResult, playlistResult, artistResult];
+        if (results.every((result) => result.status === "rejected")) {
+          setHomeMusics([]);
+          setRecommendedPlaylists([]);
+          setRecommendedArtists([]);
+          setHomeError("O palco ficou em silêncio: não foi possível carregar as recomendações. Tente novamente.");
+          return;
+        }
+
+        setHomeError("");
 
         if (musicResult.status === "fulfilled") {
           setHomeMusics(pickWeightedRecommendations(musicResult.value, 16));
@@ -325,7 +346,7 @@ function Home() {
       });
 
     return () => { isMounted = false; };
-  }, []);
+  }, [homeReloadKey]);
 
   const handleSearchChange = (nextValue) => {
     setRawQuery(nextValue);
@@ -342,6 +363,8 @@ function Home() {
     playlistResults,
     isEmpty,
     isLoading: isSearchingApi,
+    error: searchError,
+    retry: retrySearch,
   } = useMusicSearch(debouncedQuery, activeSearchType);
 
   // isSearching controls the UI transition. Using rawQuery makes the transition instant
@@ -377,12 +400,19 @@ function Home() {
           {/* ── Default state (no query) ── */}
           {!isSearching && (
             <>
-              {isLoadingHome ? (
+              {isLoadingHome && (
                 <>
                   <ShowcaseSkeleton />
                   <SongListSkeleton count={10} />
                 </>
-              ) : (
+              )}
+              {!isLoadingHome && homeError && (
+                <InlineError
+                  message={homeError}
+                  onRetry={() => setHomeReloadKey((current) => current + 1)}
+                />
+              )}
+              {!isLoadingHome && !homeError && (
                 <>
                   {(recommendedPlaylists.length > 0 || recommendedArtists.length > 0) && (
                     <HomeFeatureSection
@@ -404,7 +434,7 @@ function Home() {
                 <SongListSkeleton count={5} />
               ) : (
                 <>
-                  {!isEmpty && (
+                  {!isEmpty && !searchError && (
                     <>
                       {songResults.length > 0 && (
                         <SongList
@@ -423,7 +453,10 @@ function Home() {
           )}
 
           {/* ── Empty state ── */}
-          {isSearching && !isSearchingApi && isEmpty && <EmptyState query={rawQuery.trim()} />}
+          {isSearching && !isSearchingApi && searchError && (
+            <InlineError message={searchError} onRetry={retrySearch} />
+          )}
+          {isSearching && !isSearchingApi && !searchError && isEmpty && <EmptyState query={rawQuery.trim()} />}
         </main>
       </div>
     </div>

@@ -153,6 +153,29 @@ public interface MusicControllerDocs {
     ResponseEntity<Page<MusicListResponseDTO>> searchByArtist(String artist, Pageable pageable);
 
     @Operation(
+            summary = "Listar músicas de um artista",
+            description = "Retorna as músicas paginadas de um artista pelo ID. Usado na tela de perfil do artista."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Músicas do artista retornadas com sucesso",
+                    content = @Content(schema = @Schema(hidden = true))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado — token JWT ausente ou inválido",
+                    content = @Content(schema = @Schema(hidden = true))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Artista não encontrado para o ID informado",
+                    content = @Content(schema = @Schema(hidden = true))
+            )
+    })
+    ResponseEntity<Page<MusicListResponseDTO>> findByArtistId(Long artistId, Pageable pageable);
+
+    @Operation(
             summary = "Atualizar música",
             description = "Atualiza metadados e URLs de uma música existente. Exclusivo para administradores."
     )

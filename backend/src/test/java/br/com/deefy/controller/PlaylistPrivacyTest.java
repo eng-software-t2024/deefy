@@ -24,9 +24,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PlaylistPrivacyTest {
     private PlaylistRepository playlists;
     private MusicRepository musics;
+    private PlaylistShareRepository shares;
     private MockMvc mvc;
     private Playlist playlist;
     private User owner;
+    private User visitor;
 
     @BeforeEach
     void setup() {
@@ -34,7 +36,8 @@ class PlaylistPrivacyTest {
         musics = mock(MusicRepository.class);
         UserRepository users = mock(UserRepository.class);
         owner = new User(); owner.setId(1L); owner.setEmail("owner@test.com");
-        User visitor = new User(); visitor.setId(2L); visitor.setEmail("visitor@test.com");
+        visitor = new User(); visitor.setId(2L); visitor.setEmail("visitor@test.com");
+        shares = mock(PlaylistShareRepository.class);
         when(users.findById(1L)).thenReturn(Optional.of(owner));
         when(users.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner));
         when(users.findByEmail(visitor.getEmail())).thenReturn(Optional.of(visitor));
@@ -47,6 +50,7 @@ class PlaylistPrivacyTest {
         ReflectionTestUtils.setField(service, "playlistRepository", playlists);
         ReflectionTestUtils.setField(service, "userRepository", users);
         ReflectionTestUtils.setField(service, "musicRepository", musics);
+        ReflectionTestUtils.setField(service, "playlistShareRepository", shares);
         ReflectionTestUtils.setField(service, "globalPlaylistOwnerEmail", "system@test.com");
         PlaylistController controller = new PlaylistController();
         ReflectionTestUtils.setField(controller, "playlistService", service);
@@ -100,6 +104,38 @@ class PlaylistPrivacyTest {
         verify(playlists, never()).save(any());
         verify(playlists, never()).delete(any(Playlist.class));
         verifyNoInteractions(musics);
+    }
+
+    @Test
+    void viewCollaboratorCanReadButCannotMutatePrivatePlaylist() throws Exception {
+        playlist.setPublica(false);
+        when(shares.findByPlaylistIdAndUsuarioId(7L, 2L))
+                .thenReturn(Optional.of(new PlaylistShare(playlist, visitor, "VIEW", "DIRECT")));
+
+        mvc.perform(get("/api/v1/playlists/7")).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/playlists/7/tracks/11")).andExpect(status().isBadRequest());
+        mvc.perform(patch("/api/v1/playlists/7/tracks/order").contentType("application/json")
+                        .content("{\"musicIds\":[10]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void editorCollaboratorCanMutatePrivatePlaylistAndReorderTracks() throws Exception {
+        playlist.setPublica(false);
+        Music second = new Music(11L, "Second", "Pop", 90, null);
+        playlist.addTrack(second);
+        when(shares.findByPlaylistIdAndUsuarioId(7L, 2L))
+                .thenReturn(Optional.of(new PlaylistShare(playlist, visitor, "EDITOR", "DIRECT")));
+        when(musics.findById(11L)).thenReturn(Optional.of(second));
+
+        mvc.perform(get("/api/v1/playlists/7")).andExpect(status().isOk());
+        mvc.perform(patch("/api/v1/playlists/7/tracks/order").contentType("application/json")
+                        .content("{\"musicIds\":[11,10]}"))
+                .andExpect(status().isOk());
+        assertEquals(List.of(11L, 10L), playlist.getTrackIds());
+
+        mvc.perform(post("/api/v1/playlists/7/tracks/11")).andExpect(status().isBadRequest());
+        mvc.perform(delete("/api/v1/playlists/7/tracks/10")).andExpect(status().isNoContent());
     }
 
     @ParameterizedTest @ValueSource(booleans = {true, false})

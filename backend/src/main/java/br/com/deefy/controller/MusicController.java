@@ -99,6 +99,17 @@ public class MusicController implements MusicControllerDocs {
         return ResponseEntity.ok().body(musicPage);
     }
 
+    @GetMapping(value = "/artist/{artistId}")
+    @Operation(summary = "Listar musicas de um artista", description = "Retorna as musicas paginadas de um artista pelo ID. Usado na tela de perfil do artista.")
+    public ResponseEntity<Page<MusicListResponseDTO>> findByArtistId(
+            @PathVariable Long artistId,
+            @PageableDefault(size = 50, sort = "id")
+            Pageable pageable
+    ) {
+        Page<MusicListResponseDTO> musicPage = musicService.findByArtistId(artistId, pageable);
+        return ResponseEntity.ok().body(musicPage);
+    }
+
     @GetMapping(value = "/search/genre")
     @Operation(summary = "Buscar musicas por genero", description = "Pesquisa paginada pelo campo genero da musica.")
     public ResponseEntity<Page<MusicListResponseDTO>> searchByGenre(

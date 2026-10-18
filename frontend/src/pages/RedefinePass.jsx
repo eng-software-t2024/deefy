@@ -7,6 +7,7 @@ import "./ForgotPass.css";
 import "./Registration.css";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../services/api";
+import { getApiErrorMessage } from "../utils/apiError";
 import { showMusicError, showMusicSuccess } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
 
@@ -77,10 +78,7 @@ function RedefinePass() {
         setTimeout(() => navigate(-1), 3000); // Volta para a página de configurações
       }
     } catch (err) {
-      const message =
-        err.response?.data?.message ||
-        "Erro ao alterar a senha. Tente novamente.";
-      showMusicError(message);
+      showMusicError(getApiErrorMessage(err, "Não foi possível alterar a senha. Tente novamente."));
     } finally {
       setIsLoading(false);
     }

@@ -3,6 +3,8 @@ import './UserPlaylistDetail.css'
 import Sidebar from '../components/Sidebar.jsx'
 import SongList from '../components/SongList.jsx'
 import SongListSkeleton from '../components/SongListSkeleton.jsx'
+import PlaylistSharingModal from '../components/PlaylistSharingModal.jsx'
+import BreadcrumbNav from '../components/BreadcrumbNav.jsx'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -14,6 +16,7 @@ import {
   MdPlaylistAdd,
   MdLibraryMusic,
   MdShuffle,
+  MdShare,
 } from 'react-icons/md'
 import { musicService } from '../services/musicService.js'
 import { showMusicError, showMusicSuccess } from '../utils/musicToast'
@@ -43,6 +46,7 @@ function UserPlaylistDetailContent() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isShuffleActive, setIsShuffleActive] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isSharingOpen, setIsSharingOpen] = useState(false)
 
   const handleDelete = async () => {
     setIsMenuOpen(false)
@@ -197,6 +201,13 @@ function UserPlaylistDetailContent() {
         <Sidebar />
         <main className="user-playlist-main">
           <div className="user-playlist-close-row">
+            <BreadcrumbNav
+              items={[
+                { label: 'Início', to: '/home' },
+                { label: 'Playlists', to: '/playlists' },
+                { label: 'Carregando...' },
+              ]}
+            />
             <Link
               to="/playlists"
               className="user-playlist-close-btn"
@@ -234,6 +245,13 @@ function UserPlaylistDetailContent() {
         <Sidebar />
         <main className="user-playlist-main">
           <div className="user-playlist-close-row">
+            <BreadcrumbNav
+              items={[
+                { label: 'Início', to: '/home' },
+                { label: 'Playlists', to: '/playlists' },
+                { label: 'Playlist não encontrada' },
+              ]}
+            />
             <Link
               to="/playlists"
               className="user-playlist-close-btn"
@@ -255,6 +273,13 @@ function UserPlaylistDetailContent() {
 
       <main className="user-playlist-main">
         <div className="user-playlist-close-row">
+          <BreadcrumbNav
+            items={[
+              { label: 'Início', to: '/home' },
+              { label: 'Playlists', to: '/playlists' },
+              { label: playlist.name ? `Playlist: ${playlist.name}` : 'Playlist' },
+            ]}
+          />
           <Link
             to="/playlists"
             className="user-playlist-close-btn"
@@ -333,6 +358,19 @@ function UserPlaylistDetailContent() {
 
                     <button
                       type="button"
+                      className="user-playlist-menu-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setIsMenuOpen(false)
+                        setIsSharingOpen(true)
+                      }}
+                    >
+                      <MdShare />
+                      <span>Compartilhar playlist</span>
+                    </button>
+
+                    <button
+                      type="button"
                       className="user-playlist-menu-item user-playlist-menu-item-danger"
                       role="menuitem"
                       onClick={handleDelete}
@@ -371,6 +409,14 @@ function UserPlaylistDetailContent() {
           />
         )}
       </main>
+
+      {isSharingOpen && (
+        <PlaylistSharingModal
+          playlistId={playlist.id}
+          playlistName={playlist.name}
+          onClose={() => setIsSharingOpen(false)}
+        />
+      )}
     </div>
   )
 }
