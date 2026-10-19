@@ -288,6 +288,8 @@ function Home() {
   const [homeMusics, setHomeMusics] = useState([]);
   const [recommendedPlaylists, setRecommendedPlaylists] = useState([]);
   const [recommendedArtists, setRecommendedArtists] = useState([]);
+  const [recommendedSongs, setRecommendedSongs] = useState([]);
+  const [isLoadingRecommended, setIsLoadingRecommended] = useState(true);
   const [isLoadingHome, setIsLoadingHome] = useState(true);
   const [homeError, setHomeError] = useState("");
   const [homeReloadKey, setHomeReloadKey] = useState(0);
@@ -343,6 +345,29 @@ function Home() {
         if (isMounted) {
           setIsLoadingHome(false);
         }
+      });
+
+    return () => { isMounted = false; };
+  }, [homeReloadKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.resolve().then(() => {
+      if (isMounted) {
+        setIsLoadingRecommended(true);
+      }
+    });
+
+    musicService.getRecommendedMusic()
+      .then((songs) => {
+        if (isMounted) setRecommendedSongs(songs);
+      })
+      .catch(() => {
+        if (isMounted) setRecommendedSongs([]);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingRecommended(false);
       });
 
     return () => { isMounted = false; };
@@ -422,6 +447,11 @@ function Home() {
                   )}
 
                   <SongList songs={homeMusics} title="Músicas para você" />
+
+                  {isLoadingRecommended && <SongListSkeleton count={5} />}
+                  {!isLoadingRecommended && recommendedSongs.length > 0 && (
+                    <SongList songs={recommendedSongs} title="Recomendadas para você" />
+                  )}
                 </>
               )}
             </>

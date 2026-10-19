@@ -2,9 +2,11 @@ package br.com.deefy.service;
 
 import br.com.deefy.dto.request.ListeningHistoryRequest;
 import br.com.deefy.dto.request.ListeningHistoryResponse;
+import br.com.deefy.dto.response.MusicListResponseDTO;
 import br.com.deefy.exception.MusicNotFoundException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.mapper.ListeningHistoryMapper;
+import br.com.deefy.mapper.MusicMapper;
 import br.com.deefy.model.ListeningHistory;
 import br.com.deefy.model.Music;
 import br.com.deefy.model.User;
@@ -19,12 +21,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +53,9 @@ public class ListeningHistoryServiceTest {
 
     @Mock
     private ListeningHistoryMapper listeningHistoryMapper;
+
+    @Mock
+    private MusicMapper musicMapper;
 
     @InjectMocks
     private ListeningHistoryServiceImpl listeningHistoryService;
@@ -130,4 +141,46 @@ public class ListeningHistoryServiceTest {
         assertNotNull(captor.getValue().getDataHoraExecucao());
     }
 
+    @Test
+    void getRecommendations_noHistory_returnsEmptyList() {
+        User user = new User();
+        user.setId(1L);
+
+        when(authenticatedUserService.getAuthenticatedUser()).thenReturn(user);
+        when(listeningHistoryRepository.findTopGenresByUserId(eq(1L), any(Pageable.class))).thenReturn(List.of());
+
+        assertTrue(listeningHistoryService.getRecommendations().isEmpty());
+        verify(musicRepository, never()).findUnplayedByGenres(any(), any(), any());
+    }
+
+    @Test
+    void getRecommendations_unplayedFirstThenPlayed_limitedToSize() {
+        ReflectionTestUtils.setField(listeningHistoryService, "recommendationsSize", 3);
+        User user = new User();
+        user.setId(1L);
+        Music unplayed1 = new Music();
+        unplayed1.setId(10L);
+        Music unplayed2 = new Music();
+        unplayed2.setId(11L);
+        Music played = new Music();
+        played.setId(20L);
+        MusicListResponseDTO dto10 = new MusicListResponseDTO(10L, "u1", null, null, 0, null, null, null, null);
+        MusicListResponseDTO dto11 = new MusicListResponseDTO(11L, "u2", null, null, 0, null, null, null, null);
+        MusicListResponseDTO dto20 = new MusicListResponseDTO(20L, "p1", null, null, 0, null, null, null, null);
+
+        when(authenticatedUserService.getAuthenticatedUser()).thenReturn(user);
+        when(listeningHistoryRepository.findTopGenresByUserId(eq(1L), any(Pageable.class))).thenReturn(List.of("Pop"));
+        when(musicRepository.findUnplayedByGenres(eq(List.of("Pop")), eq(1L), any(Pageable.class)))
+                .thenReturn(List.of(unplayed1, unplayed2));
+        when(musicRepository.findPlayedByGenres(eq(List.of("Pop")), eq(1L), any(Pageable.class)))
+                .thenReturn(List.of(played));
+        when(musicMapper.toListDTO(unplayed1)).thenReturn(dto10);
+        when(musicMapper.toListDTO(unplayed2)).thenReturn(dto11);
+        when(musicMapper.toListDTO(played)).thenReturn(dto20);
+
+        List<MusicListResponseDTO> result = listeningHistoryService.getRecommendations();
+
+        assertEquals(List.of(dto10, dto11, dto20), result);
+        verify(musicRepository).findPlayedByGenres(eq(List.of("Pop")), eq(1L), eq(PageRequest.of(0, 1)));
+    }
 }
