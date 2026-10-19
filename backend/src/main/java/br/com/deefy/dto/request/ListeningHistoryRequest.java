@@ -1,9 +1,9 @@
 package br.com.deefy.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 public record ListeningHistoryRequest(
-        @NotBlank
+        @NotNull
         Long musicId
 ) {
 }

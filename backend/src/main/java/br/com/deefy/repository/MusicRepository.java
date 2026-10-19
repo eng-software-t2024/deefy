@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface MusicRepository extends JpaRepository<Music, Long> {
@@ -32,4 +34,14 @@ public interface MusicRepository extends JpaRepository<Music, Long> {
 
     @EntityGraph(attributePaths = "artist")
     Page<Music> findByGenreContainingIgnoreCase(String genre, Pageable pageable);
+
+    @EntityGraph(attributePaths = "artist")
+    @Query("SELECT m FROM Music m WHERE m.genre IN :genres AND m.id NOT IN " +
+           "(SELECT h.music.id FROM ListeningHistory h WHERE h.user.id = :userId) ORDER BY m.id")
+    List<Music> findUnplayedByGenres(@Param("genres") Collection<String> genres, @Param("userId") Long userId, Pageable pageable);
+
+    @EntityGraph(attributePaths = "artist")
+    @Query("SELECT m FROM Music m WHERE m.genre IN :genres AND m.id IN " +
+           "(SELECT h.music.id FROM ListeningHistory h WHERE h.user.id = :userId) ORDER BY m.id")
+    List<Music> findPlayedByGenres(@Param("genres") Collection<String> genres, @Param("userId") Long userId, Pageable pageable);
 }

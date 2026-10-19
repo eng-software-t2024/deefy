@@ -2,6 +2,7 @@
 // Exporting both PlayerProvider and usePlayer from the same file is intentional:
 // this is standard React context pattern. The Fast Refresh warning is suppressed here.
 import {createContext, useCallback, useEffect, useState, useContext} from 'react';
+import { musicService } from '../services/musicService';
 
 
 const PlayerContext = createContext();
@@ -74,6 +75,9 @@ export function PlayerProvider({children}) {
     const nextSourceQueue = newQueue ? normalizeQueue(newQueue) : sourceQueue;
     setCurrentTrack(track);
     setIsPlaying(true);
+    if (track) {
+      musicService.recordMusicPlay(getTrackId(track));
+    }
 
     if (newQueue) {
       setSourceQueue(nextSourceQueue);

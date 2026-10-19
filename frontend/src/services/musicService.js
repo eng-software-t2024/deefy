@@ -174,6 +174,24 @@ export const musicService = {
     }
   },
 
+  async getRecommendedMusic() {
+    try {
+      const response = await api.get('/history/recommendations');
+      return normalizeMusicList(getListFromResponse(response.data));
+    } catch (error) {
+      console.error('Failed to fetch recommended musics:', error);
+      throw error;
+    }
+  },
+
+  async recordMusicPlay(musicId) {
+    try {
+      await api.post('/history', { musicId: Number(musicId) });
+    } catch (error) {
+      console.error('Failed to record music play:', error);
+    }
+  },
+
   async getCatalogMusics(size = 400, { refresh = false } = {}) {
     if (!refresh && musicCatalogCache && musicCatalogSize >= size) {
       return musicCatalogCache;
