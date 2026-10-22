@@ -12,7 +12,9 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.entities.channel.middleman.MessageChannel;
 import net.dv8tion.jda.api.requests.restaction.MessageEditAction;
+import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -34,6 +36,7 @@ public class DiscordCommandListener extends ListenerAdapter {
     private static final String JOIN_COMMAND = "entrar";
     private static final String LEAVE_COMMAND = "sair";
     private static final String PLAY_COMMAND = "tocar";
+    private static final String PANEL_COMMAND = "painel";
     private static final String PAUSE_COMMAND = "pausar";
     private static final String RESUME_COMMAND = "retomar";
     private static final String STOP_COMMAND = "parar";
@@ -105,6 +108,11 @@ public class DiscordCommandListener extends ListenerAdapter {
 
         if (QUEUE_COMMAND.equals(event.getName())) {
             handleQueueCommand(event);
+            return;
+        }
+
+        if (PANEL_COMMAND.equals(event.getName())) {
+            bringPanelToBottom(event);
             return;
         }
 
@@ -339,6 +347,28 @@ public class DiscordCommandListener extends ListenerAdapter {
         );
     }
 
+    private void bringPanelToBottom(SlashCommandInteractionEvent event) {
+        PlaybackPanel panel = panelsByGuild.get(event.getGuild().getIdLong());
+        if (panel == null) {
+            event.reply("Ainda não existe um painel ativo nesta sessão. Use /tocar primeiro.")
+                    .setEphemeral(true)
+                    .setAllowedMentions(List.of())
+                    .queue();
+            return;
+        }
+
+        event.deferReply(true)
+                .setAllowedMentions(List.of())
+                .queue(hook -> panel.reanchor(event).whenComplete((reanchored, failure) -> hook
+                        .editOriginal(failure != null
+                                ? "Não consegui reposicionar o painel agora."
+                                : reanchored
+                                ? "✅ Painel reposicionado no fim deste canal."
+                                : "A reprodução já não está ativa nesta sessão.")
+                        .setAllowedMentions(List.of())
+                        .queue()));
+    }
+
     private String queueMessage(DiscordPlaybackSessionService.QueueCommandResult result) {
         if (result.status() != DiscordPlaybackSessionService.QueueCommandStatus.APPLIED) {
             return result.responseMessage();
@@ -472,6 +502,7 @@ public class DiscordCommandListener extends ListenerAdapter {
         if (JOIN_COMMAND.equals(event.getName())
                 || LEAVE_COMMAND.equals(event.getName())
                 || PLAY_COMMAND.equals(event.getName())
+                || PANEL_COMMAND.equals(event.getName())
                 || PAUSE_COMMAND.equals(event.getName())
                 || RESUME_COMMAND.equals(event.getName())
                 || STOP_COMMAND.equals(event.getName())
@@ -582,7 +613,7 @@ public class DiscordCommandListener extends ListenerAdapter {
     private final class PlaybackPanel {
 
         private final long guildId;
-        private final CompletableFuture<Message> panelMessage;
+        private volatile CompletableFuture<Message> panelMessage;
         private final DiscordPlaybackMessageCoordinator messages;
         private final Object gate = new Object();
         private final AtomicReference<DiscordPlaybackService.PlaybackPresentation> latestBeforeBinding =
@@ -608,6 +639,39 @@ public class DiscordCommandListener extends ListenerAdapter {
                                 .setAllowedMentions(List.of());
                         edit.queue(ignored -> success.run(), failure);
                     })
+            );
+        }
+
+        private CompletableFuture<Boolean> reanchor(SlashCommandInteractionEvent event) {
+            String sessionId = playbackService.currentSessionId(guildId);
+            if (sessionId == null) {
+                return CompletableFuture.completedFuture(false);
+            }
+
+            DiscordPlaybackService.PlaybackPresentation presentation = playbackService.currentPresentation(guildId);
+            MessageChannel channel = event.getChannel();
+            MessageCreateAction create = channel.sendMessageEmbeds(List.of(toEmbed(presentation)))
+                    .setComponents(componentsFor(presentation, sessionId))
+                    .setAllowedMentions(List.of());
+            return create.submit().thenCompose(newMessage ->
+                    playbackService.bindControlMessageAsync(guildId, sessionId, newMessage.getIdLong())
+                            .thenCompose(bound -> {
+                                if (!bound) {
+                                    newMessage.delete().queue();
+                                    return CompletableFuture.completedFuture(false);
+                                }
+                                CompletableFuture<Message> previous = panelMessage;
+                                panelMessage = CompletableFuture.completedFuture(newMessage);
+                                messageId = newMessage.getIdLong();
+                                boundSessionId = sessionId;
+                                messages.publish(presentation, sessionId);
+                                previous.whenComplete((oldMessage, ignored) -> {
+                                    if (oldMessage != null && oldMessage.getIdLong() != newMessage.getIdLong()) {
+                                        oldMessage.delete().queue();
+                                    }
+                                });
+                                return CompletableFuture.completedFuture(true);
+                            })
             );
         }
 

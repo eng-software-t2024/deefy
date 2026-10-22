@@ -62,6 +62,7 @@ public class DiscordCommandRegistrar extends ListenerAdapter {
                 Commands.slash("entrar", "Conecta o bot ao seu canal de voz"),
                 Commands.slash("sair", "Desconecta o bot do canal de voz"),
                 Commands.slash("tocar", "Toca uma faixa do catálogo Deefy").addOptions(music),
+                Commands.slash("painel", "Traz o painel de reprodução para o fim do canal"),
                 Commands.slash("pausar", "Pausa a faixa atual sem perder a posição"),
                 Commands.slash("retomar", "Retoma a faixa pausada"),
                 Commands.slash("parar", "Encerra a faixa atual e mantém o bot no canal por 10 minutos"),
