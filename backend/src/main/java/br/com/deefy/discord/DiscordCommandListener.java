@@ -4,6 +4,7 @@ import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import net.dv8tion.jda.api.components.buttons.Button;
 import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.events.interaction.command.CommandAutoCompleteInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -11,6 +12,7 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.Command;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
+import net.dv8tion.jda.api.requests.restaction.MessageEditAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -18,9 +20,10 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 
 @Component
 public class DiscordCommandListener extends ListenerAdapter {
@@ -43,6 +46,7 @@ public class DiscordCommandListener extends ListenerAdapter {
 
     private final DiscordBotProperties properties;
     private final DiscordPlaybackService playbackService;
+    private final ConcurrentMap<Long, PlaybackPanel> panelsByGuild = new ConcurrentHashMap<>();
 
     public DiscordCommandListener(
             DiscordBotProperties properties,
@@ -193,115 +197,63 @@ public class DiscordCommandListener extends ListenerAdapter {
     private void startPlayback(SlashCommandInteractionEvent event) {
         OptionMapping option = event.getOption(MUSIC_OPTION);
         String query = option == null ? "" : option.getAsString();
+        PlaybackPanel existingPanel = panelsByGuild.get(event.getGuild().getIdLong());
+        if (existingPanel != null) {
+            enqueueOnExistingPanel(event, existingPanel, query);
+            return;
+        }
         event.replyEmbeds(List.of(toEmbed(DiscordPlaybackService.initialPresentation())))
                 .setEphemeral(false)
                 .setAllowedMentions(List.of())
                 .queue(hook -> {
-                    DiscordPlaybackMessageCoordinator messages = new DiscordPlaybackMessageCoordinator(
-                            (presentation, sessionId, success, failure) -> hook
-                                    .editOriginalEmbeds(List.of(toEmbed(presentation)))
-                                    .setComponents(componentsFor(presentation, sessionId))
-                                    .setAllowedMentions(List.of())
-                                    .queue(ignored -> success.run(), failure)
-                    );
-                    AtomicReference<String> sessionId = new AtomicReference<>();
-                    AtomicReference<DiscordPlaybackService.PlaybackPresentation> latestProgressBeforeBinding =
-                            new AtomicReference<>();
-                    AtomicReference<String> latestProgressSession = new AtomicReference<>();
-                    AtomicBoolean controlsReady = new AtomicBoolean(false);
-                    AtomicBoolean resultReady = new AtomicBoolean(false);
-                    AtomicBoolean queuedResult = new AtomicBoolean(false);
-                    AtomicBoolean bindingStarted = new AtomicBoolean(false);
-                    Object publicationGate = new Object();
-
-                    BiConsumer<String, DiscordPlaybackService.PlaybackPresentation> bindAndPublish =
-                            (bindingSessionId, fallbackPresentation) -> bindControlMessage(event, hook, bindingSessionId)
-                                    .whenComplete((bound, bindFailure) -> {
-                                        synchronized (publicationGate) {
-                                            DiscordPlaybackService.PlaybackPresentation latest =
-                                                    latestProgressBeforeBinding.getAndSet(null);
-                                            DiscordPlaybackService.PlaybackPresentation current = latest != null
-                                                    ? latest
-                                                    : fallbackPresentation;
-                                            boolean controlsBound = bindFailure == null && Boolean.TRUE.equals(bound);
-                                            LOGGER.info(
-                                                    "Discord playback snapshot after binding: state={}, sessionRef={}, controlsBound={}, bindingResult={}",
-                                                    current.state(),
-                                                    DiscordDiagnosticSupport.pseudonymize(bindingSessionId),
-                                                    controlsBound,
-                                                    bindFailure == null ? "completed" : "failed"
-                                            );
-                                            messages.publish(current, controlsBound ? bindingSessionId : null);
-                                            controlsReady.set(controlsBound);
-                                        }
-                                    });
-
-                    playbackService.playAsync(
-                            event.getGuild(),
-                            event.getMember(),
-                            query,
-                            event.getId(),
-                            progress -> {
-                                synchronized (publicationGate) {
-                                    if (progress.sessionId() != null) {
-                                        sessionId.set(progress.sessionId());
-                                        latestProgressSession.set(progress.sessionId());
-                                    }
-                                    String activeSession = sessionId.get();
-                                    if (activeSession == null || !controlsReady.get()) {
-                                        latestProgressBeforeBinding.set(progress.presentation());
-                                        LOGGER.info(
-                                                "Discord playback snapshot buffered: state={}, sessionRef={}, controlsBound=false",
-                                                progress.presentation().state(),
-                                                DiscordDiagnosticSupport.pseudonymize(activeSession)
-                                        );
-                                    } else {
-                                        messages.publish(progress.presentation(), activeSession);
-                                    }
-                                    if (activeSession != null
-                                            && resultReady.get()
-                                            && queuedResult.get()
-                                            && bindingStarted.compareAndSet(false, true)) {
-                                        bindAndPublish.accept(activeSession, progress.presentation());
-                                    }
-                                }
-                            }
-                    ).whenComplete((result, failure) -> {
-                        if (failure != null) {
-                            messages.publish(unexpectedFailure(), null);
-                            return;
-                        }
-                        resultReady.set(true);
-                        sessionId.set(result.sessionId());
-                        if (result.sessionId() == null) {
-                            queuedResult.set(result.queued());
-                            messages.publish(result.presentation(), null);
-                            String activeQueuedSession = latestProgressSession.get();
-                            if (result.queued()
-                                    && activeQueuedSession != null
-                                    && bindingStarted.compareAndSet(false, true)) {
-                                bindAndPublish.accept(activeQueuedSession, result.presentation());
-                            }
-                            return;
-                        }
-                        bindingStarted.set(true);
-                        bindAndPublish.accept(result.sessionId(), result.presentation());
-                    });
+                    PlaybackPanel panel = new PlaybackPanel(event.getGuild().getIdLong(), hook);
+                    PlaybackPanel previous = panelsByGuild.putIfAbsent(event.getGuild().getIdLong(), panel);
+                    if (previous != null) {
+                        enqueueOnExistingPanel(event, previous, query);
+                        return;
+                    }
+                    panel.start(event, query);
                 });
     }
 
-    private CompletableFuture<Boolean> bindControlMessage(
+    private void enqueueOnExistingPanel(
             SlashCommandInteractionEvent event,
-            InteractionHook hook,
-            String sessionId
+            PlaybackPanel panel,
+            String query
     ) {
-        return hook.retrieveOriginal().submit()
-                .thenCompose(message -> playbackService.bindControlMessageAsync(
-                        event.getGuild().getIdLong(),
-                        sessionId,
-                        message.getIdLong()
-                ))
-                .exceptionally(ignored -> false);
+        event.deferReply(true).queue(hook -> playbackService.playAsync(
+                event.getGuild(),
+                event.getMember(),
+                query,
+                event.getId(),
+                panel::acceptProgress
+        ).whenComplete((result, failure) -> {
+            if (failure != null) {
+                hook.editOriginal("Não consegui adicionar essa faixa à fila.")
+                        .setAllowedMentions(List.of())
+                        .queue();
+                return;
+            }
+            if (result.queued()) {
+                panel.publishCurrent();
+                hook.editOriginal("✅ Faixa adicionada à fila. O painel de reprodução foi atualizado.")
+                        .setAllowedMentions(List.of())
+                        .queue();
+            } else if (result.sessionId() != null) {
+                panel.bindSession(result.sessionId(), result.presentation())
+                        .whenComplete((ignored, bindFailure) -> hook.editOriginal(
+                                        bindFailure == null && Boolean.TRUE.equals(ignored)
+                                                ? "✅ Nova reprodução iniciada no painel atual."
+                                                : result.presentation().description()
+                                )
+                                .setAllowedMentions(List.of())
+                                .queue());
+            } else {
+                hook.editOriginal(result.presentation().description())
+                        .setAllowedMentions(List.of())
+                        .queue();
+            }
+        }));
     }
 
     private void handleSlashControl(
@@ -376,7 +328,14 @@ public class DiscordCommandListener extends ListenerAdapter {
                                 ? queueMessage(result)
                                 : "Não consegui atualizar a fila agora.")
                         .setAllowedMentions(List.of())
-                        .queue())
+                        .queue(ignored -> {
+                            if (failure == null) {
+                                PlaybackPanel panel = panelsByGuild.get(event.getGuild().getIdLong());
+                                if (panel != null) {
+                                    panel.publishCurrent();
+                                }
+                            }
+                        }))
         );
     }
 
@@ -570,6 +529,17 @@ public class DiscordCommandListener extends ListenerAdapter {
         addField(embed, "Canal de voz", presentation.voiceChannel());
         if (presentation.pendingCount() > 0) {
             addField(embed, "Na fila", Integer.toString(presentation.pendingCount()));
+            String pending = presentation.pending().stream()
+                    .limit(5)
+                    .map(entry -> sanitize(entry.title(), 120)
+                            + " — " + sanitize(entry.artist(), 120)
+                            + " (" + sanitize(entry.requester(), 80) + ")")
+                    .reduce((left, right) -> left + "\n" + right)
+                    .orElse("—");
+            addField(embed, "Próximas faixas", pending);
+            if (presentation.pendingCount() > 5) {
+                addField(embed, "Mais na fila", Integer.toString(presentation.pendingCount() - 5));
+            }
         }
         return embed.build();
     }
@@ -606,6 +576,135 @@ public class DiscordCommandListener extends ListenerAdapter {
 
     private boolean isAllowedGuild(String guildId) {
         return properties.isGuildAllowed(guildId);
+    }
+
+    /** One authoritative, reusable playback message per guild. */
+    private final class PlaybackPanel {
+
+        private final long guildId;
+        private final CompletableFuture<Message> panelMessage;
+        private final DiscordPlaybackMessageCoordinator messages;
+        private final Object gate = new Object();
+        private final AtomicReference<DiscordPlaybackService.PlaybackPresentation> latestBeforeBinding =
+                new AtomicReference<>();
+        private final AtomicBoolean bindingInFlight = new AtomicBoolean();
+        private volatile String boundSessionId;
+        private volatile long messageId;
+
+        private PlaybackPanel(long guildId, InteractionHook hook) {
+            this.guildId = guildId;
+            this.panelMessage = hook.retrieveOriginal().submit();
+            this.messages = new DiscordPlaybackMessageCoordinator(
+                    (presentation, sessionId, success, failure) -> panelMessage.whenComplete((message, retrievalFailure) -> {
+                        if (retrievalFailure != null || message == null) {
+                            failure.accept(retrievalFailure == null
+                                    ? new IllegalStateException("Playback panel message unavailable")
+                                    : retrievalFailure);
+                            return;
+                        }
+                        MessageEditAction edit = message
+                                .editMessageEmbeds(List.of(toEmbed(presentation)))
+                                .setComponents(componentsFor(presentation, sessionId))
+                                .setAllowedMentions(List.of());
+                        edit.queue(ignored -> success.run(), failure);
+                    })
+            );
+        }
+
+        private void start(SlashCommandInteractionEvent event, String query) {
+            playbackService.playAsync(
+                    event.getGuild(),
+                    event.getMember(),
+                    query,
+                    event.getId(),
+                    this::acceptProgress
+            ).whenComplete((result, failure) -> {
+                if (failure != null) {
+                    messages.publish(unexpectedFailure(), null);
+                } else if (result.sessionId() != null) {
+                    bindSession(result.sessionId(), result.presentation());
+                } else if (result.queued()) {
+                    publishCurrent();
+                } else {
+                    messages.publish(result.presentation(), null);
+                }
+            });
+        }
+
+        private void acceptProgress(DiscordPlaybackService.PlaybackProgressUpdate progress) {
+            String sessionId = progress.sessionId();
+            if (sessionId == null) {
+                if (boundSessionId == null) {
+                    latestBeforeBinding.set(progress.presentation());
+                }
+                return;
+            }
+            if (boundSessionId != null && !playbackService.isCurrentSession(guildId, sessionId)) {
+                LOGGER.info(
+                        "Discord playback panel progress ignored: reason=stale_session sessionRef={}",
+                        DiscordDiagnosticSupport.pseudonymize(sessionId)
+                );
+                return;
+            }
+            boolean needsBinding;
+            synchronized (gate) {
+                latestBeforeBinding.set(progress.presentation());
+                needsBinding = !sessionId.equals(boundSessionId);
+                if (!needsBinding) {
+                    messages.publish(progress.presentation(), sessionId);
+                }
+            }
+            if (needsBinding) {
+                bindSession(sessionId, progress.presentation());
+            }
+        }
+
+        private CompletableFuture<Boolean> bindSession(
+                String sessionId,
+                DiscordPlaybackService.PlaybackPresentation fallback
+        ) {
+            synchronized (gate) {
+                if (sessionId.equals(boundSessionId)) {
+                    return CompletableFuture.completedFuture(true);
+                }
+            }
+            if (!bindingInFlight.compareAndSet(false, true)) {
+                return CompletableFuture.completedFuture(true);
+            }
+            CompletableFuture<Long> resolvedMessage = messageId == 0
+                    ? panelMessage.thenApply(message -> {
+                        messageId = message.getIdLong();
+                        return messageId;
+                    })
+                    : CompletableFuture.completedFuture(messageId);
+            return resolvedMessage
+                    .thenCompose(id -> playbackService.bindControlMessageAsync(guildId, sessionId, id))
+                    .handle((bound, failure) -> {
+                        synchronized (gate) {
+                            DiscordPlaybackService.PlaybackPresentation current =
+                                    latestBeforeBinding.getAndSet(null);
+                            boolean accepted = failure == null && Boolean.TRUE.equals(bound);
+                            if (accepted) {
+                                boundSessionId = sessionId;
+                                messages.publish(current == null ? fallback : current, sessionId);
+                            }
+                            LOGGER.info(
+                                    "Discord playback panel binding: sessionRef={}, result={}",
+                                    DiscordDiagnosticSupport.pseudonymize(sessionId),
+                                    accepted ? "accepted" : "rejected"
+                            );
+                            return accepted;
+                        }
+                    })
+                    .whenComplete((ignored, ignoredFailure) -> bindingInFlight.set(false));
+        }
+
+        private void publishCurrent() {
+            String currentSession = playbackService.currentSessionId(guildId);
+            if (currentSession != null) {
+                messages.publish(playbackService.currentPresentation(guildId), currentSession);
+            }
+        }
     }
 
     private record ParsedControl(

@@ -496,6 +496,11 @@ public class DiscordPlaybackSessionService {
                 : session.getState();
     }
 
+    Optional<String> currentSessionId(long guildId) {
+        DiscordGuildPlaybackSession session = sessionsByGuild.get(guildId);
+        return session == null ? Optional.empty() : Optional.of(session.getSessionId());
+    }
+
     @PreDestroy
     public void closeAll() {
         Set<Long> guildIds = new LinkedHashSet<>(sessionsByGuild.keySet());

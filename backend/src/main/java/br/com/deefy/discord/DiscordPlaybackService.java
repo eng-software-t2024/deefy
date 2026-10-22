@@ -95,6 +95,62 @@ public class DiscordPlaybackService {
                 .exceptionally(ignored -> false);
     }
 
+    /** Returns the authoritative panel snapshot for the guild's active queue. */
+    public PlaybackPresentation currentPresentation(long guildId) {
+        DiscordPlaybackSessionService.QueueSnapshot queue = sessionService.queueSnapshot(guildId);
+        DiscordPlaybackSessionService.QueueEntryView current = queue.current();
+        if (current == null) {
+            return initialPresentation();
+        }
+        DiscordGuildPlaybackSession.PlaybackState sessionState = sessionService.stateFor(guildId);
+        PlaybackMessageState state = switch (sessionState) {
+            case PLAYING -> PlaybackMessageState.PLAYING;
+            case PAUSED -> PlaybackMessageState.PAUSED;
+            case STARTING -> PlaybackMessageState.PREPARING;
+            case STOPPING, IDLE -> PlaybackMessageState.STOPPED;
+        };
+        String heading = switch (state) {
+            case PLAYING -> "Tocando agora";
+            case PAUSED -> "Reprodução pausada";
+            case PREPARING -> "Preparando reprodução";
+            case STOPPED -> "Reprodução encerrada";
+            case COMPLETED -> "Reprodução concluída";
+            case FAILED -> "Falha na reprodução";
+        };
+        String description = switch (state) {
+            case PLAYING -> "A reprodução está em andamento.";
+            case PAUSED -> "A posição foi preservada. Use Retomar para continuar.";
+            case PREPARING -> "A faixa está sendo preparada para tocar.";
+            default -> "Permanecerei no canal aguardando outra faixa.";
+        };
+        return new PlaybackPresentation(
+                state,
+                heading,
+                description,
+                current.track().title(),
+                current.track().artist(),
+                current.requester(),
+                current.voiceChannel(),
+                queue.pending().size(),
+                queue.historySize(),
+                queue.pending().stream()
+                        .map(entry -> new QueueItemPresentation(
+                                entry.track().title(),
+                                entry.track().artist(),
+                                entry.requester()
+                        ))
+                        .toList()
+        );
+    }
+
+    public String currentSessionId(long guildId) {
+        return sessionService.currentSessionId(guildId).orElse(null);
+    }
+
+    public boolean isCurrentSession(long guildId, String sessionId) {
+        return sessionId != null && sessionId.equals(currentSessionId(guildId));
+    }
+
     public CompletableFuture<DiscordVoiceConnectionService.VoiceCommandResult> joinAsync(
             Guild guild,
             Member requester,
@@ -313,7 +369,14 @@ public class DiscordPlaybackService {
                 context.requesterName(),
                 context.voiceChannelName(),
                 queue.pending().size(),
-                queue.historySize()
+                queue.historySize(),
+                queue.pending().stream()
+                        .map(entry -> new QueueItemPresentation(
+                                entry.track().title(),
+                                entry.track().artist(),
+                                entry.requester()
+                        ))
+                        .toList()
         );
     }
 
@@ -384,8 +447,24 @@ public class DiscordPlaybackService {
             String requester,
             String voiceChannel,
             int pendingCount,
-            int historySize
+            int historySize,
+            List<QueueItemPresentation> pending
     ) {
+
+        public PlaybackPresentation(
+                PlaybackMessageState state,
+                String heading,
+                String description,
+                String trackTitle,
+                String artist,
+                String requester,
+                String voiceChannel,
+                int pendingCount,
+                int historySize
+        ) {
+            this(state, heading, description, trackTitle, artist, requester, voiceChannel,
+                    pendingCount, historySize, List.of());
+        }
 
         public PlaybackPresentation(
                 PlaybackMessageState state,
@@ -396,8 +475,11 @@ public class DiscordPlaybackService {
                 String requester,
                 String voiceChannel
         ) {
-            this(state, heading, description, trackTitle, artist, requester, voiceChannel, 0, 0);
+            this(state, heading, description, trackTitle, artist, requester, voiceChannel, 0, 0, List.of());
         }
+    }
+
+    public record QueueItemPresentation(String title, String artist, String requester) {
     }
 
     public enum PlaybackMessageState {

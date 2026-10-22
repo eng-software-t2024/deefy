@@ -13,6 +13,7 @@ import net.dv8tion.jda.api.interactions.AutoCompleteQuery;
 import net.dv8tion.jda.api.interactions.InteractionHook;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import net.dv8tion.jda.api.requests.RestAction;
+import net.dv8tion.jda.api.requests.restaction.MessageEditAction;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageCreateAction;
 import net.dv8tion.jda.api.requests.restaction.WebhookMessageEditAction;
 import net.dv8tion.jda.api.requests.restaction.interactions.AutoCompleteCallbackAction;
@@ -167,7 +168,7 @@ class DiscordCommandListenerTest {
         OptionMapping option = mock(OptionMapping.class);
         ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
         InteractionHook hook = mock(InteractionHook.class);
-        WebhookMessageEditAction<Message> edit = mock(WebhookMessageEditAction.class);
+        MessageEditAction edit = mock(MessageEditAction.class);
         RestAction<Message> retrieve = mock(RestAction.class);
         Message message = mock(Message.class);
         ArgumentCaptor<List<MessageEmbed>> embeds = ArgumentCaptor.forClass(List.class);
@@ -185,7 +186,7 @@ class DiscordCommandListenerTest {
         when(reply.setEphemeral(false)).thenReturn(reply);
         when(reply.setAllowedMentions(anyList())).thenReturn(reply);
         completeReply(reply, hook);
-        when(hook.editOriginalEmbeds(embeds.capture())).thenReturn(edit);
+        when(message.editMessageEmbeds(embeds.capture())).thenReturn(edit);
         when(edit.setComponents(components.capture())).thenReturn(edit);
         when(edit.setAllowedMentions(anyList())).thenReturn(edit);
         completeEdit(edit);
@@ -213,6 +214,9 @@ class DiscordCommandListenerTest {
                 .contains("XTRANHO", "Matuê", "Pessoa de teste", "Música");
         assertThat(published.toData().toString())
                 .doesNotContain("PCM", "frame", "DAVE", "codec", "audição no cliente");
+        assertThat(embeds.getAllValues())
+                .extracting(value -> value.getFirst().getTitle())
+                .containsExactly("Tocando agora");
         List<ActionRow> rows = (List<ActionRow>) (List) components.getValue();
         assertThat(rows).singleElement().satisfies(row -> assertThat(row.getButtons())
                 .extracting(button -> button.getLabel())
@@ -231,7 +235,7 @@ class DiscordCommandListenerTest {
         OptionMapping option = mock(OptionMapping.class);
         ReplyCallbackAction reply = mock(ReplyCallbackAction.class);
         InteractionHook hook = mock(InteractionHook.class);
-        WebhookMessageEditAction<Message> edit = mock(WebhookMessageEditAction.class);
+        MessageEditAction edit = mock(MessageEditAction.class);
         RestAction<Message> retrieve = mock(RestAction.class);
         Message message = mock(Message.class);
         CompletableFuture<Boolean> binding = new CompletableFuture<>();
@@ -264,23 +268,142 @@ class DiscordCommandListenerTest {
                             "session-1"
                     ));
                 });
-        when(hook.editOriginalEmbeds(embeds.capture())).thenReturn(edit);
+        when(message.editMessageEmbeds(embeds.capture())).thenReturn(edit);
         when(edit.setComponents(components.capture())).thenReturn(edit);
         when(edit.setAllowedMentions(anyList())).thenReturn(edit);
         completeEdit(edit);
 
         listener(properties, playbackService).onSlashCommandInteraction(event);
 
-        verify(hook, never()).editOriginalEmbeds(anyList());
+        verify(message, never()).editMessageEmbeds(anyList());
 
         binding.complete(true);
 
-        verify(hook).editOriginalEmbeds(anyList());
+        verify(message).editMessageEmbeds(anyList());
         assertThat(embeds.getValue().getFirst().getTitle()).isEqualTo("Tocando agora");
         List<ActionRow> rows = (List<ActionRow>) (List) components.getValue();
         assertThat(rows).singleElement().satisfies(row -> assertThat(row.getButtons())
                 .extracting(button -> button.getLabel())
                 .containsExactly("⏸️ Pausar", "⏹️ Parar", "⏭️ Pular", "⏮️ Voltar", "🔄 Reiniciar"));
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    void shouldReuseTheGuildPanelWhenASecondTrackIsQueued() {
+        DiscordBotProperties properties = configuredProperties();
+        DiscordPlaybackService playbackService = mock(DiscordPlaybackService.class);
+        DiscordCommandListener listener = listener(properties, playbackService);
+        Guild guild = mock(Guild.class);
+        Member member = mock(Member.class);
+        when(guild.getId()).thenReturn(properties.getTestGuildId());
+        when(guild.getIdLong()).thenReturn(123L);
+
+        SlashCommandInteractionEvent firstEvent = mock(SlashCommandInteractionEvent.class);
+        OptionMapping firstOption = mock(OptionMapping.class);
+        ReplyCallbackAction firstReply = mock(ReplyCallbackAction.class);
+        InteractionHook panelHook = mock(InteractionHook.class);
+        MessageEditAction panelEdit = mock(MessageEditAction.class);
+        RestAction<Message> retrieve = mock(RestAction.class);
+        Message panelMessage = mock(Message.class);
+        ArgumentCaptor<List<MessageEmbed>> panelEmbeds = ArgumentCaptor.forClass(List.class);
+        when(firstEvent.isFromGuild()).thenReturn(true);
+        when(firstEvent.getGuild()).thenReturn(guild);
+        when(firstEvent.getMember()).thenReturn(member);
+        when(firstEvent.getId()).thenReturn("play-1");
+        when(firstEvent.getName()).thenReturn("tocar");
+        when(firstEvent.getOption("musica")).thenReturn(firstOption);
+        when(firstOption.getAsString()).thenReturn("Faixa principal");
+        when(firstEvent.replyEmbeds(anyList())).thenReturn(firstReply);
+        when(firstReply.setEphemeral(false)).thenReturn(firstReply);
+        when(firstReply.setAllowedMentions(anyList())).thenReturn(firstReply);
+        completeReply(firstReply, panelHook);
+        when(panelHook.retrieveOriginal()).thenReturn(retrieve);
+        when(retrieve.submit()).thenReturn(CompletableFuture.completedFuture(panelMessage));
+        when(panelMessage.getIdLong()).thenReturn(99L);
+        when(panelMessage.editMessageEmbeds(panelEmbeds.capture())).thenReturn(panelEdit);
+        when(panelEdit.setComponents(anyList())).thenReturn(panelEdit);
+        when(panelEdit.setAllowedMentions(anyList())).thenReturn(panelEdit);
+        completeEdit(panelEdit);
+        when(playbackService.bindControlMessageAsync(123L, "session-1", 99L))
+                .thenReturn(CompletableFuture.completedFuture(true));
+        when(playbackService.playAsync(eq(guild), eq(member), eq("Faixa principal"), eq("play-1"), any()))
+                .thenAnswer(invocation -> {
+                    Consumer<DiscordPlaybackService.PlaybackProgressUpdate> observer = invocation.getArgument(4);
+                    observer.accept(new DiscordPlaybackService.PlaybackProgressUpdate(
+                            presentation(DiscordPlaybackService.PlaybackMessageState.PLAYING, "Tocando agora"),
+                            "session-1"
+                    ));
+                    return CompletableFuture.completedFuture(new DiscordPlaybackService.PlaybackCommandResult(
+                            presentation(DiscordPlaybackService.PlaybackMessageState.PREPARING, "Preparando reprodução"),
+                            true,
+                            "session-1"
+                    ));
+                });
+
+        listener.onSlashCommandInteraction(firstEvent);
+
+        SlashCommandInteractionEvent secondEvent = mock(SlashCommandInteractionEvent.class);
+        OptionMapping secondOption = mock(OptionMapping.class);
+        ReplyCallbackAction secondDefer = mock(ReplyCallbackAction.class);
+        InteractionHook secondHook = mock(InteractionHook.class);
+        WebhookMessageEditAction<Message> secondEdit = mock(WebhookMessageEditAction.class);
+        when(secondEvent.isFromGuild()).thenReturn(true);
+        when(secondEvent.getGuild()).thenReturn(guild);
+        when(secondEvent.getMember()).thenReturn(member);
+        when(secondEvent.getId()).thenReturn("play-2");
+        when(secondEvent.getName()).thenReturn("tocar");
+        when(secondEvent.getOption("musica")).thenReturn(secondOption);
+        when(secondOption.getAsString()).thenReturn("Faixa seguinte");
+        when(secondEvent.deferReply(true)).thenReturn(secondDefer);
+        completeReply(secondDefer, secondHook);
+        when(secondHook.editOriginal(anyString())).thenReturn(secondEdit);
+        when(secondEdit.setAllowedMentions(anyList())).thenReturn(secondEdit);
+        when(playbackService.currentSessionId(123L)).thenReturn("session-1");
+        when(playbackService.currentPresentation(123L)).thenReturn(
+                new DiscordPlaybackService.PlaybackPresentation(
+                        DiscordPlaybackService.PlaybackMessageState.PLAYING,
+                        "Tocando agora",
+                        "A reprodução está em andamento.",
+                        "Faixa principal",
+                        "Artista",
+                        "Pessoa de teste",
+                        "Música",
+                        1,
+                        0,
+                        List.of(new DiscordPlaybackService.QueueItemPresentation(
+                                "Faixa seguinte", "Outro artista", "Pessoa de teste"))
+                )
+        );
+        when(playbackService.playAsync(eq(guild), eq(member), eq("Faixa seguinte"), eq("play-2"), any()))
+                .thenReturn(CompletableFuture.completedFuture(new DiscordPlaybackService.PlaybackCommandResult(
+                        new DiscordPlaybackService.PlaybackPresentation(
+                                DiscordPlaybackService.PlaybackMessageState.PREPARING,
+                                "Faixa adicionada à fila",
+                                "Posição 1 na fila pendente.",
+                                "Faixa seguinte",
+                                "Outro artista",
+                                "Pessoa de teste",
+                                "Música",
+                                1,
+                                0,
+                                List.of()
+                        ),
+                        false,
+                        null,
+                        true,
+                        1,
+                        1
+                )));
+
+        listener.onSlashCommandInteraction(secondEvent);
+
+        verify(firstEvent).replyEmbeds(anyList());
+        verify(secondEvent, never()).replyEmbeds(anyList());
+        verify(secondEvent).deferReply(true);
+        verify(secondHook).editOriginal("✅ Faixa adicionada à fila. O painel de reprodução foi atualizado.");
+        assertThat(panelEmbeds.getAllValues().getLast().getFirst().getFields())
+                .extracting(MessageEmbed.Field::getName)
+                .contains("Próximas faixas");
     }
 
     @Test
@@ -472,7 +595,7 @@ class DiscordCommandListenerTest {
     }
 
     @SuppressWarnings("unchecked")
-    private void completeEdit(WebhookMessageEditAction<Message> action) {
+    private void completeEdit(RestAction<Message> action) {
         doAnswer(invocation -> {
             invocation.<Consumer<Message>>getArgument(0).accept(mock(Message.class));
             return null;
