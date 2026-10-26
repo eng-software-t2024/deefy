@@ -35,7 +35,6 @@ import SharedPlaylist from './pages/SharedPlaylist.jsx'
 import SystemPlaylists from './pages/SystemPlaylists.jsx'
 import Artists from './pages/Artists.jsx'
 import ArtistProfile from './pages/ArtistProfile.jsx'
-import VersionFooter from './pages/VersionFooter.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -98,7 +97,6 @@ createRoot(document.getElementById('root')).render(
         </Routes>
 
         <PlayerController />
-        <VersionFooter />
       </PlayerProvider>
     </BrowserRouter>
   </StrictMode>
