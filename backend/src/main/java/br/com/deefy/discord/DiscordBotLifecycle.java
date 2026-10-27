@@ -24,6 +24,7 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
     private final DiscordCommandListener commandListener;
     private final DiscordCommandRegistrar commandRegistrar;
     private final DiscordPlaybackSessionService playbackSessionService;
+    private final DiscordPresenceService presenceService;
     private final DiscordOpusNativeProvider opusNativeProvider;
     private final DiscordDaveSessionFactoryProvider daveSessionFactoryProvider;
     private final DiscordAudioDownloadManager audioDownloadManager;
@@ -37,6 +38,7 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
             DiscordCommandListener commandListener,
             DiscordCommandRegistrar commandRegistrar,
             DiscordPlaybackSessionService playbackSessionService,
+            DiscordPresenceService presenceService,
             DiscordOpusNativeProvider opusNativeProvider,
             DiscordDaveSessionFactoryProvider daveSessionFactoryProvider,
             DiscordAudioDownloadManager audioDownloadManager
@@ -45,6 +47,7 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
         this.commandListener = commandListener;
         this.commandRegistrar = commandRegistrar;
         this.playbackSessionService = playbackSessionService;
+        this.presenceService = presenceService;
         this.opusNativeProvider = opusNativeProvider;
         this.daveSessionFactoryProvider = daveSessionFactoryProvider;
         this.audioDownloadManager = audioDownloadManager;
@@ -63,6 +66,7 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
                 commandListener,
                 commandRegistrar,
                 playbackSessionService,
+                null,
                 opusNativeProvider,
                 daveSessionFactoryProvider,
                 null
@@ -124,6 +128,9 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
     @Override
     public void onReady(ReadyEvent event) {
         running = true;
+        if (presenceService != null) {
+            presenceService.configure(event.getJDA());
+        }
     }
 
     @Override
@@ -142,6 +149,9 @@ public class DiscordBotLifecycle extends ListenerAdapter implements SmartLifecyc
 
     private void shutdownJda() {
         playbackSessionService.closeAll();
+        if (presenceService != null) {
+            presenceService.clearAll();
+        }
 
         JDA currentJda = jda;
         jda = null;

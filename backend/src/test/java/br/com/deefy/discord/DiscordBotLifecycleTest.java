@@ -1,10 +1,14 @@
 package br.com.deefy.discord;
 
+import net.dv8tion.jda.api.JDA;
+import net.dv8tion.jda.api.events.session.ReadyEvent;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DiscordBotLifecycleTest {
@@ -103,5 +107,34 @@ class DiscordBotLifecycleTest {
         InOrder order = inOrder(opusProvider, daveProvider);
         order.verify(opusProvider).loadRequired();
         order.verify(daveProvider).createRequired();
+    }
+
+    @Test
+    void shouldConfigureAndClearPresenceWithTheJdaLifecycle() {
+        DiscordBotProperties properties = new DiscordBotProperties();
+        DiscordPresenceService presence = mock(DiscordPresenceService.class);
+        ReadyEvent readyEvent = mock(ReadyEvent.class);
+        JDA jda = mock(JDA.class);
+        when(readyEvent.getJDA()).thenReturn(jda);
+        DiscordBotLifecycle lifecycle = new DiscordBotLifecycle(
+                properties,
+                new DiscordCommandListener(
+                        properties,
+                        mock(DiscordVoiceConnectionService.class),
+                        mock(DiscordPlaybackService.class)
+                ),
+                new DiscordCommandRegistrar(properties),
+                mock(DiscordPlaybackSessionService.class),
+                presence,
+                mock(DiscordOpusNativeProvider.class),
+                mock(DiscordDaveSessionFactoryProvider.class),
+                null
+        );
+
+        lifecycle.onReady(readyEvent);
+        lifecycle.stop();
+
+        verify(presence).configure(jda);
+        verify(presence).clearAll();
     }
 }

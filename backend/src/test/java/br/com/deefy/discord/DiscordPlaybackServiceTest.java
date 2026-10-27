@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -66,6 +67,7 @@ class DiscordPlaybackServiceTest {
     void shouldExposeReadablePlaybackProgressWithoutTechnicalDetails() {
         DiscordTrackCatalog catalog = mock(DiscordTrackCatalog.class);
         DiscordPlaybackSessionService sessions = mock(DiscordPlaybackSessionService.class);
+        DiscordPresenceService presence = mock(DiscordPresenceService.class);
         Guild guild = mock(Guild.class);
         Member member = mock(Member.class);
         GuildVoiceState voiceState = mock(GuildVoiceState.class);
@@ -86,12 +88,13 @@ class DiscordPlaybackServiceTest {
                         )
                 ));
         when(member.getEffectiveName()).thenReturn("Pessoa de teste");
+        when(guild.getIdLong()).thenReturn(99L);
         when(member.getVoiceState()).thenReturn(voiceState);
         when(voiceState.getChannel()).thenReturn(voiceChannel);
         when(voiceChannel.getName()).thenReturn("Música");
         List<DiscordPlaybackService.PlaybackPresentation> updates = new ArrayList<>();
 
-        DiscordPlaybackService.PlaybackCommandResult result = new DiscordPlaybackService(catalog, sessions)
+        DiscordPlaybackService.PlaybackCommandResult result = new DiscordPlaybackService(catalog, sessions, presence)
                 .play(guild, member, "XTRANHO - Matuê", update -> updates.add(update.presentation()));
         observer.getValue().accept("session-1", DiscordPlaybackSessionService.PlaybackProgress.AUDIO_FRAMES_AVAILABLE);
         observer.getValue().accept("session-1", DiscordPlaybackSessionService.PlaybackProgress.START_TIMEOUT);
@@ -107,5 +110,15 @@ class DiscordPlaybackServiceTest {
                 .extracting(DiscordPlaybackService.PlaybackPresentation::description)
                 .allSatisfy(message -> assertThat(message)
                         .doesNotContain("PCM", "frame", "DAVE", "codec", "audição no cliente"));
+        verify(presence).onPlaybackProgress(
+                99L,
+                track,
+                DiscordPlaybackSessionService.PlaybackProgress.AUDIO_FRAMES_AVAILABLE
+        );
+        verify(presence).onPlaybackProgress(
+                99L,
+                track,
+                DiscordPlaybackSessionService.PlaybackProgress.START_TIMEOUT
+        );
     }
 }

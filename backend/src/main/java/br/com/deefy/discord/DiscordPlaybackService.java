@@ -4,6 +4,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.GuildVoiceState;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,13 +18,24 @@ public class DiscordPlaybackService {
 
     private final DiscordTrackCatalog trackCatalog;
     private final DiscordPlaybackSessionService sessionService;
+    private final DiscordPresenceService presenceService;
+
+    @Autowired
+    public DiscordPlaybackService(
+            DiscordTrackCatalog trackCatalog,
+            DiscordPlaybackSessionService sessionService,
+            DiscordPresenceService presenceService
+    ) {
+        this.trackCatalog = trackCatalog;
+        this.sessionService = sessionService;
+        this.presenceService = presenceService;
+    }
 
     public DiscordPlaybackService(
             DiscordTrackCatalog trackCatalog,
             DiscordPlaybackSessionService sessionService
     ) {
-        this.trackCatalog = trackCatalog;
-        this.sessionService = sessionService;
+        this(trackCatalog, sessionService, null);
     }
 
     public CompletableFuture<PlaybackCommandResult> playAsync(
@@ -199,12 +211,18 @@ public class DiscordPlaybackService {
         }
 
         PlaybackContext context = playbackContext(lookup.track(), requester);
+        long guildId = guild == null ? 0L : guild.getIdLong();
         return sessionService.startAsyncWithSession(
                 guild,
                 requester,
                 lookup.track(),
                 interactionId,
-                (sessionId, progress) -> progressObserver.accept(progressUpdate(progress, context, sessionId))
+                (sessionId, progress) -> {
+                    if (presenceService != null && guildId != 0L) {
+                        presenceService.onPlaybackProgress(guildId, lookup.track(), progress);
+                    }
+                    progressObserver.accept(progressUpdate(progress, context, sessionId));
+                }
         ).thenApply(start -> switch (start.result()) {
             case STARTED -> pendingResult(presentation(
                     PlaybackMessageState.PREPARING,
