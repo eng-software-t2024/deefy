@@ -11,7 +11,7 @@ Discord por comandos de interação. O código atual conecta um cliente JDA ao
 processo Spring e oferece `/deefy ping`, `/entrar`, `/sair` e
 `/tocar musica:<titulo-ou-titulo-artista>`, além de `/pausar`, `/retomar`,
 `/parar`, `/pular`, `/voltar`, `/reiniciar` e `/fila` com suas operações de
-consulta e organização. No modo normal, os onze comandos
+consulta e organização. No modo normal, os doze comandos de topo
 são registrados globalmente e podem ser usados em qualquer guild na qual o bot
 tenha sido convidado com as permissões necessárias. Um modo de teste explícito
 e desativado por padrão pode restringir registro e execução a uma única guild.
@@ -30,7 +30,7 @@ Esta arquitetura cobre:
 - segurança, configuração, observabilidade e estratégia de testes.
 
 Ficam fora do escopo desta tarefa Stage Channels, playlists Discord, repetição,
-volume, presença e a ampliação da política de permissões,
+volume, presença pessoal do usuário e a ampliação da política de permissões,
 bem como alterações de banco, Supabase ou cliente web.
 
 As responsabilidades das partes são distintas:
@@ -379,9 +379,10 @@ determinísticas por guild. A evolução mantém a seguinte pirâmide:
 Os controles usam scheduler capturável, barreiras e latches em vez de espera
 real. Os casos cobrem ações simultâneas, interação repetida, timer/callback
 antigo, mensagem fora de ordem, canal divergente, isolamento entre guilds,
-cleanup único e preservação dos frames durante pausa. Ausência de próximo item
-só poderá ser testada como contrato quando a #79 definir sua porta. Testes e
-logs também devem verificar que tokens não aparecem em mensagens de erro.
+cleanup único e preservação dos frames durante pausa. A fila fornece a porta
+necessária para testar avanço, retorno, reinício, limites e falhas sem criar
+uma segunda estrutura paralela. Testes e logs também devem verificar que
+tokens não aparecem em mensagens de erro.
 
 Nenhum teste unitário deve conectar ao Discord real.
 
@@ -390,15 +391,15 @@ Nenhum teste unitário deve conectar ao Discord real.
 | Tarefa Taiga | Estado atual | Dependências | Entrega esperada | Limite de escopo |
 |---|---|---|---|---|
 | #56 | Entregue por este documento | Código atual das tarefas iniciais | Arquitetura, contratos e limites registrados | Sem implementação funcional |
-| #74 | Parcialmente entregue | Configuração Spring e ambiente | Configuração operacional completa, segura e documentada | Sem comandos, voz ou reprodução |
-| #75 | Parcialmente entregue | #74 e JDA | Ciclo de conexão e comando básico testável | Sem player ou fila |
+| #74 | Implementada na linha funcional | Configuração Spring e ambiente | Configuração operacional segura e separada do serviço web | Sem comandos, voz ou reprodução |
+| #75 | Implementada na linha funcional | #74 e JDA | Ciclo de conexão e comando básico testável | Sem player ou fila |
 | #76 | Implementada | #74, #75 e intents padrão do JDA | Entrada e saída de canal de voz comum por guild | Sem reprodução, fila ou Stage Channel |
 | #77 | Implementada | #76 e catálogo self-hosted | Uma faixa por guild via FFmpeg/JDA, com cleanup explícito | Sem fila |
 | #78 | Implementada no histórico local da linha funcional | #77 e autorização por canal | Pausar, retomar e parar por botão/slash, com concorrência serializada | Não adiciona fila paralela |
-| #79 | Implementada nesta branch em commits locais, ainda sem push/deploy | #77/#78 e catálogo existente | Fila FIFO em memória, histórico limitado e controles de avanço | Sem persistência, repetição, playlist externa ou reprodução progressiva |
-| #80 | Não implementada | Estado de #75/#77 | Presença coerente e sanitizada | Sem regras de player |
-| #81 | Não implementada | Contexto de comandos e voz | Política explícita de permissões | Sem credenciais ou regra de fila |
-| #82 | Não implementada | Incrementos anteriores estabilizados | Testes adicionais e documentação operacional | Sem funcionalidade nova incidental |
+| #79 | Implementada nesta branch publicada | #77/#78 e catálogo existente | Fila FIFO em memória, histórico limitado e controles de avanço | Sem persistência, repetição, playlist externa ou reprodução progressiva |
+| #80 | Presença do bot implementada localmente; validação operacional pendente | Estado de #75/#77 | Presença do bot por transições; presença pessoal permanece futura | Não reduzir a tarefa a uma presença estática nem declarar a presença pessoal entregue |
+| #81 | Implementação parcial, contrato Taiga pendente | Contexto de comandos e voz | Política explícita de permissões conforme aceite original | Não ampliar papéis ou moderação sem contrato |
+| #82 | Documentação operacional mínima adicionada nesta revisão | Incrementos anteriores estabilizados | Suíte reproduzível, operação, diagnóstico e rollback | Sem funcionalidade nova incidental |
 
 ## 12. Decisões e lacunas
 
@@ -420,7 +421,10 @@ Nenhum teste unitário deve conectar ao Discord real.
   Supabase, repositórios ou estruturas internas de reprodução diretamente.
 - A reconexão não está explicitamente implementada nem testada.
 - Intents não estão explicitamente definidos no código atual.
-- Presença e política ampla de permissões não estão implementadas nesta linha.
+- A presença dinâmica do bot foi implementada localmente, com testes
+  determinísticos; a validação operacional ainda está pendente. A presença
+  pessoal do usuário não está implementada nesta linha e não deve ser
+  substituída silenciosamente por uma atividade do bot.
   A fila é volátil e local ao serviço; reinício do bot perde pendentes e
   histórico, mas não altera catálogo, banco ou Storage. Volume e playlists
   externas continuam ausentes.
@@ -429,11 +433,138 @@ Nenhum teste unitário deve conectar ao Discord real.
   o estado `running` do lifecycle.
 - Falhas assíncronas de resposta e registro são tratadas de forma limitada; o
   registrar possui callback de erro, enquanto a resposta `pong` não possui.
-- Os templates `.env.example` e `.env.production.example` estão incompletos para
-  a configuração Discord.
-- Não há documentação operacional completa.
+- Os arquivos de exemplo documentam nomes e valores não sensíveis; os valores
+  protegidos do datasource, JWT e token continuam obrigatoriamente externos ao
+  repositório.
+- O runbook operacional mínimo está documentado abaixo; procedimentos fora
+  dele continuam fora do escopo desta integração.
 - Números `#56` e `#74` a `#82` são tarefas Taiga. Um PR futuro deve usar a
   descrição explícita da tarefa e não usar palavras-chave de encerramento
   automático sem uma GitHub Issue correspondente confirmada.
 - Fontes gerados preexistentes em `target/generated-sources/annotations` são
   dívida técnica fora do escopo; esta tarefa não os adiciona, remove ou altera.
+
+## 13. Runbook operacional mínimo
+
+O serviço do bot é operado separadamente do backend web por
+`docker-compose.discord-bot.yml`. A configuração usa uma rede externa já
+existente do ambiente self-hosted, um volume exclusivo para
+`/var/cache/deefy-discord` e o secret `deefy_discord_token` montado somente
+para leitura. O Compose não publica portas.
+
+### 13.1 Pré-voo e subida
+
+Antes de qualquer recriação, preservar a tag/ID da imagem atual e confirmar que
+há somente uma instância do bot usando o token. Usar uma fonte de ambiente
+protegida contendo apenas os nomes necessários ao Compose:
+
+- `DEEFY_DISCORD_BOT_IMAGE_TAG`;
+- `DEEFY_DISCORD_TOKEN_SOURCE_FILE`;
+- `DEEFY_SELFHOST_NETWORK`;
+- `DEEFY_DISCORD_CACHE_VOLUME`;
+- `DEEFY_API_URL`;
+- `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME` e
+  `SPRING_DATASOURCE_PASSWORD`;
+- `JWT_SECRET`;
+- `DEEFY_DISCORD_TEST_MODE` e, somente nesse modo,
+  `DEEFY_DISCORD_TEST_GUILD_ID`;
+- limites e timeouts de cache/reprodução documentados no exemplo do bot.
+
+Não imprimir essa fonte nem executar comandos que exibam o ambiente completo.
+Validar a configuração sem renderizar valores:
+
+```bash
+docker compose -f docker-compose.discord-bot.yml \
+  --env-file <arquivo-de-ambiente-protegido> config --quiet
+```
+
+Depois conferir, sem valores de ambiente, o usuário efetivo, a imagem, o
+volume, a rede, `ReadonlyRootfs`, `cap_drop`, `/tmp` com `noexec` e a ausência
+de bindings de porta. O preflight deve confirmar que o token é legível pelo
+UID/GID do processo e que o diretório de cache é gravável por esse mesmo
+usuário. Falha no cache interrompe o bot; não há fallback para streaming remoto.
+
+Subir ou recriar somente o serviço:
+
+```bash
+docker compose -f docker-compose.discord-bot.yml \
+  --env-file <arquivo-de-ambiente-protegido> up -d --no-deps deefy-discord-bot
+```
+
+Verificar `running`, `restart count`, Gateway conectado, DAVE/Opus carregados,
+registro de comandos e ausência de erro fatal nos logs novos. Os logs devem ser
+armazenados com redaction de token, Authorization, datasource, URLs assinadas
+e credenciais.
+
+### 13.2 Operação e diagnóstico
+
+O teste mínimo controlado é: `/deefy ping`, `/entrar`, `/tocar` com uma faixa
+do catálogo, pausa/retomada, `/parar` e `/sair`. Para a fila, acrescentar uma
+segunda faixa e validar `/pular`, `/voltar`, `/reiniciar` e `/fila` sem criar
+duas fontes simultâneas.
+
+Em falha, preservar antes de remover qualquer recurso:
+
+- `docker inspect` sanitizado do container;
+- estado, exit code e contador de reinícios;
+- logs somente do intervalo da tentativa;
+- estado do volume de cache e contagem de arquivos, sem expor nomes sensíveis;
+- presença/ausência de processos FFmpeg residuais.
+
+Não usar `docker system prune`, remoção ampla de volumes ou comandos que
+afetem os serviços web, Supabase, Storage ou outro bot.
+
+### 13.3 Rollback
+
+O rollback troca somente a imagem/configuração do serviço
+`deefy-discord-bot`. Manter a imagem anterior pelo ID e tag até a nova versão
+ser validada. Em falha de startup, parar a nova instância, restaurar a tag
+anterior com o mesmo secret, rede, volume e restrições, e confirmar uma única
+instância conectada ao Gateway. Não alterar banco, catálogo, Storage, Studio,
+frontend, backend web ou regras do Discord.
+
+## 14. Presença: decisão de escopo
+
+### 14.1 Presença do bot (componente A)
+
+A API de presença usada pelo JDA pertence à conta do bot e não oferece uma
+atividade independente por guild. A implementação local aplica a regra mínima
+compatível:
+
+| Situação global do processo | Atividade do bot |
+|---|---|
+| Nenhuma guild reproduzindo | presença neutra/limpa |
+| Uma guild reproduzindo | título da faixa atual |
+| Mais de uma guild reproduzindo | atividade genérica, sem escolher uma guild arbitrariamente |
+| Faixa pausada | título atual com estado pausado |
+| Parada, fim ou falha terminal | recomputar; limpar se não houver outra guild ativa |
+
+O título detalhado continua no painel da guild. O serviço mantém um agregador
+global sanitizado, publica somente o snapshot mais recente e limpa a atividade
+quando o conjunto de sessões ativas fica vazio. Falhas de publicação são
+registradas de forma sanitizada e não interrompem a reprodução.
+
+Estado da entrega: código e testes implementados; matrizes locais aprovadas;
+validação operacional em uma guild ainda pendente.
+
+### 14.2 Presença pessoal (componente B)
+
+A presença pessoal não é entregue pelo bot. O caminho oficial exige uma
+integração cliente autorizada que publique Rich Presence para o usuário atual;
+o Discord Social SDK é um SDK nativo integrado ao aplicativo cliente, e uma
+Discord Activity/Embedded App é uma arquitetura distinta. O frontend web atual
+não possui nenhuma dessas integrações.
+
+A separação desta parte foi aprovada nesta entrega, sem marcar o requisito
+como concluído e sem criar aqui uma implementação nova. O requisito futuro
+continua sendo mostrar Deefy e a faixa no perfil do próprio usuário. A tarefa
+futura deverá decidir entre companion desktop/nativo e Activity suportada pelo
+Discord, incluindo autenticação, plataformas suportadas, consentimento e
+limpeza da atividade ao parar. Não usar self-bot, token de usuário ou automação
+não suportada.
+
+Referências oficiais para a decisão futura:
+
+- <https://discord.com/developers/docs/social-sdk/index.html>
+- <https://discord.com/developers/docs/social-sdk/classdiscordpp_1_1Client.html>
+- <https://support-dev.discord.com/hc/en-us/articles/21204423970071-Introducing-the-Embedded-App-SDK>
