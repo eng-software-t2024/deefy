@@ -3,7 +3,7 @@ import { IoMdHome } from "react-icons/io";
 import { MdPlaylistPlay, MdLogout, MdSettings, MdLibraryAdd, MdManageAccounts } from "react-icons/md";
 import { removeToken, isAdmin } from "../utils/auth";
 import logo from "../assets/logo.svg";
-import VersionFooter from "../pages/VersionFooter.jsx";
+import VersionFooter from "../pages/VersionFooter";
 import "./Sidebar.css";
 
 function Sidebar() {

@@ -1,32 +1,71 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import packageInfo from '../../package.json';
 import { FaGithub } from 'react-icons/fa';
 import './VersionFooter.css';
 
+// Rotas públicas ou de formulário que não utilizam a sidebar de navegação
+const ROUTES_WITHOUT_SIDEBAR = [
+  '/',
+  '/login',
+  '/registration',
+  '/forgot-password',
+  '/redefinepass',
+  '/verify-account',
+  '/configuration',
+  '/edit-profile',
+  '/custom-profile',
+];
+
 export default function VersionFooter() {
+  const location = useLocation();
+  const [hasSidebar, setHasSidebar] = useState(() => Boolean(document.querySelector('.sidebar')));
+
+  useEffect(() => {
+    const checkDom = () => {
+      setHasSidebar(Boolean(document.querySelector('.sidebar')));
+    };
+
+    checkDom();
+    const timer1 = setTimeout(checkDom, 50);
+    const timer2 = setTimeout(checkDom, 300);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [location.pathname]);
+
   const projectName = packageInfo.name === 'client' ? 'Deefy' : (packageInfo.name || 'Deefy');
 
   return (
     <footer
-      className="version-footer"
+      className={`version-footer ${hasSidebar ? 'has-sidebar' : ''}`}
       role="contentinfo"
       aria-label="Rodapé de versão"
     >
       <div className="version-footer-left">
         <p>
-          © {new Date().getFullYear()} <strong className="version-footer-brand">{projectName}</strong>
+          © {new Date().getFullYear()} <strong className="version-footer-brand">{projectName}</strong>.{" "}
+          <a
+            href="https://bes2024.olua.me/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="version-footer-external-link"
+          >
+            BES 2024
+          </a>
         </p>
       </div>
 
       <div className="version-footer-right">
-        <a
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          to="/version-notes"
           className="version-footer-badge"
-          title={`Ver notas de lançamento para v${packageInfo.version}`}
+          title="Ver notas de lançamento"
         >
-          <span>{packageInfo.version}</span>
-        </a>
+          <span>v{packageInfo.version}</span>
+        </Link>
       </div>
     </footer>
   );
