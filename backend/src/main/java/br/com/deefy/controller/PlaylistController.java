@@ -3,6 +3,7 @@ package br.com.deefy.controller;
 import br.com.deefy.config.OpenApiConfig;
 import br.com.deefy.controller.docs.PlaylistControllerDocs;
 import br.com.deefy.dto.request.PlaylistRequestDTO;
+import br.com.deefy.dto.request.ReorderPlaylistTracksRequestDTO;
 import br.com.deefy.dto.response.PlaylistResponseDTO;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.mapper.PlaylistMapper;
@@ -144,6 +145,17 @@ public class PlaylistController implements PlaylistControllerDocs {
 
         playlistService.removeMusicFromPlaylist(playlistId, musicId, user.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{playlistId}/tracks/order")
+    @Operation(summary = "Reordenar musicas da playlist", description = "Atualiza a ordem das musicas para o proprietario ou colaborador com permissao EDITOR.")
+    public ResponseEntity<PlaylistResponseDTO> reorderMusic(
+            @PathVariable Long playlistId,
+            @Valid @RequestBody ReorderPlaylistTracksRequestDTO request,
+            @AuthenticationPrincipal Object principal) {
+        User user = findAuthenticatedUser(principal);
+        Playlist reordered = playlistService.reorderPlaylistTracks(playlistId, request.musicIds(), user.getId());
+        return ResponseEntity.ok(playlistMapper.toResponseDTO(reordered, user.getId()));
     }
 
     // Metodo auxiliar para evitar repetição de código

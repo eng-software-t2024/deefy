@@ -11,7 +11,8 @@ import logo from "../assets/logo.svg";
 import background from "../assets/background.jpg";
 import { useState } from "react";
 import "./Registration.css";
-import api from "../services/api";
+import api, { SERVER_TIMEOUT_MESSAGE, SERVER_UNREACHABLE_MESSAGE } from "../services/api";
+import { getApiErrorMessage } from "../utils/apiError";
 import { useNavigate } from "react-router-dom";
 import { showMusicError } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
@@ -86,8 +87,10 @@ function Registration() {
   const validate = () => {
     if (!fullName.trim()) return "O nome completo é obrigatório na lista VIP.";
     if (fullName.trim().length < 3) return "Seu nome artístico precisa de pelo menos 3 caracteres.";
+    if (fullName.trim().length > 100) return "Seu nome artístico pode ter no máximo 100 caracteres.";
     
     if (!email.trim()) return "O palco precisa do seu e-mail!";
+    if (email.trim().length > 100) return "O e-mail pode ter no máximo 100 caracteres.";
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) return "E-mail desafinado! Verifique o formato.";
     
@@ -104,14 +107,24 @@ function Registration() {
   };
 
   const verifyMXRecord = async (emailAddress) => {
+    const domain = emailAddress.split("@")[1];
+    let response;
+
     try {
-      const domain = emailAddress.split("@")[1];
-      const response = await fetch(`https://dns.google/resolve?name=${domain}&type=MX`);
-      const data = await response.json();
-      return data.Answer && data.Answer.length > 0;
-    } catch {
-      return false; // Fallback in case of network issues
+      response = await fetch(`https://dns.google/resolve?name=${domain}&type=MX`, {
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch (err) {
+      const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
+      throw new Error(timedOut ? SERVER_TIMEOUT_MESSAGE : SERVER_UNREACHABLE_MESSAGE);
     }
+
+    if (!response.ok) {
+      throw new Error(SERVER_UNREACHABLE_MESSAGE);
+    }
+
+    const data = await response.json();
+    return Boolean(data.Answer && data.Answer.length > 0);
   };
 
   const handleSubmit = async () => {
@@ -125,9 +138,15 @@ function Registration() {
 
     setIsLoading(true);
     
-    const hasMX = await verifyMXRecord(email);
-    if (!hasMX) {
-      showMusicError("Este domínio de e-mail não parece receber mensagens. Tente outro.");
+    try {
+      const hasMX = await verifyMXRecord(email);
+      if (!hasMX) {
+        showMusicError("Este domínio de e-mail não parece receber mensagens. Tente outro.");
+        setIsLoading(false);
+        return;
+      }
+    } catch (err) {
+      showMusicError(err.message || SERVER_UNREACHABLE_MESSAGE);
       setIsLoading(false);
       return;
     }
@@ -144,16 +163,12 @@ function Registration() {
       setRegistrationMessage(response.data?.message || "Link de ativação enviado. Verifique seu e-mail.");
       setShowEmailModal(true);
     } catch (err) {
-      const apiMessage = err.response?.data?.message || "";
+      const apiMessage = getApiErrorMessage(err, "Erro nos bastidores ao tentar criar conta.");
+      const isEmailTaken = apiMessage.toLowerCase().includes("já está cadastrado");
 
-      // O back-end agora retorna 400 com o código estruturado "EMAIL_ALREADY_EXISTS"
-      const isEmailTaken = err.response?.data?.errorCode === "EMAIL_ALREADY_EXISTS";
-
-      const errorMessage = isEmailTaken
+      showMusicError(isEmailTaken
         ? "Este e-mail já está em uso. Tente fazer login ou use outro endereço."
-        : apiMessage || "Erro nos bastidores ao tentar criar conta.";
-
-      showMusicError(errorMessage);
+        : apiMessage);
     } finally {
       setIsLoading(false);
     }

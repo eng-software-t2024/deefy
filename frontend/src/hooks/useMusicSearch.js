@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { musicService } from "../services/musicService";
+import { getApiErrorMessage } from "../utils/apiError";
 import {
   filterBySearch,
   getSearchableText,
@@ -78,6 +79,8 @@ export function useMusicSearch(rawQuery, scope = "all") {
   const [playlistResults, setPlaylistResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isEmpty, setIsEmpty] = useState(false);
+  const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
 
   const sanitizedQuery = sanitizeSearchQuery(rawQuery);
 
@@ -92,6 +95,7 @@ export function useMusicSearch(rawQuery, scope = "all") {
     Promise.resolve().then(() => {
       if (isMounted) {
         setIsLoading(true);
+        setError("");
       }
     });
     const activeScopes = SEARCH_SCOPES[scope] || SEARCH_SCOPES.all;
@@ -107,7 +111,7 @@ export function useMusicSearch(rawQuery, scope = "all") {
     ];
 
     const musicSearchPromise = musicSearchFields.length
-      ? musicService.searchMusicsSmart(sanitizedQuery, { fields: musicSearchFields })
+      ? musicService.searchMusicsSmart(sanitizedQuery, { fields: musicSearchFields, refresh: true })
       : Promise.resolve([]);
 
     const artistSearchPromise = shouldSearchArtists
@@ -122,6 +126,10 @@ export function useMusicSearch(rawQuery, scope = "all") {
         musicService.getUserPlaylists(),
         musicService.getPublicPlaylists(),
       ]).then((playlistResponses) => {
+        if (playlistResponses.every((result) => result.status === "rejected")) {
+          throw playlistResponses[0].reason;
+        }
+
         const playlists = [];
         playlistResponses.forEach((result, responseIndex) => {
           if (result.status === "fulfilled" && Array.isArray(result.value)) {
@@ -141,6 +149,12 @@ export function useMusicSearch(rawQuery, scope = "all") {
       .then(([musicResult, artistResult, playlistResult]) => {
         if (!isMounted) return;
 
+        const attempted = [
+          musicSearchFields.length ? musicResult : null,
+          shouldSearchArtists ? artistResult : null,
+          shouldSearchPlaylists ? playlistResult : null,
+        ].filter(Boolean);
+        const rejected = attempted.filter((result) => result.status === "rejected");
         const nextSongs = musicResult.status === "fulfilled" ? musicResult.value : [];
         const nextArtists = artistResult.status === "fulfilled" ? artistResult.value : [];
         const nextPlaylists = playlistResult.status === "fulfilled" ? playlistResult.value : [];
@@ -148,14 +162,27 @@ export function useMusicSearch(rawQuery, scope = "all") {
         setSongResults(nextSongs);
         setArtistResults(nextArtists);
         setPlaylistResults(nextPlaylists);
+
+        const musicFailed = musicSearchFields.length > 0 && musicResult.status === "rejected";
+        const hasResults = nextSongs.length > 0 || nextArtists.length > 0 || nextPlaylists.length > 0;
+        const everyAttemptFailed = attempted.length > 0 && rejected.length === attempted.length;
+
+        if (everyAttemptFailed || (musicFailed && !hasResults)) {
+          setError(getApiErrorMessage(rejected[0].reason, "Não foi possível buscar agora. Tente novamente."));
+          setIsEmpty(false);
+          return;
+        }
+
+        setError("");
         setIsEmpty(nextSongs.length === 0 && nextArtists.length === 0 && nextPlaylists.length === 0);
       })
-      .catch(() => {
+      .catch((searchError) => {
         if (isMounted) {
           setSongResults([]);
           setArtistResults([]);
           setPlaylistResults([]);
-          setIsEmpty(true);
+          setIsEmpty(false);
+          setError(getApiErrorMessage(searchError, "Não foi possível buscar agora. Tente novamente."));
         }
       })
       .finally(() => {
@@ -167,7 +194,7 @@ export function useMusicSearch(rawQuery, scope = "all") {
     return () => {
       isMounted = false;
     };
-  }, [scope, sanitizedQuery]);
+  }, [scope, sanitizedQuery, retryKey]);
 
   // When there is no query, return stable empty values without triggering setState.
   if (!sanitizedQuery) {
@@ -179,6 +206,8 @@ export function useMusicSearch(rawQuery, scope = "all") {
       playlistResults: [],
       isEmpty: false,
       isLoading: false,
+      error: "",
+      retry: () => {},
     };
   }
 
@@ -190,5 +219,7 @@ export function useMusicSearch(rawQuery, scope = "all") {
     playlistResults,
     isEmpty,
     isLoading,
+    error,
+    retry: () => setRetryKey((current) => current + 1),
   };
 }

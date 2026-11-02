@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 // Exporting both PlayerProvider and usePlayer from the same file is intentional:
 // this is standard React context pattern. The Fast Refresh warning is suppressed here.
-import { createContext, useCallback, useEffect, useState, useContext } from 'react';
+import {createContext, useCallback, useEffect, useState, useContext} from 'react';
 
 
 const PlayerContext = createContext();
@@ -42,7 +42,7 @@ function readStoredPlayerState() {
   }
 }
 
-export function PlayerProvider({ children }) {
+export function PlayerProvider({children}) {
   const [currentTrack, setCurrentTrack] = useState(() => readStoredPlayerState().currentTrack || null);
   const [isPlaying, setIsPlaying] = useState(() => Boolean(readStoredPlayerState().isPlaying));
   const [queue, setQueue] = useState(() => {
@@ -63,7 +63,7 @@ export function PlayerProvider({ children }) {
     try {
       window.localStorage.setItem(
         PLAYER_STATE_STORAGE_KEY,
-        JSON.stringify({ currentTrack, isPlaying, queue, sourceQueue, isShuffle })
+        JSON.stringify({currentTrack, isPlaying, queue, sourceQueue, isShuffle})
       );
     } catch (error) {
       console.warn('Deefy player: nao foi possivel salvar o estado atual.', error);
@@ -132,41 +132,55 @@ export function PlayerProvider({ children }) {
     setExpandedRequestId((current) => current + 1);
   }, []);
 
-    const addToQueue = useCallback((track) => {
-        if (!track) return;
-        setQueue((currentQueue) => {
-            const alreadyInQueue = currentQueue.some(
-                (t) => getTrackId(t) === getTrackId(track)
-            );
-            if (alreadyInQueue) return currentQueue;
-            return [...currentQueue, track];
-        });
-        setSourceQueue((currentSource) => {
-            const alreadyInSource = currentSource.some(
-                (t) => getTrackId(t) === getTrackId(track)
-            );
-            if (alreadyInSource) return currentSource;
-            return [...currentSource, track];
-        });
-    }, []);
+  const addToQueue = useCallback((track) => {
+    if (!track) return;
+    setQueue((currentQueue) => {
+      const alreadyInQueue = currentQueue.some(
+        (t) => getTrackId(t) === getTrackId(track)
+      );
+      if (alreadyInQueue) return currentQueue;
+      return [...currentQueue, track];
+    });
+    setSourceQueue((currentSource) => {
+      const alreadyInSource = currentSource.some(
+        (t) => getTrackId(t) === getTrackId(track)
+      );
+      if (alreadyInSource) return currentSource;
+      return [...currentSource, track];
+    });
+  }, []);
 
-    const removeFromQueue = useCallback((trackId) => {
-        setQueue((currentQueue) =>
-            currentQueue.filter((t) => getTrackId(t) !== String(trackId))
-        );
-        setSourceQueue((currentSource) =>
-            currentSource.filter((t) => getTrackId(t) !== String(trackId))
-        );
-    }, []);
+  const removeFromQueue = useCallback((trackId) => {
+    setQueue((currentQueue) =>
+      currentQueue.filter((t) => getTrackId(t) !== String(trackId))
+    );
+    setSourceQueue((currentSource) =>
+      currentSource.filter((t) => getTrackId(t) !== String(trackId))
+    );
+  }, []);
 
-    const reorderQueue = useCallback((fromIndex, toIndex) => {
-        setQueue((currentQueue) => {
-            const updated = [...currentQueue];
-            const [moved] = updated.splice(fromIndex, 1);
-            updated.splice(toIndex, 0, moved);
-            return updated;
-        });
-    }, []);
+  const reorderQueue = useCallback((fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    const moved = queue[fromIndex];
+    const target = queue[toIndex];
+    if (!moved || !target) return;
+
+    const movedId = getTrackId(moved);
+    const targetId = getTrackId(target);
+    const moveItem = (items, from, to) => {
+      const updated = [...items];
+      const [item] = updated.splice(from, 1);
+      updated.splice(to, 0, item);
+      return updated;
+    };
+
+    setQueue((items) => moveItem(items, fromIndex, toIndex));
+    setSourceQueue((items) => {
+      const from = items.findIndex((t) => getTrackId(t) === movedId);
+      const to = items.findIndex((t) => getTrackId(t) === targetId);
+      return from === -1 || to === -1 ? items : moveItem(items, from, to);
+    });
+  }, [queue]);
 
   return (
     <PlayerContext.Provider
@@ -185,9 +199,9 @@ export function PlayerProvider({ children }) {
         setShuffleMode,
         requestExpandedPlayer,
         expandedRequestId,
-          addToQueue,
-          removeFromQueue,
-          reorderQueue,
+        addToQueue,
+        removeFromQueue,
+        reorderQueue,
       }}
     >
       {children}

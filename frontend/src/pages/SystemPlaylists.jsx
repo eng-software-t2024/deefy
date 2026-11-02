@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { FaCompactDisc, FaPlay } from 'react-icons/fa'
 import { MdClose, MdSearch } from 'react-icons/md'
 import Sidebar from '../components/Sidebar.jsx'
+import BreadcrumbNav from '../components/BreadcrumbNav.jsx'
 import { musicService } from '../services/musicService.js'
 import { pickWeightedRecommendations } from '../utils/recommendationEngine.js'
 import { filterBySearch, getSearchableText } from '../utils/search.js'
@@ -116,6 +117,14 @@ function SystemPlaylists() {
       <Sidebar />
 
       <main className="catalog-main">
+        <BreadcrumbNav
+          items={[
+            { label: 'Início', to: '/home' },
+            { label: 'Playlists', to: '/playlists' },
+            { label: 'Playlists Deefy' },
+          ]}
+        />
+
         <section className="catalog-header">
           <span>DEEFY</span>
           <h1>Playlists recomendadas</h1>

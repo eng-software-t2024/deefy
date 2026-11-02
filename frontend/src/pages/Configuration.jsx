@@ -13,6 +13,9 @@ import "./Configuration.css";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import ButtonSpinner from "../components/ButtonSpinner";
+import BreadcrumbNav from "../components/BreadcrumbNav";
+import { getApiErrorMessage } from "../utils/apiError";
+import { showMusicError } from "../utils/musicToast";
 import { removeToken } from "../utils/auth";
 
 function Configuration() {
@@ -20,20 +23,35 @@ function Configuration() {
 
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState(false);
 
-  // ── Load current profile ──────────────────────────────────────────
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await api.get("/users/me");
-        setProfile(res.data);
-      } catch (err) {
+    let isMounted = true;
+
+    Promise.resolve().then(() => {
+      if (!isMounted) return;
+      setLoadingProfile(true);
+      setProfileError(false);
+    });
+
+    api.get("/users/me")
+      .then((res) => {
+        if (isMounted) setProfile(res.data);
+      })
+      .catch((err) => {
         console.error("Erro ao carregar perfil:", err);
-      } finally {
-        setLoadingProfile(false);
-      }
+        if (!isMounted) return;
+        setProfile(null);
+        setProfileError(true);
+        showMusicError(getApiErrorMessage(err, "Não foi possível carregar seu perfil."));
+      })
+      .finally(() => {
+        if (isMounted) setLoadingProfile(false);
+      });
+
+    return () => {
+      isMounted = false;
     };
-    fetchProfile();
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────
@@ -54,6 +72,13 @@ function Configuration() {
       <div className="configuration-overlay"></div>
 
       <section className="configuration-wrapper">
+        <BreadcrumbNav
+          items={[
+            { label: 'Início', to: '/home' },
+            { label: 'Configurações' },
+          ]}
+        />
+
         {/* Back button */}
         <div className="custom-profile-back-login custom-profile-back-top" onClick={() => navigate(-1)}>
           <IoChevronBack />
@@ -87,7 +112,8 @@ function Configuration() {
             </div>
           </div>
 
-          <h2>{loadingProfile ? "Carregando…" : (profile?.nome || "Usuário")}</h2>
+          {loadingProfile && <h2>Carregando…</h2>}
+          {!loadingProfile && !profileError && <h2>{profile?.nome || "Usuário"}</h2>}
         </div>
 
         {/* Perfil */}

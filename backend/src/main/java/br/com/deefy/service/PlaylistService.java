@@ -15,4 +15,5 @@ public interface PlaylistService {
     void deletePlaylist(Long id, Long ownerId);
     Playlist addMusicToPlaylist(Long playlistId, Long musicId, Long ownerId);
     Playlist removeMusicFromPlaylist(Long playlistId, Long musicId, Long ownerId);
+    Playlist reorderPlaylistTracks(Long playlistId, List<Long> musicIds, Long ownerId);
 }

@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import {useEffect, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 import {
   MdMoreVert,
   MdPlaylistAdd,
-    MdPlaylistPlay,
+  MdPlaylistPlay,
   MdPlaylistRemove,
   MdFavoriteBorder,
   MdFavorite,
@@ -14,12 +14,12 @@ import {
   MdContentCopy,
   MdCheck,
 } from 'react-icons/md'
-import { FaEnvelope, FaTelegramPlane, FaWhatsapp } from 'react-icons/fa'
+import {FaEnvelope, FaTelegramPlane, FaWhatsapp} from 'react-icons/fa'
 import './SongOptionsMenu.css'
-import { musicService } from '../services/musicService.js'
-import { showMusicError, showMusicSuccess } from '../utils/musicToast'
-import { getMusicIdFromTrack } from '../utils/musicNormalizer.js'
-import { usePlayer } from '../contexts/PlayerContext'
+import {musicService} from '../services/musicService.js'
+import {showMusicError, showMusicSuccess} from '../utils/musicToast'
+import {getMusicIdFromTrack} from '../utils/musicNormalizer.js'
+import {usePlayer} from '../contexts/PlayerContext'
 
 function getPlaylistId(playlist) {
   return playlist?.id || playlist?.uuid || playlist?.playlistId || ''
@@ -41,16 +41,16 @@ function isSongInPlaylist(playlist, currentSong) {
 }
 
 function SongOptionsMenu({
-  song,
-  playlistId,
-  onRemoveFromPlaylist,
-  isFavoriteContext = false,
-  isFavorite = false,
-  onFavoriteRemoved,
-  onFavoriteChanged,
-  allowAddToPlaylist = true,
-  allowRemoveFromPlaylist = true,
-}) {
+                           song,
+                           playlistId,
+                           onRemoveFromPlaylist,
+                           isFavoriteContext = false,
+                           isFavorite = false,
+                           onFavoriteRemoved,
+                           onFavoriteChanged,
+                           allowAddToPlaylist = true,
+                           allowRemoveFromPlaylist = true,
+                         }) {
   const optionsRef = useRef(null)
   const [isOpen, setIsOpen] = useState(false)
   const [showPlaylists, setShowPlaylists] = useState(false)
@@ -67,7 +67,7 @@ function SongOptionsMenu({
   const isPlaylistSong = playlistId !== undefined && playlistId !== null
   const canRemoveFromPlaylist = isPlaylistSong && allowRemoveFromPlaylist
   const musicId = getMusicIdFromTrack(song)
-    const { addToQueue } = usePlayer()
+  const {addToQueue} = usePlayer()
   const shareUrl = musicId && typeof window !== 'undefined'
     ? `${window.location.origin}/music/${musicId}`
     : ''
@@ -156,7 +156,7 @@ function SongOptionsMenu({
         prev.map((p) => {
           if (String(getPlaylistId(p)) === String(selectedPlaylistId)) {
             const tracks = Array.isArray(p.tracks) ? [...p.tracks, song] : [song]
-            return { ...p, tracks }
+            return {...p, tracks}
           }
           return p
         })
@@ -180,7 +180,7 @@ function SongOptionsMenu({
           prev.map((p) => {
             if (String(getPlaylistId(p)) === String(selectedPlaylistId)) {
               const tracks = Array.isArray(p.tracks) ? [...p.tracks, song] : [song]
-              return { ...p, tracks }
+              return {...p, tracks}
             }
             return p
           })
@@ -288,7 +288,7 @@ function SongOptionsMenu({
           setShowPlaylists(false)
         }}
       >
-        <MdMoreVert />
+        <MdMoreVert/>
       </button>
 
       {isOpen && (
@@ -303,7 +303,7 @@ function SongOptionsMenu({
               onClick={handleRemoveFromPlaylist}
               disabled={isRemoving}
             >
-              <MdPlaylistRemove />
+              <MdPlaylistRemove/>
               <span>{isRemoving ? 'Removendo...' : 'Remover da playlist'}</span>
             </button>
           ) : isFavoriteContext ? (
@@ -313,7 +313,7 @@ function SongOptionsMenu({
               onClick={handleFavoriteAction}
               disabled={isFavoriteBusy}
             >
-              <MdFavorite />
+              <MdFavorite/>
               <span>{isFavoriteBusy ? 'Removendo...' : 'Remover dos favoritos'}</span>
             </button>
           ) : allowAddToPlaylist ? (
@@ -322,9 +322,9 @@ function SongOptionsMenu({
                 type="button"
                 onClick={() => setShowPlaylists(!showPlaylists)}
               >
-                <MdPlaylistAdd />
+                <MdPlaylistAdd/>
                 <span>Adicionar à playlist</span>
-                <MdKeyboardArrowRight className="song-options-arrow" />
+                <MdKeyboardArrowRight className="song-options-arrow"/>
               </button>
 
               {showPlaylists && (
@@ -363,7 +363,7 @@ function SongOptionsMenu({
                         </span>
                         {isAdded ? (
                           <span className="song-options-playlist-badge">
-                            <MdCheck className="song-options-check-icon" /> Adicionada
+                            <MdCheck className="song-options-check-icon"/> Adicionada
                           </span>
                         ) : isAdding ? (
                           <span className="song-options-playlist-badge">
@@ -385,7 +385,7 @@ function SongOptionsMenu({
               onClick={handleFavoriteAction}
               disabled={isFavoriteBusy || isFavorite}
             >
-              {isFavorite ? <MdFavorite /> : <MdFavoriteBorder />}
+              {isFavorite ? <MdFavorite/> : <MdFavoriteBorder/>}
               <span>
                 {isFavorite
                   ? 'Já nos favoritos'
@@ -394,25 +394,25 @@ function SongOptionsMenu({
             </button>
           )}
 
-            <button
-                type="button"
-                onClick={() => {
-                    addToQueue(song)
-                    showMusicSuccess('Música adicionada à fila.')
-                    setIsOpen(false)
-                }}
-            >
-                <MdPlaylistPlay />
-                <span>Adicionar à fila</span>
-            </button>
+          <button
+            type="button"
+            onClick={() => {
+              addToQueue(song)
+              showMusicSuccess('Música adicionada à fila.')
+              setIsOpen(false)
+            }}
+          >
+            <MdPlaylistPlay/>
+            <span>Adicionar à fila</span>
+          </button>
 
           <button type="button" onClick={handleShare}>
-            <MdShare />
+            <MdShare/>
             <span>Compartilhar</span>
           </button>
 
           <button type="button" onClick={searchOnGoogle}>
-            <MdSearch />
+            <MdSearch/>
             <span>Buscar no Google</span>
           </button>
         </div>
@@ -432,16 +432,16 @@ function SongOptionsMenu({
               onClick={() => setIsShareOpen(false)}
               aria-label="Fechar compartilhamento"
             >
-              <MdClose />
+              <MdClose/>
             </button>
 
             <h2>Compartilhar música</h2>
             <p>{shareText}</p>
 
             <div className="song-share-link-row">
-              <input value={shareUrl} readOnly aria-label="Link da música" />
+              <input value={shareUrl} readOnly aria-label="Link da música"/>
               <button type="button" onClick={handleCopyShareLink}>
-                <MdContentCopy />
+                <MdContentCopy/>
                 <span>{copiedShareLink ? 'Copiado' : 'Copiar'}</span>
               </button>
             </div>
@@ -452,7 +452,7 @@ function SongOptionsMenu({
                 target="_blank"
                 rel="noreferrer"
               >
-                <FaWhatsapp />
+                <FaWhatsapp/>
                 <span>WhatsApp</span>
               </a>
               <a
@@ -460,13 +460,13 @@ function SongOptionsMenu({
                 target="_blank"
                 rel="noreferrer"
               >
-                <FaTelegramPlane />
+                <FaTelegramPlane/>
                 <span>Telegram</span>
               </a>
               <a
                 href={`mailto:?subject=${encodeURIComponent(shareText)}&body=${encodeURIComponent(`${shareText}\n${shareUrl}`)}`}
               >
-                <FaEnvelope />
+                <FaEnvelope/>
                 <span>Email</span>
               </a>
             </div>
