@@ -74,8 +74,17 @@
   gap: 24px;
 }
 
+.version-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
 .version-notes-section h2 {
-  margin: 0 0 10px;
+  margin: 0;
   color: #39f0d0;
   font-size: 1.25rem;
   font-weight: 800;
@@ -84,6 +93,20 @@
 
 .version-notes-section h2 strong {
   font-weight: 800;
+}
+
+.version-notes-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(57, 240, 208, 0.12);
+  border: 1px solid rgba(57, 240, 208, 0.25);
+  color: #39f0d0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .version-notes-section p {

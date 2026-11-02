@@ -8,6 +8,14 @@ import "./VersionNotes.css";
 function VersionNotes() {
   const navigate = useNavigate();
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/home");
+    }
+  };
+
   return (
     <div
       className="version-notes-page"
@@ -25,9 +33,14 @@ function VersionNotes() {
         <div className="version-notes-card">
           {versionNotesData.map((note, index) => (
             <div key={note.id || index} className="version-notes-section">
-              <h2>
-                <strong>{note.title}</strong>
-              </h2>
+              <div className="version-notes-header">
+                <h2>
+                  <strong>{note.title}</strong>
+                </h2>
+                {note.version && (
+                  <span className="version-notes-badge">v{note.version}</span>
+                )}
+              </div>
               <p>{note.content}</p>
             </div>
           ))}
@@ -36,7 +49,7 @@ function VersionNotes() {
         <button
           type="button"
           className="version-notes-back-btn"
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
         >
           <IoChevronBack />
           <span>Voltar</span>

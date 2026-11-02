@@ -326,17 +326,40 @@ function MusicPlayer({ onAddToPlaylist, isHidden = false }) {
     updateLayoutOffsets();
 
     window.addEventListener("resize", updateLayoutOffsets);
+
+    const rootElement =
+      typeof document !== "undefined" ? document.getElementById("root") : null;
+
     const observer =
       typeof MutationObserver !== "undefined"
-        ? new MutationObserver(updateLayoutOffsets)
+        ? new MutationObserver((mutations) => {
+            const shouldUpdate = mutations.some((mutation) => {
+              if (mutation.type === "childList") return true;
+              const target = mutation.target;
+              return (
+                target instanceof Element &&
+                (target.matches(
+                  ".sidebar, .bottom-nav, .version-footer, [data-player-bottom-module]"
+                ) ||
+                  Boolean(
+                    target.querySelector?.(
+                      ".sidebar, .bottom-nav, .version-footer, [data-player-bottom-module]"
+                    )
+                  ))
+              );
+            });
+            if (shouldUpdate) {
+              updateLayoutOffsets();
+            }
+          })
         : null;
 
-    if (observer && typeof document !== "undefined") {
-      observer.observe(document.body, {
+    if (observer && rootElement) {
+      observer.observe(rootElement, {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["class", "style"],
+        attributeFilter: ["class"],
       });
     }
 

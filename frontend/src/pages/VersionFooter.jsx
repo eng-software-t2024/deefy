@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import packageInfo from '../../package.json';
-import { FaGithub } from 'react-icons/fa';
 import './VersionFooter.css';
 
 // Rotas públicas ou de formulário que não utilizam a sidebar de navegação
