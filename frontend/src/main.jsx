@@ -36,6 +36,7 @@ import SystemPlaylists from './pages/SystemPlaylists.jsx'
 import Artists from './pages/Artists.jsx'
 import ArtistProfile from './pages/ArtistProfile.jsx'
 import VersionFooter from './pages/VersionFooter.jsx'
+import VersionNotes from './pages/VersionNotes.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -85,6 +86,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/playlist/:id/edit" element={<ProtectedRoute><CreatePlaylist /></ProtectedRoute>} />
           <Route path="/music/:id" element={<ProtectedRoute><SharedMusic /></ProtectedRoute>} />
           <Route path="/shared-playlist/:token" element={<SharedPlaylist />} />
+          <Route path="/version-notes" element={<VersionNotes />} />
 
           <Route
             path="/admin"

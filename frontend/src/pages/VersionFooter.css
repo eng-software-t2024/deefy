@@ -48,12 +48,29 @@
   line-height: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-decoration: none;
 }
 
 .version-footer-brand {
   color: rgba(255, 255, 255, 0.92);
   font-weight: 700;
   letter-spacing: -0.2px;
+}
+
+.version-footer-external-link,
+.version-footer-external-link:visited,
+.version-footer-external-link:hover,
+.version-footer-external-link:active,
+.version-footer-external-link:focus {
+  color: inherit;
+  text-decoration: none;
+  font-weight: inherit;
+}
+
+.version-footer-external-link:focus-visible {
+  outline: 2px solid #39f0d0;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .version-footer-badge {
@@ -66,20 +83,23 @@
   font-weight: 700;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   color: #a0a0a0;
+  /*
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
+  */
   text-decoration: none;
   transition: all 0.2s ease;
 }
 
+/*
 .version-footer-badge:hover {
   background: rgba(255, 255, 255, 0.1);
   color: #fff;
   border-color: rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
 }
-
+*/
 .release-icon {
   font-size: 0.85rem;
 }
@@ -116,15 +136,64 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
+   SIDEBAR FOOTER (POSICIONADO ABAIXO DO LOGOUT NA SIDEBAR)
+   ═══════════════════════════════════════════════════════════ */
+.sidebar .version-footer,
+.sidebar .version-footer.has-sidebar {
+  position: static !important;
+  left: auto !important;
+  bottom: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  margin-top: 8px;
+  padding: 6px 8px !important;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.50rem !important;
+  gap: 4px !important;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.sidebar .version-footer *,
+.sidebar .version-footer-left p,
+.sidebar .version-footer-right p,
+.sidebar .version-footer-brand,
+.sidebar .version-footer-badge,
+.sidebar .version-footer-badge span,
+.sidebar .release-icon {
+  font-size: 0.50rem !important;
+}
+
+.sidebar .version-footer-left,
+.sidebar .version-footer-right {
+  gap: 4px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.sidebar .version-footer-right {
+  flex-shrink: 0;
+}
+
+.sidebar .version-footer-badge {
+  padding: 2px 6px !important;
+  gap: 3px !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
    DESKTOP (> 768px): ADAPTAÇÃO AUTOMÁTICA AO SIDEBAR
    Evita que a barra lateral cubra o texto do rodapé.
    ═══════════════════════════════════════════════════════════ */
 @media (min-width: 769px) {
 
-  body:has(.sidebar) .version-footer,
-  .version-footer.has-sidebar {
-    left: 240px !important;
-    width: calc(100% - 240px) !important;
+  body:has(.sidebar)>#root>.version-footer,
+  #root>.version-footer.has-sidebar {
+    display: none !important;
   }
 }
 
@@ -140,7 +209,12 @@
     width: 100% !important;
   }
 
-  /* Removido o override do bottom para permitir o rodapé na parte mais inferior */
+  /* Oculta o VersionFooter na página principal (e páginas com sidebar) na versão mobile */
+  body:has(.home-layout) .version-footer,
+  body:has(.sidebar)>#root>.version-footer,
+  #root>.version-footer.has-sidebar {
+    display: none !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -164,20 +238,5 @@
   .version-footer-badge {
     padding: 2px 7px;
     font-size: 0.68rem;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════
-   HARMONIZAÇÃO COM O MUSIC PLAYER FLUTUANTE
-   ═══════════════════════════════════════════════════════════ */
-@media (min-width: 861px) {
-  body:has(.version-footer) .deefy-player-shell {
-    bottom: 36px;
-  }
-}
-
-@media (max-width: 860px) {
-  body:has(.version-footer) .deefy-player-shell {
-    bottom: 96px;
   }
 }

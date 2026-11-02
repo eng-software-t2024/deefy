@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import packageInfo from '../../package.json';
-import { FaGithub } from 'react-icons/fa';
 import './VersionFooter.css';
 
 // Rotas públicas ou de formulário que não utilizam a sidebar de navegação
@@ -46,21 +45,26 @@ export default function VersionFooter() {
     >
       <div className="version-footer-left">
         <p>
-          © {new Date().getFullYear()} <strong className="version-footer-brand">{projectName}</strong>.
+          © {new Date().getFullYear()} <strong className="version-footer-brand">{projectName}</strong>.{" "}
+          <a
+            href="https://bes2024.olua.me/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="version-footer-external-link"
+          >
+            BES 2024
+          </a>
         </p>
       </div>
 
       <div className="version-footer-right">
-        <a
-          href="https://github.com/eng-software-t2024/deefy/releases"
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          to="/version-notes"
           className="version-footer-badge"
-          title={`Ver notas de lançamento para v${packageInfo.version}`}
+          title="Ver notas de lançamento"
         >
-          <FaGithub className="release-icon" />
           <span>v{packageInfo.version}</span>
-        </a>
+        </Link>
       </div>
     </footer>
   );
