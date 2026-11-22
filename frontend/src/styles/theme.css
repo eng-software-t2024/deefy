@@ -15,6 +15,11 @@
     --text-secondary: #b9b9b9;
     --text-muted: #858484;
 
+    --config-item-bg: rgba(255, 255, 255, 0.16);
+    --config-button-bg: rgba(20, 20, 22, 0.72);
+    --card-bg: rgba(32, 31, 31, 0.60);
+    --card-bg-hover: rgba(48, 47, 47, 0.70);
+
     /* "véus" translúcidos */
     --fill-subtle: rgba(255, 255, 255, 0.05);
     --fill-hover: rgba(255, 255, 255, 0.10);
@@ -23,13 +28,17 @@
     --border-strong: rgba(255, 255, 255, 0.16);
 
     /* marca */
-    --accent: #39f0d0;        /* preenchimentos, bordas, fundos */
-    --accent-text: #39f0d0;   /* texto/ícone colorido sobre o fundo */
+    --accent: #39f0d0;
+    --accent-text: #39f0d0;
     --accent-soft: rgba(57, 240, 208, 0.12);
     --accent-border: rgba(57, 240, 208, 0.34);
-    --on-accent: #061512;     /* texto sobre botão preenchido */
+    --on-accent: #061512;
     --danger-soft: rgba(255, 93, 93, 0.12);
     --danger: #ff5d5d;
+    --field-bg: rgba(0, 0, 0, 0.68);
+    --warning: #ffd700;
+    --info: #01cbff;
+    --text-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
 
     --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.45);
 
@@ -54,6 +63,11 @@
     --text-secondary: #4a5559;
     --text-muted: #353535;
 
+    --config-item-bg: #e6eaec;
+    --config-button-bg: #e6eaec;
+    --card-bg: #e6eaec;
+    --card-bg-hover: #dce1e4;
+
     --fill-subtle: rgba(0, 0, 0, 0.04);
     --fill-hover: rgba(0, 0, 0, 0.08);
     --fill-strong: rgba(0, 0, 0, 0.14);
@@ -61,12 +75,16 @@
     --border-strong: rgba(0, 0, 0, 0.20);
 
     --accent: #39f0d0;
-    --accent-text: #00806b;   /* escurecido p/ contraste (~4,5:1 sobre branco; confirme no checker) */
+    --accent-text: #00806b;
     --accent-soft: rgba(0, 128, 107, 0.10);
     --accent-border: rgba(0, 128, 107, 0.35);
     --on-accent: #061512;
     --danger-soft: rgba(217, 54, 54, 0.10);
-    --danger: #ff5d5d;
+    --danger: #d93636;
+    --field-bg: #ffffff;
+    --warning: #a67c00;
+    --info: #0079a3;
+    --text-shadow: none;
 
     --shadow-lg: 0 20px 50px rgba(15, 20, 22, 0.12);
 }

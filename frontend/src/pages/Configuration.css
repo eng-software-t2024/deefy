@@ -202,8 +202,8 @@
   width: 100% !important;
   min-height: 58px !important;
   height: 58px !important;
-  background: var(--fill-strong) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: var(--config-item-bg) !important;
+  border: 1px solid var(--border-subtle) !important;
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
@@ -242,7 +242,7 @@
   top: 50% !important;
   transform: translateY(-50%) !important;
   font-size: 1.35rem !important;
-  color: #00E9C2 !important;
+  color: var(--accent-text) !important;
   pointer-events: none;
   z-index: 2;
 }
@@ -283,7 +283,7 @@
   height: 100% !important;
   padding: 0 52px 0 50px !important;
   margin: 0 !important;
-  background: transparent !important;
+  background: var(--card-bg) !important;
   border: none !important;
   outline: none !important;
   color: var(--text-primary) !important;
@@ -325,7 +325,7 @@
   height: 62px !important;
   border: none !important;
   border-radius: 18px !important;
-  background: var(--surface) !important;
+  background: var(--card-bg) !important;
   color: var(--danger) !important;
   font-size: 1rem !important;
   font-weight: 800 !important;
