@@ -196,7 +196,7 @@ function isTrackInPlaylist(playlist, track) {
   });
 }
 
-function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
+function MusicPlayer({ onAddToPlaylist, isHidden = false }) {
   const navigate = useNavigate();
   const audioRef = useRef(null);
   const compactDragActiveRef = useRef(false);
@@ -239,7 +239,6 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [playlistError, setPlaylistError] = useState("");
   const [addingPlaylistId, setAddingPlaylistId] = useState(null);
-  const [addedPlaylistIds, setAddedPlaylistIds] = useState(() => new Set());
   const [isExpanded, setIsExpanded] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isExpandedClosing, setIsExpandedClosing] = useState(false);
@@ -247,6 +246,7 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   const [dragOffsetY, setDragOffsetY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [playlistSheetDragOffset, setPlaylistSheetDragOffset] = useState(0);
+  const [layoutOffsets, setLayoutOffsets] = useState({ left: 0, right: 0, bottom: 0 });
 
   const tracks = useMemo(() => {
     if (Array.isArray(queue) && queue.length) return queue;
@@ -263,14 +263,6 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   const hasAudioUrl = Boolean(currentTrack.audioUrl);
   const hasPrevious = tracks.length > 1 && activeTrackIndex > 0;
   const hasNext = tracks.length > 1 && activeTrackIndex < tracks.length - 1;
-  const providedPlaylists = useMemo(
-    () => (Array.isArray(playlists) ? playlists : []),
-    [playlists],
-  );
-  const effectivePlaylists = useMemo(() => {
-    if (providedPlaylists.length > 0) return providedPlaylists;
-    return userPlaylists;
-  }, [providedPlaylists, userPlaylists]);
   const progressPercent = duration > 0 ? Math.min((currentTime / duration) * 100, 100) : 0;
 
   const progressStyle = {
@@ -288,6 +280,94 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   const playlistSheetStyle = {
     "--deefy-player-sheet-drag-offset": `${Math.max(playlistSheetDragOffset, 0)}px`,
   };
+
+  const shellDynamicStyle = {
+    "--deefy-player-left": `${layoutOffsets.left}px`,
+    "--deefy-player-right": `${layoutOffsets.right}px`,
+    "--deefy-player-bottom": `${layoutOffsets.bottom}px`,
+  };
+
+  const updateLayoutOffsets = useCallback(() => {
+    if (typeof document === "undefined") return;
+
+    const sidebar = document.querySelector(".sidebar");
+    let left = 0;
+    if (sidebar && window.getComputedStyle(sidebar).display !== "none") {
+      left = Math.round(sidebar.getBoundingClientRect().width);
+    }
+
+    let bottom = 0;
+    const bottomModules = document.querySelectorAll(
+      ".bottom-nav, #root > .version-footer, [data-player-bottom-module]"
+    );
+    bottomModules.forEach((mod) => {
+      const style = window.getComputedStyle(mod);
+      if (style.display !== "none" && style.visibility !== "hidden") {
+          const height = mod.offsetHeight;
+          const cssBottom = parseFloat(style.bottom);
+          const bottomVal = Number.isFinite(cssBottom) ? Math.max(cssBottom, 0) : 0;
+          if (height > 0) {
+            const occupiedFromBottom = Math.round(bottomVal + height);
+            if (occupiedFromBottom > bottom) {
+              bottom = occupiedFromBottom;
+            }
+          }
+        }
+      });
+
+    setLayoutOffsets((prev) =>
+      prev.left === left && prev.right === 0 && prev.bottom === bottom
+        ? prev
+        : { left, right: 0, bottom }
+    );
+  }, []);
+
+  useEffect(() => {
+    updateLayoutOffsets();
+
+    window.addEventListener("resize", updateLayoutOffsets);
+
+    const rootElement =
+      typeof document !== "undefined" ? document.getElementById("root") : null;
+
+    const observer =
+      typeof MutationObserver !== "undefined"
+        ? new MutationObserver((mutations) => {
+            const shouldUpdate = mutations.some((mutation) => {
+              if (mutation.type === "childList") return true;
+              const target = mutation.target;
+              return (
+                target instanceof Element &&
+                (target.matches(
+                  ".sidebar, .bottom-nav, .version-footer, [data-player-bottom-module]"
+                ) ||
+                  Boolean(
+                    target.querySelector?.(
+                      ".sidebar, .bottom-nav, .version-footer, [data-player-bottom-module]"
+                    )
+                  ))
+              );
+            });
+            if (shouldUpdate) {
+              updateLayoutOffsets();
+            }
+          })
+        : null;
+
+    if (observer && rootElement) {
+      observer.observe(rootElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateLayoutOffsets);
+      observer?.disconnect();
+    };
+  }, [updateLayoutOffsets, hasSelectedTrack, isHidden]);
 
   const isMobileViewport = () =>
     typeof window !== "undefined" &&
@@ -397,7 +477,6 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   }, []);
 
   useEffect(() => {
-    setAddedPlaylistIds(new Set());
     lastPersistedSecondRef.current = -1;
   }, [currentTrack.id]);
 
@@ -625,11 +704,6 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   };
 
   const loadUserPlaylists = useCallback(async () => {
-    if (providedPlaylists.length > 0) {
-      setPlaylistError("");
-      return;
-    }
-
     try {
       setIsLoadingPlaylists(true);
       setPlaylistError("");
@@ -641,7 +715,7 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
     } finally {
       setIsLoadingPlaylists(false);
     }
-  }, [providedPlaylists]);
+  }, []);
 
   const togglePlaylistMenu = (context) => {
     setPlaylistMenuContext((current) => (current === context ? null : context));
@@ -713,16 +787,12 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
         await musicService.addMusicToPlaylist(playlistId, currentTrack);
       }
 
-      setAddedPlaylistIds((currentIds) => {
-        const nextIds = new Set(currentIds);
-        nextIds.add(String(playlistId));
-        return nextIds;
-      });
       setUserPlaylists((currentPlaylists) =>
         currentPlaylists.map((p) => {
           if (String(getPlaylistId(p)) === String(playlistId)) {
-            const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
-            return {...p, tracks};
+            const tracks = Array.isArray(p.tracks) ? p.tracks : [];
+            if (isTrackInPlaylist(p, currentTrack)) return p;
+            return { ...p, tracks: [...tracks, currentTrack] };
           }
           return p;
         })
@@ -741,16 +811,12 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
         (status === 400 && (messages.some((m) => m?.includes("já está presente")) || errorMsg.includes("já está presente")));
 
       if (isDuplicate) {
-        setAddedPlaylistIds((currentIds) => {
-          const nextIds = new Set(currentIds);
-          nextIds.add(String(playlistId));
-          return nextIds;
-        });
         setUserPlaylists((currentPlaylists) =>
           currentPlaylists.map((p) => {
             if (String(getPlaylistId(p)) === String(playlistId)) {
-              const tracks = Array.isArray(p.tracks) ? [...p.tracks, currentTrack] : [currentTrack];
-              return {...p, tracks};
+              const tracks = Array.isArray(p.tracks) ? p.tracks : [];
+              if (isTrackInPlaylist(p, currentTrack)) return p;
+              return { ...p, tracks: [...tracks, currentTrack] };
             }
             return p;
           })
@@ -1006,7 +1072,7 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
   };
 
   const renderPlaylistMenuItems = () => {
-    const hasPlaylists = effectivePlaylists.length > 0;
+    const hasPlaylists = userPlaylists.length > 0;
 
     if (isLoadingPlaylists) {
       return (
@@ -1025,21 +1091,18 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
     }
 
     if (hasPlaylists) {
-      return effectivePlaylists.map((playlist) => {
+      return userPlaylists.map((playlist) => {
         const playlistId = getPlaylistId(playlist);
         const playlistIdKey = playlistId === null ? "" : String(playlistId);
         const isAdding = addingPlaylistId === playlistIdKey;
-        const isAdded =
-          Boolean(playlistIdKey && addedPlaylistIds.has(playlistIdKey)) ||
-          isTrackInPlaylist(playlist, currentTrack);
+        const isAdded = isTrackInPlaylist(playlist, currentTrack);
 
         return (
           <button
             key={playlistIdKey || getPlaylistName(playlist)}
             type="button"
-            className={`deefy-player-playlist-menu-item ${
-              isAdded ? "is-added" : ""
-            }`}
+            className={`deefy-player-playlist-menu-item ${isAdded ? "is-added" : ""
+              }`}
             role="menuitem"
             disabled={isAdding || isAdded}
             onClick={(event) => {
@@ -1150,9 +1213,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
       >
         <button
           type="button"
-          className={`deefy-player-control-action deefy-player-playlist-action ${
-            isOpen ? "is-active" : ""
-          }`}
+          className={`deefy-player-control-action deefy-player-playlist-action ${isOpen ? "is-active" : ""
+            }`}
           onClick={(event) => {
             stopCompactControlClick(event);
             togglePlaylistMenu(context);
@@ -1175,9 +1237,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
     <div className={className}>
       <button
         type="button"
-        className={`deefy-player-favorite-action deefy-player-expanded-favorite ${
-          isFavorite ? "is-favorite" : ""
-        }`}
+        className={`deefy-player-favorite-action deefy-player-expanded-favorite ${isFavorite ? "is-favorite" : ""
+          }`}
         onClick={toggleFavorite}
         disabled={!currentTrack.id}
         aria-label="Favoritar"
@@ -1203,6 +1264,7 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
     <>
       <aside
         className={`deefy-player-shell ${isHidden ? "deefy-player-hidden" : ""}`}
+        style={shellDynamicStyle}
         aria-label="Player musical"
         aria-hidden={isHidden}
         onClick={handleCompactPlayerClick}
@@ -1242,16 +1304,15 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
               {currentTrack.title}
             </p>
             <p className="deefy-player-meta">
-             <ArtistLink name={currentTrack.artist} />
+              <ArtistLink name={currentTrack.artist} />
               {currentTrack.album ? ` - ${currentTrack.album}` : ""}
             </p>
           </div>
 
           <button
             type="button"
-            className={`deefy-player-favorite-action ${
-              isFavorite ? "is-favorite" : ""
-            }`}
+            className={`deefy-player-favorite-action ${isFavorite ? "is-favorite" : ""
+              }`}
             onClick={(event) => {
               stopCompactControlClick(event);
               toggleFavorite();
@@ -1270,9 +1331,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
           <div className="deefy-player-controls" aria-label="Controles de reproducao">
             <button
               type="button"
-              className={`deefy-player-control-action ${
-                isShuffle ? "is-active" : ""
-              }`}
+              className={`deefy-player-control-action ${isShuffle ? "is-active" : ""
+                }`}
               onClick={(event) => {
                 stopCompactControlClick(event);
                 setShuffleMode((current) => !current);
@@ -1329,9 +1389,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
 
             <button
               type="button"
-              className={`deefy-player-control-action ${
-                isRepeat ? "is-active" : ""
-              }`}
+              className={`deefy-player-control-action ${isRepeat ? "is-active" : ""
+                }`}
               onClick={(event) => {
                 stopCompactControlClick(event);
                 setIsRepeat((current) => !current);
@@ -1397,7 +1456,7 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
             }}
             aria-label="Fila de reprodução"
           >
-            <FiList/>
+            <FiList />
           </button>
 
           <button
@@ -1416,9 +1475,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
 
       {isExpanded && !isHidden && (
         <div
-          className={`deefy-player-expanded ${
-            isExpandedClosing ? "is-closing" : ""
-          } ${isDragging ? "is-dragging" : ""}`}
+          className={`deefy-player-expanded ${isExpandedClosing ? "is-closing" : ""
+            } ${isDragging ? "is-dragging" : ""}`}
           style={expandedDragStyle}
           onClick={handleExpandedBackdropClick}
           onTouchStart={handleExpandedTouchStart}
@@ -1462,9 +1520,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
 
                   <div className="deefy-player-expanded-copy">
                     <p
-                      className={`deefy-player-expanded-title ${
-                        currentTrack.title.length > 30 ? "is-long" : ""
-                      }`}
+                      className={`deefy-player-expanded-title ${currentTrack.title.length > 30 ? "is-long" : ""
+                        }`}
                       title={currentTrack.title}
                     >
                       <span>{currentTrack.title}</span>
@@ -1505,9 +1562,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
                 >
                   <button
                     type="button"
-                    className={`deefy-player-control-action deefy-player-expanded-control ${
-                      isShuffle ? "is-active" : ""
-                    }`}
+                    className={`deefy-player-control-action deefy-player-expanded-control ${isShuffle ? "is-active" : ""
+                      }`}
                     onClick={() => setShuffleMode((current) => !current)}
                     aria-label="Aleatorio"
                     aria-pressed={isShuffle}
@@ -1527,9 +1583,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
 
                   <button
                     type="button"
-                    className={`deefy-player-main-action deefy-player-expanded-main ${
-                      isPlaying ? "is-playing" : ""
-                    }`}
+                    className={`deefy-player-main-action deefy-player-expanded-main ${isPlaying ? "is-playing" : ""
+                      }`}
                     onClick={togglePlaying}
                     disabled={!hasAudioUrl}
                     aria-label={isPlaying ? "Pausar" : "Reproduzir"}
@@ -1552,9 +1607,8 @@ function MusicPlayer({playlists, onAddToPlaylist, isHidden = false}) {
 
                   <button
                     type="button"
-                    className={`deefy-player-control-action deefy-player-expanded-control ${
-                      isRepeat ? "is-active" : ""
-                    }`}
+                    className={`deefy-player-control-action deefy-player-expanded-control ${isRepeat ? "is-active" : ""
+                      }`}
                     onClick={() => setIsRepeat((current) => !current)}
                     aria-label="Repetir"
                     aria-pressed={isRepeat}
