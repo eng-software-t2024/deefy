@@ -43,10 +43,12 @@ input {
   --mono: ui-monospace, Consolas, monospace;
 
   /* ── Design system tokens used by admin & app components ── */
-  --color-bg: #0a0a0a;
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #7a7a7a;
-  --color-accent: #39f0d0;
+  /* Aliases apontando para o sistema de temas (styles/theme.css):
+     assim /admin e /admin/users acompanham o tema claro/escuro. */
+  --color-bg: var(--bg-app);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-accent: var(--accent-text);
   --font-primary: 'Inter', sans-serif;
   --bottom-nav-height: 64px;
 
@@ -82,7 +84,7 @@ h1,
 h2 {
   font-family: var(--heading);
   font-weight: 500;
-  color: var(--text-h);
+  color: var(--text-primary);
 }
 
 h1 {
