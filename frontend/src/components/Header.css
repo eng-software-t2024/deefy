@@ -39,7 +39,7 @@
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  color: var(--bg-app);
+  color: var(--text-secondary);
   font-size: 1.4rem;
   transition: background 0.22s ease, color 0.22s ease, transform 0.22s ease;
   flex-shrink: 0;

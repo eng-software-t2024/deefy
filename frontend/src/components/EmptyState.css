@@ -24,7 +24,7 @@
   margin: 0 0 10px;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--bg-app);
+  color: var(--text-primary);
   font-family: 'Inter', sans-serif;
   /* override h3 in index.css */
   letter-spacing: -0.2px;
