@@ -10,6 +10,7 @@ import api from "../services/api";
 import { getApiErrorMessage } from "../utils/apiError";
 import { showMusicError, showMusicSuccess } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
+import BreadcrumbNav from "../components/BreadcrumbNav";
 
 function RedefinePass() {
   const navigate = useNavigate();
@@ -92,6 +93,15 @@ function RedefinePass() {
       <div className="forgot-overlay"></div>
 
       <section className="forgot-wrapper">
+        {!token && (
+            <BreadcrumbNav
+                items={[
+                  { label: 'Início', to: '/home' },
+                  { label: 'Configurações', to: '/configuration' },
+                  { label: 'Alterar senha' },
+                ]}
+            />
+        )}
         {/* Back button */}
         <div className="custom-profile-back-login custom-profile-back-top" onClick={() => navigate(-1)}>
           <IoChevronBack />

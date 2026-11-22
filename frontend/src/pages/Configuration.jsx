@@ -16,6 +16,7 @@ import ButtonSpinner from "../components/ButtonSpinner";
 import { removeToken } from "../utils/auth";
 import { MdOutlineDarkMode, MdOutlineLightMode } from "react-icons/md";
 import { useTheme } from "../contexts/ThemeContext";
+import BreadcrumbNav from "../components/BreadcrumbNav";
 
 function Configuration() {
   const navigate = useNavigate();
@@ -57,6 +58,12 @@ function Configuration() {
         <div className="configuration-overlay"></div>
 
         <section className="configuration-wrapper">
+          <BreadcrumbNav
+              items={[
+                { label: 'Início', to: '/home' },
+                { label: 'Configurações' },
+              ]}
+          />
           {/* Back button */}
           <div className="custom-profile-back-login custom-profile-back-top" onClick={() => navigate(-1)}>
             <IoChevronBack />
