@@ -38,6 +38,8 @@ import SystemPlaylists from './pages/SystemPlaylists.jsx'
 import Artists from './pages/Artists.jsx'
 import VersionFooter from './pages/VersionFooter.jsx'
 import VersionNotes from './pages/VersionNotes.jsx'
+import ArtistProfile from './pages/ArtistProfile.jsx'
+import SharedPlaylist from './pages/SharedPlaylist.jsx'
 
 createRoot(document.getElementById('root')).render(
     <StrictMode>

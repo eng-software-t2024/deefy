@@ -18,10 +18,11 @@
           radial-gradient(circle at top left, var(--glow-a), transparent 30%),
           radial-gradient(circle at bottom right, var(--glow-b), transparent 28%),
           var(--bg-app);
-  z-index: 1;
+  z-index: 1 !important;
 }
 
 .configuration-input-content {
+  color: var(--text-primary) !important;
   font-size: 1rem !important;
   padding-left: 3.125rem !important;
 }
@@ -201,7 +202,7 @@
   width: 100% !important;
   min-height: 58px !important;
   height: 58px !important;
-  background: var(--surface) !important;
+  background: var(--fill-strong) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   display: flex !important;
   flex-direction: row !important;

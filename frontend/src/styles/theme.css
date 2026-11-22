@@ -15,7 +15,7 @@
     --text-secondary: #b9b9b9;
     --text-muted: #858484;
 
-    /* "véus" translúcidos (hoje: rgba(255,255,255,.0X)) */
+    /* "véus" translúcidos */
     --fill-subtle: rgba(255, 255, 255, 0.05);
     --fill-hover: rgba(255, 255, 255, 0.10);
     --fill-strong: rgba(255, 255, 255, 0.16);
@@ -66,7 +66,7 @@
     --accent-border: rgba(0, 128, 107, 0.35);
     --on-accent: #061512;
     --danger-soft: rgba(217, 54, 54, 0.10);
-    --danger: #d93636;
+    --danger: #ff5d5d;
 
     --shadow-lg: 0 20px 50px rgba(15, 20, 22, 0.12);
 }

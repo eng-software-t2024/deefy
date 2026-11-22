@@ -232,7 +232,7 @@
   border-radius: 999px;
   outline: none;
   background: rgba(255, 255, 255, 0.055);
-  color: #d8d8d8;
+  color: var(--text-primary);
   font-family: inherit;
   font-size: 0.92rem;
   font-weight: 700;
