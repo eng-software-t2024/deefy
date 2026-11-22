@@ -35,6 +35,8 @@
     --on-accent: #061512;
     --danger-soft: rgba(255, 93, 93, 0.12);
     --danger: #ff5d5d;
+    --danger-border: rgba(255, 93, 93, 0.35);
+    --panel-player: radial-gradient(circle at 50% 10%, rgba(57, 240, 208, 0.16), transparent 34%), rgba(5, 5, 7, 0.96);
     --field-bg: rgba(0, 0, 0, 0.68);
     --warning: #ffd700;
     --info: #01cbff;
@@ -51,10 +53,10 @@
 
     --bg-app: #f2f8f7;
     --bg-deep: #eceff1;
-    --surface: rgb(89 88 88 / 0.82);
+    --surface: rgba(255, 255, 255, 0.82);
     --surface-solid: #ffffff;
     --surface-glass: rgba(255, 255, 255, 0.80);
-    --barra-player: #777373;
+    --barra-player: #ffffff;
 
     --glow-a: rgb(53 221 192 / 0.38);
     --glow-b: rgb(50 216 187 / 0.28);
@@ -81,6 +83,8 @@
     --on-accent: #061512;
     --danger-soft: rgba(217, 54, 54, 0.10);
     --danger: #d93636;
+    --danger-border: rgba(217, 54, 54, 0.35);
+    --panel-player: radial-gradient(circle at 50% 10%, rgba(0, 128, 107, 0.10), transparent 34%), rgba(255, 255, 255, 0.97);
     --field-bg: #ffffff;
     --warning: #a67c00;
     --info: #0079a3;

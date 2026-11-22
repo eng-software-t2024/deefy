@@ -76,7 +76,7 @@
   cursor: pointer;
   flex-shrink: 0;
   background: var(--fill-subtle);
-  border: 1px dashed rgba(57, 240, 208, 0.45);
+  border: 1px dashed var(--accent-border);
   display: flex;
   align-items: center;
   justify-content: center;
