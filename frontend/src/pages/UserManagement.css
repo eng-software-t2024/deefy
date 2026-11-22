@@ -17,7 +17,7 @@
   background:
     radial-gradient(ellipse at 80% 0%, rgba(167, 139, 250, 0.04) 0%, transparent 55%),
     radial-gradient(ellipse at 5% 85%, rgba(57, 240, 208, 0.03) 0%, transparent 45%),
-    #0a0a0a;
+    var(--bg-app);
 }
 
 /* ─── Header ──────────────────────────────────────────────── */
@@ -29,7 +29,7 @@
   gap: 1rem;
   margin-bottom: 2rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .um-header-left {
@@ -68,8 +68,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 0.6rem 1rem;
   color: var(--color-text-secondary);
@@ -79,7 +79,7 @@
 }
 
 .um-refresh-btn:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--fill-hover);
   color: var(--color-text-primary);
 }
 
@@ -106,7 +106,7 @@
   padding: 6px 4px 12px;
   margin-bottom: 2rem;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-color: var(--fill-hover) transparent;
 }
 
 .um-stats-grid::-webkit-scrollbar {
@@ -118,12 +118,12 @@
 }
 
 .um-stats-grid::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--fill-strong);
   border-radius: 10px;
 }
 
 .um-stats-grid::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--fill-strong);
 }
 
 .um-stat-card {
@@ -132,8 +132,8 @@
   box-sizing: border-box;
   flex-shrink: 0;
   width: 250px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   border-left: 3px solid var(--um-accent, var(--color-accent));
   border-radius: 14px;
   padding: 1.1rem;
@@ -145,11 +145,11 @@
 
 .um-stat-card:hover {
   transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-subtle);
 }
 
 .um-stat-card--active {
-  background: rgba(255, 255, 255, 0.09) !important;
+  background: var(--fill-hover) !important;
   border-color: var(--um-accent, var(--color-accent)) !important;
 }
 
@@ -162,7 +162,7 @@
   align-items: center;
   justify-content: center;
   font-size: 1.4rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-subtle);
   color: var(--um-accent, var(--color-accent));
 }
 
@@ -218,8 +218,8 @@
 
 /* ─── Table section ───────────────────────────────────────── */
 .um-table-section {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 18px;
   padding: 1.5rem;
 }
@@ -245,8 +245,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 0.55rem 0.9rem;
   min-width: 260px;
@@ -262,7 +262,7 @@
 }
 
 .um-search-input::placeholder {
-  color: rgba(255, 255, 255, 0.22);
+  color: var(--text-muted);
 }
 
 /* ─── Table ───────────────────────────────────────────────── */
@@ -285,7 +285,7 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-text-secondary);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .um-table td {
@@ -293,7 +293,7 @@
   font-size: 0.86rem;
   font-family: var(--font-primary);
   color: var(--color-text-primary);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-subtle);
   vertical-align: middle;
 }
 
@@ -302,7 +302,7 @@
 }
 
 .um-table tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--fill-subtle);
 }
 
 .um-row--banned td {
@@ -372,7 +372,7 @@
   font-size: 0.7rem;
   font-weight: 700;
   font-family: var(--font-primary);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-hover);
   color: var(--color-text-secondary);
 }
 
@@ -407,13 +407,13 @@
   align-items: center;
   justify-content: center;
   font-size: 1.05rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-subtle);
   color: var(--color-text-secondary);
   transition: background 0.2s, color 0.2s;
 }
 
 .um-action-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-hover);
   color: var(--color-text-primary);
 }
 
@@ -470,8 +470,8 @@
 }
 
 .um-modal {
-  background: #1a1a1d;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-solid);
+  border: 1px solid var(--border-subtle);
   border-radius: 18px;
   padding: 2rem;
   width: 100%;
@@ -600,8 +600,8 @@
 }
 
 .um-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 0.65rem 0.9rem;
   color: var(--color-text-primary);
@@ -634,7 +634,7 @@
 }
 
 .um-select option {
-  background: #1c1c1f;
+  background: var(--surface-solid);
 }
 
 /* ─── Buttons ─────────────────────────────────────────────── */
@@ -642,7 +642,7 @@
   all: unset;
   cursor: pointer;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
   padding: 0.65rem 1.2rem;
   color: var(--color-text-secondary);
@@ -652,7 +652,7 @@
 }
 
 .um-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-hover);
   color: var(--color-text-primary);
 }
 
@@ -688,7 +688,7 @@
 
 .um-btn-confirm--danger {
   background: #f06060;
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -790,8 +790,8 @@
     gap: 0.25rem;
     padding: 1rem;
     margin-bottom: 1rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--fill-subtle);
+    border: 1px solid var(--border-subtle);
     border-radius: 12px;
   }
 
@@ -800,7 +800,7 @@
   }
 
   .um-table tbody tr:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--fill-subtle);
   }
 
   .um-table td {
@@ -837,7 +837,7 @@
   /* Column 6: Actions */
   .um-table td:nth-child(6) {
     padding-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-top: 1px solid var(--border-subtle) !important;
   }
 
   .um-actions-cell {
@@ -847,8 +847,8 @@
 
   .um-action-btn {
     flex: 1;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--fill-subtle);
+    border: 1px solid var(--border-subtle);
   }
 }
 
