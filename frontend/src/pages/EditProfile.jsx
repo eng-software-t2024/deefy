@@ -12,6 +12,7 @@ import {
   PRIVATE_PROFILE_PHOTO_ENABLED,
   usePrivateProfilePhoto,
 } from "../hooks/usePrivateProfilePhoto";
+import { optimizeProfileImage } from "../utils/optimizeProfileImage";
 
 function EditProfile() {
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ function EditProfile() {
 
     setIsUploading(true);
     try {
-      await uploadPhoto(file);
+      await uploadPhoto(await optimizeProfileImage(file));
       showMusicSuccess('Foto de perfil atualizada com sucesso!');
     } catch (err) {
       showMusicError(err?.message || 'Falha ao atualizar a foto de perfil.');

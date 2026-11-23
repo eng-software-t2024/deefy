@@ -39,7 +39,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.deefy-api.rule=Host(`${APP_HOST}`) && (PathPrefix(`/api`) || PathPrefix(`/swagger-ui`) || Path(`/swagger-ui.html`) || PathPrefix(`/v3/api-docs`))
+      - traefik.http.routers.deefy-api.rule=(Host(`${APP_HOST}`) || Host(`${APP_HOST_ALIAS:-${APP_HOST}}`)) && (PathPrefix(`/api`) || PathPrefix(`/swagger-ui`) || Path(`/swagger-ui.html`) || PathPrefix(`/v3/api-docs`))
       - traefik.http.routers.deefy-api.entrypoints=websecure
       - traefik.http.routers.deefy-api.tls=true
       - traefik.http.routers.deefy-api.tls.certresolver=let-enc
@@ -61,7 +61,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
-      - traefik.http.routers.deefy-frontend.rule=Host(`${APP_HOST}`)
+      - traefik.http.routers.deefy-frontend.rule=Host(`${APP_HOST}`) || Host(`${APP_HOST_ALIAS:-${APP_HOST}}`)
       - traefik.http.routers.deefy-frontend.entrypoints=websecure
       - traefik.http.routers.deefy-frontend.tls=true
       - traefik.http.routers.deefy-frontend.tls.certresolver=let-enc
