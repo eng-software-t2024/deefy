@@ -4,6 +4,7 @@ import br.com.deefy.dto.request.ListeningHistoryRequest;
 import br.com.deefy.dto.request.ListeningHistoryResponse;
 import br.com.deefy.dto.response.MusicListResponseDTO;
 import br.com.deefy.exception.HistoryNotFoundException;
+import br.com.deefy.exception.HistoryNotAuthorizedException;
 import br.com.deefy.exception.MusicNotFoundException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.mapper.ListeningHistoryMapper;
@@ -16,7 +17,6 @@ import br.com.deefy.repository.MusicRepository;
 import br.com.deefy.repository.UserRepository;
 import br.com.deefy.service.ListeningHistoryService;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -76,7 +76,7 @@ public class ListeningHistoryServiceImpl implements ListeningHistoryService {
     public Page<ListeningHistoryResponse> getHistoryByUserId(Long userId, Pageable pageable) {
         Long currentUserId = authenticatedUserService.getAuthenticatedUser().getId();
         if (!currentUserId.equals(userId)) {
-            throw new AccessDeniedException("Você só pode consultar o seu próprio histórico");
+            throw new HistoryNotAuthorizedException("Você só pode consultar o seu próprio histórico");
         }
 
         if  (!userRepository.existsById(userId)) {

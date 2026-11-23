@@ -3,6 +3,7 @@ package br.com.deefy.service;
 import br.com.deefy.dto.request.ListeningHistoryRequest;
 import br.com.deefy.dto.request.ListeningHistoryResponse;
 import br.com.deefy.dto.response.MusicListResponseDTO;
+import br.com.deefy.exception.HistoryNotAuthorizedException;
 import br.com.deefy.exception.MusicNotFoundException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
 import br.com.deefy.mapper.ListeningHistoryMapper;
@@ -24,7 +25,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -211,7 +211,7 @@ public class ListeningHistoryServiceTest {
         user.setId(1L);
         when(authenticatedUserService.getAuthenticatedUser()).thenReturn(user);
 
-        assertThrows(AccessDeniedException.class,
+        assertThrows(HistoryNotAuthorizedException.class,
                 () -> listeningHistoryService.getHistoryByUserId(2L, PageRequest.of(0, 10)));
         verify(listeningHistoryRepository, never()).findAllByUserIdOrderByDataHoraExecucaoDesc(any(), any());
     }
