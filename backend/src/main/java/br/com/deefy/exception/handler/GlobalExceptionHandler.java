@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -123,6 +125,54 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidProfilePhotoException.class)
+    public ResponseEntity<ErrorDetails> handleInvalidProfilePhoto(
+            InvalidProfilePhotoException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ProfilePhotoTooLargeException.class)
+    public ResponseEntity<ErrorDetails> handleProfilePhotoTooLarge(
+            ProfilePhotoTooLargeException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ProfilePhotoNotFoundException.class)
+    public ResponseEntity<ErrorDetails> handleProfilePhotoNotFound(
+            ProfilePhotoNotFoundException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ProfilePhotoStorageOperationException.class)
+    public ResponseEntity<ErrorDetails> handleProfilePhotoStorageOperation(
+            ProfilePhotoStorageOperationException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_GATEWAY,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
     @ExceptionHandler(MusicNotFoundException.class)
     public ResponseEntity<ErrorDetails> handleMusicaNaoEncontradaException(
             MusicNotFoundException ex,
@@ -196,6 +246,30 @@ public class GlobalExceptionHandler {
         return buildResponse(
                 HttpStatus.UNAUTHORIZED,
                 List.of("E-mail ou senha inválidos."),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(AuthenticationServiceException.class)
+    public ResponseEntity<ErrorDetails> handleAuthenticationServiceException(
+            AuthenticationServiceException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                List.of("O serviço de autenticação está temporariamente indisponível."),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorDetails> handleAuthenticationException(
+            AuthenticationException ex,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.UNAUTHORIZED,
+                List.of("Não foi possível autenticar a solicitação."),
                 request.getRequestURI()
         );
     }

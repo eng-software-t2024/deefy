@@ -58,12 +58,15 @@ Crie um arquivo `.env.local` na pasta `client/`:
 ```env
 VITE_API_URL=http://localhost:8080
 VITE_STORAGE_TOKEN_KEY=@deefy-token
+VITE_PRIVATE_PROFILE_PHOTO_ENABLED=false
 ```
 
 Notas:
 
 - `VITE_API_URL` é obrigatório. O front normaliza a URL para terminar em `/api/v1` quando necessário.
 - `VITE_STORAGE_TOKEN_KEY` define a chave do JWT no `localStorage`.
+- `VITE_PRIVATE_PROFILE_PHOTO_ENABLED` é opcional e assume `false` quando ausente. Em `false`, o frontend exibe apenas a URL legada recebida no perfil e bloqueia upload/delete privados. Em `true`, tenta primeiro o proxy autenticado e usa a URL legada somente quando o proxy retorna `404`.
+- Na imagem de produção, o Docker Compose passa essa variável como argumento de build. Configure `VITE_PRIVATE_PROFILE_PHOTO_ENABLED=true` no arquivo de ambiente usado pelo Compose para liberar upload e remoção de fotos; a ausência da variável mantém as ações desabilitadas.
 - Arquivos `.env*` ficam fora do versionamento por segurança.
 
 ## Scripts

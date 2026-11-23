@@ -17,6 +17,7 @@ import { removeToken } from "../utils/auth";
 import { MdOutlineDarkMode, MdOutlineLightMode } from "react-icons/md";
 import { useTheme } from "../contexts/ThemeContext";
 import BreadcrumbNav from "../components/BreadcrumbNav";
+import { usePrivateProfilePhoto } from "../hooks/usePrivateProfilePhoto";
 
 function Configuration() {
   const navigate = useNavigate();
@@ -24,6 +25,12 @@ function Configuration() {
 
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [profileError, setProfileError] = useState(false);
+  const { photoUrl, hasPhoto, loadingPhoto } = usePrivateProfilePhoto({
+    identityKey: profile?.id,
+    legacyUrl: profile?.fotoPerfilUrl,
+    enabled: import.meta.env.VITE_PRIVATE_PROFILE_PHOTO_ENABLED === "true",
+  });
 
   // ── Load current profile ──────────────────────────────────────────
   useEffect(() => {
@@ -57,37 +64,38 @@ function Configuration() {
       <div className="configuration-page">
         <div className="configuration-overlay"></div>
 
-        <section className="configuration-wrapper">
-          <BreadcrumbNav
-              items={[
-                { label: 'Início', to: '/home' },
-                { label: 'Configurações' },
-              ]}
-          />
-          {/* Back button */}
-          <div className="custom-profile-back-login custom-profile-back-top" onClick={() => navigate(-1)}>
-            <IoChevronBack />
-            <span>Voltar</span>
-          </div>
-          <div className="configuration-user">
-            <div className="configuration-avatar-wrapper">
-              <div className="configuration-user-img">
-                {loadingProfile ? (
-                    <div className="configuration-avatar-spinner">
-                      <ButtonSpinner color="#02FFD4" />
-                    </div>
-                ) : profile?.fotoPerfilUrl ? (
-                    <img
-                        src={profile.fotoPerfilUrl}
-                        alt="Foto de perfil"
-                        className="configuration-avatar-img"
-                    />
-                ) : (
-                    <div className="configuration-avatar-initials">
-                      {getInitials(profile?.nome)}
-                    </div>
-                )}
-              </div>
+      <section className="configuration-wrapper">
+        <BreadcrumbNav
+          items={[
+            { label: 'Início', to: '/home' },
+            { label: 'Configurações' },
+          ]}
+        />
+
+        {/* Back button */}
+        <div className="custom-profile-back-login custom-profile-back-top" onClick={() => navigate(-1)}>
+          <IoChevronBack />
+          <span>Voltar</span>
+        </div>
+        <div className="configuration-user">
+          <div className="configuration-avatar-wrapper">
+            <div className="configuration-user-img">
+              {loadingProfile || loadingPhoto ? (
+                <div className="configuration-avatar-spinner">
+                  <ButtonSpinner color="#02FFD4" />
+                </div>
+              ) : hasPhoto ? (
+                <img
+                  src={photoUrl}
+                  alt="Foto de perfil"
+                  className="configuration-avatar-img"
+                />
+              ) : (
+                <div className="configuration-avatar-initials">
+                  {getInitials(profile?.nome)}
+                </div>
+              )}
+            </div>
 
             <div className="configuration-edit-photo-btn" onClick={() => navigate("/edit-profile")}>
               <div className="configuration-edit-photo-icon-wrapper">
