@@ -6,10 +6,10 @@ import br.com.deefy.dto.request.AdminUserBanRequestDTO;
 import br.com.deefy.dto.request.AdminUserRoleRequestDTO;
 import br.com.deefy.dto.request.AdminUserUpdateRequestDTO;
 import br.com.deefy.dto.request.ChangePasswordRequestDTO;
-import br.com.deefy.dto.request.UpdateProfilePhotoRequestDTO;
 import br.com.deefy.dto.request.UpdateNameRequestDTO;
 import br.com.deefy.dto.response.AdminUserResponseDTO;
 import br.com.deefy.dto.response.AdminUserStatsResponseDTO;
+import br.com.deefy.dto.response.ProfilePhotoResponseDTO;
 import br.com.deefy.dto.response.UserResponseDTO;
 import br.com.deefy.exception.EmailJaCadastradoException;
 import br.com.deefy.exception.UsuarioNaoEncontradoException;
@@ -18,6 +18,7 @@ import br.com.deefy.model.User;
 import br.com.deefy.repository.PerfilRepository;
 import br.com.deefy.repository.UserRepository;
 import br.com.deefy.service.UserService;
+import br.com.deefy.service.ProfilePhotoDownload;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,6 +29,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -190,34 +192,33 @@ public class UserController implements UserControllerDocs {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping(value = "/me/photo")
-    @Operation(summary = "Atualizar minha foto de perfil", description = "Salva a URL publica da foto de perfil do usuario autenticado.")
-    public ResponseEntity<UserResponseDTO> updateMyProfilePhoto(
-            Principal principal,
-            @Valid @RequestBody UpdateProfilePhotoRequestDTO request) {
-
-        String email = principal.getName();
-        UserResponseDTO updatedProfile = userService.updateMyProfilePhoto(email, request);
-        return ResponseEntity.ok(updatedProfile);
+    @GetMapping(value = "/me/photo")
+    @Operation(summary = "Ler minha foto de perfil", description = "Entrega a foto privada do usuario autenticado por proxy.")
+    public ResponseEntity<byte[]> getMyProfilePhoto(Principal principal) {
+        ProfilePhotoDownload photo = userService.getMyProfilePhoto(principal.getName());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(photo.contentType()))
+                .contentLength(photo.bytes().length)
+                .cacheControl(CacheControl.noStore().cachePrivate())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(photo.bytes());
     }
 
     @PostMapping(value = "/me/photo/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Enviar minha foto de perfil", description = "Envia uma imagem para o Storage e salva a URL publica em fotoperfilurl.")
-    public ResponseEntity<UserResponseDTO> uploadMyProfilePhoto(
+    @Operation(summary = "Enviar minha foto de perfil", description = "Envia uma imagem privada e salva somente a referencia controlada pelo backend.")
+    public ResponseEntity<ProfilePhotoResponseDTO> uploadMyProfilePhoto(
             Principal principal,
             @RequestPart("file") MultipartFile file) {
 
         String email = principal.getName();
-        UserResponseDTO updatedProfile = userService.uploadMyProfilePhoto(email, file);
-        return ResponseEntity.ok(updatedProfile);
+        return ResponseEntity.ok(userService.uploadMyProfilePhoto(email, file));
     }
 
     @DeleteMapping(value = "/me/photo")
-    @Operation(summary = "Remover minha foto de perfil", description = "Remove a URL da foto de perfil do usuario autenticado.")
-    public ResponseEntity<UserResponseDTO> removeMyProfilePhoto(Principal principal) {
-        String email = principal.getName();
-        UserResponseDTO updatedProfile = userService.removeMyProfilePhoto(email);
-        return ResponseEntity.ok(updatedProfile);
+    @Operation(summary = "Remover minha foto de perfil", description = "Remove fisicamente a foto privada antes de limpar sua referencia.")
+    public ResponseEntity<Void> removeMyProfilePhoto(Principal principal) {
+        userService.removeMyProfilePhoto(principal.getName());
+        return ResponseEntity.noContent().build();
     }
 
     private User findUserOrThrow(Long id) {
