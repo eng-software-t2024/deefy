@@ -21,8 +21,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
@@ -182,5 +184,35 @@ public class ListeningHistoryServiceTest {
 
         assertEquals(List.of(dto10, dto11, dto20), result);
         verify(musicRepository).findPlayedByGenres(eq(List.of("Pop")), eq(1L), eq(PageRequest.of(0, 1)));
+    }
+
+    @Test
+    void getHistoryByUserId_Success_WhenRequestingOwnHistory() {
+        User user = new User();
+        user.setId(1L);
+        when(authenticatedUserService.getAuthenticatedUser()).thenReturn(user);
+        when(userRepository.existsById(1L)).thenReturn(true);
+
+        ListeningHistory history = new ListeningHistory();
+        ListeningHistoryResponse response = new ListeningHistoryResponse(1L, 1L, 1L, LocalDateTime.now());
+        Page<ListeningHistory> page = new org.springframework.data.domain.PageImpl<>(List.of(history));
+        when(listeningHistoryRepository.findAllByUserIdOrderByDataHoraExecucaoDesc(eq(1L), any(Pageable.class)))
+                .thenReturn(page);
+        when(listeningHistoryMapper.toResponse(history)).thenReturn(response);
+
+        listeningHistoryService.getHistoryByUserId(1L, PageRequest.of(0, 10));
+
+        verify(listeningHistoryRepository).findAllByUserIdOrderByDataHoraExecucaoDesc(eq(1L), any(Pageable.class));
+    }
+
+    @Test
+    void getHistoryByUserId_Forbidden_WhenRequestingAnotherUser() {
+        User user = new User();
+        user.setId(1L);
+        when(authenticatedUserService.getAuthenticatedUser()).thenReturn(user);
+
+        assertThrows(AccessDeniedException.class,
+                () -> listeningHistoryService.getHistoryByUserId(2L, PageRequest.of(0, 10)));
+        verify(listeningHistoryRepository, never()).findAllByUserIdOrderByDataHoraExecucaoDesc(any(), any());
     }
 }

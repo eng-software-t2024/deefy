@@ -16,6 +16,7 @@ import br.com.deefy.repository.MusicRepository;
 import br.com.deefy.repository.UserRepository;
 import br.com.deefy.service.ListeningHistoryService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -73,6 +74,11 @@ public class ListeningHistoryServiceImpl implements ListeningHistoryService {
 
     @Override
     public Page<ListeningHistoryResponse> getHistoryByUserId(Long userId, Pageable pageable) {
+        Long currentUserId = authenticatedUserService.getAuthenticatedUser().getId();
+        if (!currentUserId.equals(userId)) {
+            throw new AccessDeniedException("Você só pode consultar o seu próprio histórico");
+        }
+
         if  (!userRepository.existsById(userId)) {
             throw new UsuarioNaoEncontradoException("User not found with id: " + userId);
         }
