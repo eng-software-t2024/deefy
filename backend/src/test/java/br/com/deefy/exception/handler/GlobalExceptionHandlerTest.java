@@ -21,8 +21,8 @@ class GlobalExceptionHandlerTest {
                 new AuthenticationServiceException("authentication provider unavailable"), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(response.getBody().getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
-        assertThat(response.getBody().getPath()).isEqualTo("/api/private");
+        assertThat(response.getBody().status()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertThat(response.getBody().path()).isEqualTo("/api/private");
     }
 
     @Test
@@ -32,6 +32,6 @@ class GlobalExceptionHandlerTest {
         var response = handler.handleBadCredentials(new BadCredentialsException("bad"), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(response.getBody().getMessages()).containsExactly("E-mail ou senha inválidos.");
+        assertThat(response.getBody().messages()).containsExactly("E-mail ou senha inválidos.");
     }
 }
