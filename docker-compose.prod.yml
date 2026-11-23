@@ -52,6 +52,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         VITE_API_URL: ${APP_FRONTEND_BASE_URL}
+        VITE_PRIVATE_PROFILE_PHOTO_ENABLED: ${VITE_PRIVATE_PROFILE_PHOTO_ENABLED:-false}
     container_name: deefy-frontend
     restart: unless-stopped
     depends_on:
