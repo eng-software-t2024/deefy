@@ -21,7 +21,7 @@ services:
       timeout: 5s
       retries: 20
     networks:
-      - traefik-public
+      - fallback-db
 
   backend:
     depends_on:
@@ -31,10 +31,15 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/deefy
       SPRING_DATASOURCE_USERNAME: deefy
       SPRING_DATASOURCE_PASSWORD: ${LOCAL_FALLBACK_POSTGRES_PASSWORD:?Set LOCAL_FALLBACK_POSTGRES_PASSWORD}
+    networks:
+      - traefik-public
+      - fallback-db
 
 volumes:
   deefy-localdb-fallback:
 
 networks:
+  fallback-db:
+    internal: true
   traefik-public:
     external: true
