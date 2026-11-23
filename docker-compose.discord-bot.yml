@@ -12,11 +12,11 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-      tmpfs:
-        - /tmp:rw,noexec,nosuid,size=64m
-      volumes:
-        - deefy-discord-audio-cache:/var/cache/deefy-discord
-      environment:
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - deefy-discord-audio-cache:/var/cache/deefy-discord
+    environment:
       SPRING_MAIN_WEB_APPLICATION_TYPE: none
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?configure the self-hosted catalog database}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?configure a catalog role}
@@ -47,7 +47,7 @@ services:
 
 secrets:
   deefy_discord_token:
-      file: ${DEEFY_DISCORD_TOKEN_SOURCE_FILE:?configure a protected token file}
+    file: ${DEEFY_DISCORD_TOKEN_SOURCE_FILE:?configure a protected token file}
 
 volumes:
   deefy-discord-audio-cache:

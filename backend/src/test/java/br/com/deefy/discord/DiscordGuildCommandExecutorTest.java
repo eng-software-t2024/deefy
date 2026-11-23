@@ -42,8 +42,7 @@ class DiscordGuildCommandExecutorTest {
             assertThat(first.get(5, TimeUnit.SECONDS)).isEqualTo("first");
             assertThat(secondSameGuild.get(5, TimeUnit.SECONDS)).isEqualTo("second");
 
-            workers.submit(() -> { }).get(5, TimeUnit.SECONDS);
-            assertThat(executor.activeLaneCount()).isZero();
+            awaitNoActiveLanes(executor);
         } finally {
             executor.close();
         }
@@ -86,5 +85,13 @@ class DiscordGuildCommandExecutorTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("test interrupted", exception);
         }
+    }
+
+    private static void awaitNoActiveLanes(DiscordGuildCommandExecutor executor) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (executor.activeLaneCount() != 0 && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertThat(executor.activeLaneCount()).isZero();
     }
 }
