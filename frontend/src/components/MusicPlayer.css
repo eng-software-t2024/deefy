@@ -1602,9 +1602,9 @@
 
 @media (max-width: 860px) {
   .deefy-player-shell {
-    left: 18px;
-    right: 18px;
-    bottom: 96px;
+    left: var(--deefy-player-left, 0px);
+    right: var(--deefy-player-right, 0px);
+    bottom: var(--deefy-player-bottom, 0px);
     min-height: 88px;
     padding: 12px 14px;
     grid-template-columns: minmax(0, 1fr) 48px;
@@ -1612,7 +1612,7 @@
       "track controls"
       "timeline timeline";
     gap: 10px;
-    border-radius: 22px;
+    border-radius: 0;
     cursor: pointer;
     touch-action: pan-y;
   }
@@ -1990,13 +1990,13 @@
   }
 
   .deefy-player-shell {
-    left: 10px;
-    right: 10px;
-    bottom: 90px;
+    left: var(--deefy-player-left, 0px);
+    right: var(--deefy-player-right, 0px);
+    bottom: var(--deefy-player-bottom, 0px);
     min-height: 84px;
     padding: 10px 12px;
     gap: 9px;
-    border-radius: 18px;
+    border-radius: 0;
   }
 
   .deefy-player-expanded-panel {
@@ -2146,9 +2146,9 @@
 
 /* Fixed bottom-bar positioning and backend-ready states. */
 .deefy-player-shell {
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: var(--deefy-player-left, 0px);
+  right: var(--deefy-player-right, 0px);
+  bottom: var(--deefy-player-bottom, 0px);
   min-height: 78px;
   border-right: 0;
   border-bottom: 0;
@@ -2157,6 +2157,12 @@
     0 -10px 28px rgba(0, 0, 0, 0.3),
     0 0 0 1px rgba(255, 255, 255, 0.025),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition:
+    left 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    right 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    bottom 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .deefy-player-shell:hover {
@@ -2166,17 +2172,8 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
-body:has(.catalog-page) .deefy-player-shell,
-body:has(.artist-profile-page) .deefy-player-shell,
-body:has(.home-layout) .deefy-player-shell,
-body:has(.admin-layout) .deefy-player-shell,
-body:has(.playlists-page) .deefy-player-shell,
-body:has(.playlist-detail-page) .deefy-player-shell,
-body:has(.user-playlist-page) .deefy-player-shell,
-body:has(.favorites-page) .deefy-player-shell,
-body:has(.create-playlist-page) .deefy-player-shell,
-body:has(.add-music-page) .deefy-player-shell {
-  left: 240px;
+body:has(.sidebar) .deefy-player-shell {
+  left: var(--deefy-player-left, 240px);
 }
 
 .deefy-player-control-action:disabled,
@@ -2226,9 +2223,9 @@ body:has(.add-music-page) .deefy-player-shell {
 
 @media (max-width: 860px) {
   .deefy-player-shell {
-    left: 0;
-    right: 0;
-    bottom: max(16px, env(safe-area-inset-bottom));
+    left: var(--deefy-player-left, 0px);
+    right: var(--deefy-player-right, 0px);
+    bottom: var(--deefy-player-bottom, 0px);
     border-radius: 0;
   }
 
@@ -2265,18 +2262,10 @@ body:has(.add-music-page) .deefy-player-shell {
     min-width: 100%;
     animation: deefy-player-title-marquee 7s ease-in-out infinite alternate;
   }
-  body:has(.catalog-page) .deefy-player-shell,
-  body:has(.artist-profile-page) .deefy-player-shell,
-  body:has(.home-layout) .deefy-player-shell,
-  body:has(.admin-layout) .deefy-player-shell,
-  body:has(.playlists-page) .deefy-player-shell,
-  body:has(.playlist-detail-page) .deefy-player-shell,
-  body:has(.user-playlist-page) .deefy-player-shell,
-  body:has(.favorites-page) .deefy-player-shell,
-  body:has(.create-playlist-page) .deefy-player-shell,
-  body:has(.add-music-page) .deefy-player-shell {
-    left: 0;
-    bottom: calc(72px + env(safe-area-inset-bottom));
+
+  body:has(.sidebar) .deefy-player-shell {
+    left: var(--deefy-player-left, 0px);
+    bottom: var(--deefy-player-bottom, 64px);
   }
 
   .home-layout .home-content,
@@ -2297,9 +2286,9 @@ body:has(.add-music-page) .deefy-player-shell {
 
 @media (max-width: 520px) {
   .deefy-player-shell {
-    left: 0;
-    right: 0;
-    bottom: max(16px, env(safe-area-inset-bottom));
+    left: var(--deefy-player-left, 0px);
+    right: var(--deefy-player-right, 0px);
+    bottom: var(--deefy-player-bottom, 0px);
     border-radius: 0;
   }
 
@@ -2314,14 +2303,7 @@ body:has(.add-music-page) .deefy-player-shell {
     box-shadow: none;
   }
 
-  body:has(.home-layout) .deefy-player-shell,
-  body:has(.admin-layout) .deefy-player-shell,
-  body:has(.playlists-page) .deefy-player-shell,
-  body:has(.playlist-detail-page) .deefy-player-shell,
-  body:has(.user-playlist-page) .deefy-player-shell,
-  body:has(.favorites-page) .deefy-player-shell,
-  body:has(.create-playlist-page) .deefy-player-shell,
-  body:has(.add-music-page) .deefy-player-shell {
-    bottom: calc(72px + env(safe-area-inset-bottom));
+  body:has(.sidebar) .deefy-player-shell {
+    bottom: var(--deefy-player-bottom, 64px);
   }
 }

@@ -14,6 +14,7 @@ const ROTAS_PLAYER_OCULTO = [
   '/configuration',
   '/edit-profile',
   '/custom-profile',
+  '/version-notes',
 ];
 
 /**
