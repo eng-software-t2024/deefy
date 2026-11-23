@@ -187,6 +187,26 @@
 				<plugins>
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-enforcer-plugin</artifactId>
+						<version>3.6.3</version>
+						<executions>
+							<execution>
+								<id>require-jdk-25-for-discord-bot</id>
+								<phase>validate</phase>
+								<goals><goal>enforce</goal></goals>
+								<configuration>
+									<rules>
+									<requireJavaVersion>
+										<version>[25,)</version>
+										<message>The discord-bot profile requires JDK 25 or newer because its native DAVE provider targets Java 25.</message>
+									</requireJavaVersion>
+									</rules>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<argLine>@{argLine} --enable-native-access=ALL-UNNAMED</argLine>

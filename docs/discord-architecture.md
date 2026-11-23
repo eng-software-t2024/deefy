@@ -1,5 +1,11 @@
 # Arquitetura da integração com o Discord
 
+O perfil Maven `discord-bot` requer JDK 25 ou mais recente, por causa do
+runtime nativo DAVE incluído nessa configuração. O backend web padrão continua
+com JDK 21. A imagem de produção do bot inclui bibliotecas nativas `linux/amd64`
+e o Compose fixa essa plataforma. Em hosts ARM64, é necessário habilitar
+emulação AMD64 no runtime de containers.
+
 Este documento registra o estado atual e a evolução incremental planejada da
 integração entre o Deefy e o Discord. As referências `#56` e `#74` a `#82`
 neste texto identificam tarefas do Taiga acadêmico, não GitHub Issues.

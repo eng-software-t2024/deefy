@@ -24,9 +24,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,6 +50,8 @@ public class DiscordAudioDownloadManager {
     private final DiscordAudioValidatorPort validator;
     private final ConcurrentMap<Long, CompletableFuture<DiscordPreparedAudio>> inFlight =
             new ConcurrentHashMap<>();
+    private final Set<Path> activePartials = new HashSet<>();
+    private final Object partialFilesLock = new Object();
     private final ExecutorService downloadExecutor = Executors.newFixedThreadPool(4, runnable ->
             Thread.ofPlatform().daemon(true).name("deefy-discord-audio-download").unstarted(runnable));
     private final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor(runnable ->
@@ -131,14 +135,19 @@ public class DiscordAudioDownloadManager {
         Path metadataPath = metadataPath(track.id());
         CacheMetadata cached = readUsableCache(track, finalPath, metadataPath);
         if (cached != null) {
-            DiscordValidatedAudioMetadata validated = validator.validate(finalPath);
-            LOGGER.info(
-                    "Discord audio cache hit: trackId={}, bytes={}, prepareMs={}",
-                    track.id(),
-                    cached.size(),
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
-            );
-            return cached.audio(finalPath, track.id(), validated);
+            try {
+                DiscordValidatedAudioMetadata validated = validator.validate(finalPath);
+                LOGGER.info(
+                        "Discord audio cache hit: trackId={}, bytes={}, prepareMs={}",
+                        track.id(),
+                        cached.size(),
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started)
+                );
+                return cached.audio(finalPath, track.id(), validated);
+            } catch (DiscordAudioPreparationException invalidCache) {
+                LOGGER.warn("Discord audio cache validation failed: trackId={}, action=redownload", track.id());
+                deleteCacheFiles(finalPath, metadataPath);
+            }
         }
 
         deleteCacheFiles(finalPath, metadataPath);
@@ -175,6 +184,8 @@ public class DiscordAudioDownloadManager {
                 throw preparationFailure;
             }
             throw new DiscordAudioPreparationException("Não foi possível finalizar o cache de áudio.", failure);
+        } finally {
+            releasePartial(downloaded.part());
         }
         LOGGER.info(
                 "Discord audio cached: trackId={}, bytes={}, prepareMs={}",
@@ -187,6 +198,7 @@ public class DiscordAudioDownloadManager {
 
     private DownloadedFile downloadOnce(DiscordTrack track, int attempt) {
         Path part = properties.cachePath().resolve(track.id() + "." + attempt + ".part");
+        registerPartial(part);
         try {
             Files.deleteIfExists(part);
             HttpURLConnection connection = open(track.audioUrl(), "GET");
@@ -234,9 +246,11 @@ public class DiscordAudioDownloadManager {
             ));
         } catch (IOException failure) {
             deleteQuietly(part);
+            releasePartial(part);
             throw new DownloadFailure("Falha transitória ao baixar o áudio.", true, failure);
         } catch (DiscordAudioPreparationException failure) {
             deleteQuietly(part);
+            releasePartial(part);
             throw failure;
         }
     }
@@ -341,8 +355,24 @@ public class DiscordAudioDownloadManager {
     private void removeExpiredPartials() throws IOException {
         try (DirectoryStream<Path> files = Files.newDirectoryStream(properties.cachePath(), "*.part")) {
             for (Path file : files) {
-                Files.deleteIfExists(file);
+                synchronized (partialFilesLock) {
+                    if (!activePartials.contains(file)) {
+                        Files.deleteIfExists(file);
+                    }
+                }
             }
+        }
+    }
+
+    private void registerPartial(Path path) {
+        synchronized (partialFilesLock) {
+            activePartials.add(path);
+        }
+    }
+
+    private void releasePartial(Path path) {
+        synchronized (partialFilesLock) {
+            activePartials.remove(path);
         }
     }
 
@@ -393,6 +423,7 @@ public class DiscordAudioDownloadManager {
 
     private void writeMetadataAtomically(Path target, CacheMetadata metadata) throws IOException {
         Path partial = target.resolveSibling(target.getFileName() + ".part");
+        registerPartial(partial);
         Properties propertiesFile = metadata.toProperties();
         try {
             try (OutputStream output = Files.newOutputStream(partial, StandardOpenOption.CREATE,
@@ -401,7 +432,11 @@ public class DiscordAudioDownloadManager {
             }
             moveAtomically(partial, target);
         } finally {
-            Files.deleteIfExists(partial);
+            try {
+                Files.deleteIfExists(partial);
+            } finally {
+                releasePartial(partial);
+            }
         }
     }
 

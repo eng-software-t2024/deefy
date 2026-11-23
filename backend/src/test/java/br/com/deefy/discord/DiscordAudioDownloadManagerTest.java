@@ -14,6 +14,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -145,6 +147,83 @@ class DiscordAudioDownloadManagerTest {
 
         assertThat(Files.readString(refreshed.path())).isEqualTo("audio-two");
         assertThat(gets).hasValue(2);
+    }
+
+    @Test
+    void shouldNotDeleteAnActiveDownloadWhenCleanupRuns() throws Exception {
+        byte[] body = "audio-during-cleanup".getBytes(StandardCharsets.UTF_8);
+        CountDownLatch firstChunkSent = new CountDownLatch(1);
+        CountDownLatch allowDownloadToFinish = new CountDownLatch(1);
+        server.createContext("/audio/9", exchange -> {
+            try {
+                exchange.sendResponseHeaders(200, body.length);
+                try (var output = exchange.getResponseBody()) {
+                    int split = body.length / 2;
+                    output.write(body, 0, split);
+                    output.flush();
+                    firstChunkSent.countDown();
+                    if (!allowDownloadToFinish.await(5, TimeUnit.SECONDS)) {
+                        throw new IOException("test did not release the download");
+                    }
+                    output.write(body, split, body.length - split);
+                }
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+        server.start();
+
+        Path partial = cacheDirectory.resolve("9.1.part");
+        CompletableFuture<DiscordPreparedAudio> preparing = manager.prepare(track(9, "/audio/9"));
+        try {
+            assertThat(firstChunkSent.await(2, TimeUnit.SECONDS)).isTrue();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while ((!Files.exists(partial) || Files.size(partial) == 0) && System.nanoTime() < deadline) {
+                Thread.sleep(10);
+            }
+            assertThat(partial).exists();
+            assertThat(Files.size(partial)).isGreaterThan(0);
+
+            manager.cleanupNow();
+
+            assertThat(partial).exists();
+            allowDownloadToFinish.countDown();
+            assertThat(preparing.join().path()).isEqualTo(cacheDirectory.resolve("9.audio"));
+            assertThat(partial).doesNotExist();
+        } finally {
+            allowDownloadToFinish.countDown();
+        }
+    }
+
+    @Test
+    void shouldRedownloadWhenCachedAudioFailsValidation() throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        AtomicInteger validations = new AtomicInteger();
+        server.createContext("/audio/10", exchange -> {
+            requests.incrementAndGet();
+            respond(exchange, 200, "audio-ten", null);
+        });
+        server.start();
+        DiscordAudioDownloadManager validatingManager = new DiscordAudioDownloadManager(properties, path -> {
+            if (validations.incrementAndGet() == 2) {
+                throw new DiscordAudioPreparationException("cached audio failed validation");
+            }
+            return validateFixture(path);
+        });
+
+        try {
+            DiscordTrack track = track(10, "/audio/10");
+            validatingManager.prepare(track).join();
+            DiscordPreparedAudio refreshed = validatingManager.prepare(track).join();
+
+            assertThat(refreshed.path()).isEqualTo(cacheDirectory.resolve("10.audio"));
+            assertThat(requests).hasValue(2);
+            assertThat(validations).hasValue(3);
+        } finally {
+            validatingManager.close();
+        }
     }
 
     @Test

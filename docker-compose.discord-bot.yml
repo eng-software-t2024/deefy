@@ -1,5 +1,6 @@
 services:
   deefy-discord-bot:
+    platform: linux/amd64
     build:
       context: .
       dockerfile: backend/Dockerfile.discord-bot
