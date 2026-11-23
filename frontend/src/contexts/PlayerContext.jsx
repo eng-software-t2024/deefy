@@ -92,8 +92,10 @@ export function PlayerProvider({children}) {
     if (!queue.length || !currentTrack) return;
     const currentIndex = queue.findIndex(t => getTrackId(t) === getTrackId(currentTrack));
     if (currentIndex !== -1 && currentIndex < queue.length - 1) {
-      setCurrentTrack(queue[currentIndex + 1]);
+      const nextTrack = queue[currentIndex + 1];
+      setCurrentTrack(nextTrack);
       setIsPlaying(true);
+      musicService.recordMusicPlay(getTrackId(nextTrack));
     }
   }, [currentTrack, queue]);
 
@@ -101,8 +103,10 @@ export function PlayerProvider({children}) {
     if (!queue.length || !currentTrack) return;
     const currentIndex = queue.findIndex(t => getTrackId(t) === getTrackId(currentTrack));
     if (currentIndex > 0) {
-      setCurrentTrack(queue[currentIndex - 1]);
+      const previousTrack = queue[currentIndex - 1];
+      setCurrentTrack(previousTrack);
       setIsPlaying(true);
+      musicService.recordMusicPlay(getTrackId(previousTrack));
     }
   }, [currentTrack, queue]);
 
