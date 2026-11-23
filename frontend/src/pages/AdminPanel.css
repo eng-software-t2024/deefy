@@ -20,7 +20,7 @@
   background:
     radial-gradient(ellipse at 75% 0%, rgba(57, 240, 208, 0.04) 0%, transparent 55%),
     radial-gradient(ellipse at 5% 85%, rgba(57, 240, 208, 0.03) 0%, transparent 45%),
-    #0a0a0a;
+    var(--bg-app);
 }
 
 /* ─── Topbar ──────────────────────────────────────────────── */
@@ -31,7 +31,7 @@
   flex-wrap: wrap;
   gap: 1.25rem;
   padding: 2rem 2.5rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .admin-topbar-brand {
@@ -71,8 +71,8 @@
 }
 
 .admin-stat-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
   padding: 0.85rem 1.2rem;
   text-align: center;
@@ -118,7 +118,7 @@
   width: 200px;
   flex-shrink: 0;
   padding: 1.5rem 1rem;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -156,7 +156,7 @@
 }
 
 .admin-tab:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-subtle);
   color: var(--color-text-primary);
 }
 
@@ -169,8 +169,8 @@
   margin-top: 14px;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -259,8 +259,8 @@
 
 .admin-editor-card,
 .admin-preview-card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 16px;
   padding: 1.5rem;
 }
@@ -324,8 +324,8 @@
 }
 
 .admin-input {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
   padding: 0.7rem 0.9rem;
   color: var(--color-text-primary);
@@ -341,13 +341,13 @@
 }
 
 .admin-input::placeholder {
-  color: rgba(255, 255, 255, 0.2);
+  color: var(--text-muted);
 }
 
 .admin-input:focus {
   border-color: rgba(57, 240, 208, 0.5);
   box-shadow: 0 0 0 3px rgba(57, 240, 208, 0.08);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--fill-hover);
 }
 
 .admin-input:disabled {
@@ -371,7 +371,7 @@
 }
 
 .admin-select option {
-  background: #1c1c1f;
+  background: var(--surface-solid);
   color: var(--color-text-primary);
 }
 
@@ -423,13 +423,13 @@
   cursor: pointer;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-subtle);
   transition: background 0.2s, border-color 0.2s;
 }
 
 .admin-feat-card:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--fill-hover);
 }
 
 .admin-feat-card--active {
@@ -470,8 +470,8 @@
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background: var(--fill-subtle);
+  border: 1px dashed var(--border-strong);
   border-radius: 10px;
   padding: 0.65rem 1rem;
   color: var(--color-text-secondary);
@@ -482,7 +482,7 @@
 }
 
 .admin-upload-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-hover);
   border-color: rgba(57, 240, 208, 0.4);
   color: var(--color-text-primary);
 }
@@ -525,7 +525,7 @@
 
 .admin-publish-btn--success {
   background: linear-gradient(135deg, #4ade80, #16a34a);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .admin-secondary-btn {
@@ -562,7 +562,7 @@
 .admin-music-list {
   max-height: 260px;
   overflow-y: auto;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
   margin-top: 8px;
 }
@@ -576,7 +576,7 @@
   padding: 10px 14px;
   width: 100%;
   box-sizing: border-box;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border-subtle);
   transition: background 0.2s;
 }
 
@@ -585,7 +585,7 @@
 }
 
 .admin-music-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--fill-subtle);
 }
 
 .admin-music-item--active {
@@ -754,9 +754,9 @@
 .admin-preview-note {
   margin-top: 1.25rem;
   padding: 0.9rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fill-subtle);
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
 }
 
 .admin-preview-note strong {
@@ -780,8 +780,8 @@
   padding: 0.85rem;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.32);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
   font-size: 0.72rem;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -858,8 +858,8 @@
   padding: 0.55rem 0.8rem;
   border-radius: 10px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px dashed rgba(255, 255, 255, 0.16);
+  background: var(--fill-subtle);
+  border: 1px dashed var(--border-strong);
   color: var(--color-text-primary);
   font-family: var(--font-primary);
   font-size: 0.78rem;
@@ -968,7 +968,7 @@
     width: 100%;
     flex-direction: row;
     border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--border-subtle);
     padding: 0.75rem 1.25rem;
     overflow-x: auto;
     gap: 0.75rem;
@@ -989,8 +989,8 @@
     flex-shrink: 0;
     padding: 8px 16px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--fill-subtle);
+    border: 1px solid var(--border-subtle);
   }
 
   .admin-tab--active {
@@ -1032,7 +1032,7 @@
     overflow-x: auto;
     padding: 6px 4px 12px;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+    scrollbar-color: var(--fill-hover) transparent;
   }
 
   .admin-stats::-webkit-scrollbar {
@@ -1044,12 +1044,12 @@
   }
 
   .admin-stats::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--fill-strong);
     border-radius: 10px;
   }
 
   .admin-stats::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.22);
+    background: var(--fill-strong);
   }
 
   .admin-stat-card {

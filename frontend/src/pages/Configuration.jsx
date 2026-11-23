@@ -13,14 +13,15 @@ import "./Configuration.css";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import ButtonSpinner from "../components/ButtonSpinner";
-import BreadcrumbNav from "../components/BreadcrumbNav";
-import { getApiErrorMessage } from "../utils/apiError";
-import { showMusicError } from "../utils/musicToast";
 import { removeToken } from "../utils/auth";
+import { MdOutlineDarkMode, MdOutlineLightMode } from "react-icons/md";
+import { useTheme } from "../contexts/ThemeContext";
+import BreadcrumbNav from "../components/BreadcrumbNav";
 import { usePrivateProfilePhoto } from "../hooks/usePrivateProfilePhoto";
 
 function Configuration() {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
 
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -31,33 +32,19 @@ function Configuration() {
     enabled: import.meta.env.VITE_PRIVATE_PROFILE_PHOTO_ENABLED === "true",
   });
 
+  // ── Load current profile ──────────────────────────────────────────
   useEffect(() => {
-    let isMounted = true;
-
-    Promise.resolve().then(() => {
-      if (!isMounted) return;
-      setLoadingProfile(true);
-      setProfileError(false);
-    });
-
-    api.get("/users/me")
-      .then((res) => {
-        if (isMounted) setProfile(res.data);
-      })
-      .catch((err) => {
+    const fetchProfile = async () => {
+      try {
+        const res = await api.get("/users/me");
+        setProfile(res.data);
+      } catch (err) {
         console.error("Erro ao carregar perfil:", err);
-        if (!isMounted) return;
-        setProfile(null);
-        setProfileError(true);
-        showMusicError(getApiErrorMessage(err, "Não foi possível carregar seu perfil."));
-      })
-      .finally(() => {
-        if (isMounted) setLoadingProfile(false);
-      });
-
-    return () => {
-      isMounted = false;
+      } finally {
+        setLoadingProfile(false);
+      }
     };
+    fetchProfile();
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────────────
@@ -74,8 +61,8 @@ function Configuration() {
   };
 
   return (
-    <div className="configuration-page">
-      <div className="configuration-overlay"></div>
+      <div className="configuration-page">
+        <div className="configuration-overlay"></div>
 
       <section className="configuration-wrapper">
         <BreadcrumbNav
@@ -118,8 +105,7 @@ function Configuration() {
             </div>
           </div>
 
-          {loadingProfile && <h2>Carregando…</h2>}
-          {!loadingProfile && !profileError && <h2>{profile?.nome || "Usuário"}</h2>}
+          <h2>{loadingProfile ? "Carregando…" : (profile?.nome || "Usuário")}</h2>
         </div>
 
         {/* Perfil */}
@@ -138,6 +124,26 @@ function Configuration() {
               Alterar senha
             </div>
             <IoIosArrowForward className="configuration-input-arrow" />
+          </div>
+        </div>
+
+
+        <div className="configuration-input-group">
+          <h3>APARÊNCIA</h3>
+          <div
+              className="configuration-input-box"
+              role="switch"
+              aria-checked={theme === "light"}
+              tabIndex={0}
+              onClick={toggleTheme}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && toggleTheme()}
+          >
+            {theme === "light"
+                ? <MdOutlineLightMode className="configuration-input-icon" />
+                : <MdOutlineDarkMode className="configuration-input-icon" />}
+            <div className="configuration-input-content">
+              Tema {theme === "light" ? "claro" : "escuro"}
+            </div>
           </div>
         </div>
 

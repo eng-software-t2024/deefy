@@ -15,9 +15,9 @@
   position: absolute !important;
   inset: 0 !important;
   background:
-    radial-gradient(circle at top center, rgba(57, 240, 208, 0.16), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(57, 240, 208, 0.10), transparent 28%),
-    linear-gradient(to bottom, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.93)) !important;
+          radial-gradient(circle at top left, var(--glow-a), transparent 30%),
+          radial-gradient(circle at bottom right, var(--glow-b), transparent 28%),
+          var(--bg-app);
   z-index: 1 !important;
 }
 
@@ -27,13 +27,11 @@
   width: 100%;
   padding: 34px 34px 28px;
   border-radius: 28px;
-  background: rgba(20, 20, 22, 0.72);
+  background: var(--card-bg);
   margin-bottom: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(10px);
-  box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: var(--shadow-lg);
   cursor: pointer
 }
 
@@ -54,13 +52,13 @@
   font-size: 1.5rem !important;
   font-weight: 700;
   margin: 0 0 4px 0 !important;
-  color: #ffffff !important;
+  color: var(--text-primary) !important;
 }
 
 .edit-profile-card p {
   font-size: 0.95rem !important;
   margin: 0 !important;
-  color: #a7a7a7 !important;
+  color: var(--text-secondary) !important;
 }
 
 .edit-profile-card .edit-profile-text-content {
@@ -71,15 +69,15 @@
 }
 
 .edit-profile-card.trash-card .edit-profile-input-icon-box {
-  background: rgba(255, 113, 108, 0.12) !important;
+  background: var(--danger-soft) !important;
 }
 
 .edit-profile-card.trash-card .edit-profile-input-icon {
-  color: #FF716C !important;
+  color: var(--danger) !important;
 }
 
 .edit-profile-card.trash-card h1 {
-  color: #FF716C !important;
+  color: var(--danger) !important;
 }
 
 
@@ -105,7 +103,7 @@
   display: inline-flex !important;
   align-items: center !important;
   gap: 8px !important;
-  color: #a7a7a7 !important;
+  color: var(--text-secondary) !important;
   font-size: 0.95rem !important;
   font-weight: 600 !important;
   cursor: pointer !important;
@@ -115,7 +113,7 @@
 }
 
 .edit-profile-back-btn:hover {
-  color: #02FFD4 !important;
+  color: var(--accent-text) !important;
   transform: translateX(-4px) !important;
 }
 
@@ -131,7 +129,7 @@
 }
 
 .edit-profile-user h2 {
-  color: white;
+  color: var(--text-primary);
   font-size: 1.875rem;
   font-family: Inter;
   font-weight: 900 !important;
@@ -179,7 +177,7 @@
   justify-content: center;
   font-size: 5rem;
   font-weight: 800;
-  color: #0a0a0a;
+  color: var(--on-accent);
   background: linear-gradient(135deg, #02FFD4 0%, #00C9A7 100%);
   font-family: 'Inter', sans-serif;
   letter-spacing: -2px;
@@ -210,7 +208,7 @@
   bottom: -10px;
   left: 50%;
   transform: translateX(-50%);
-  background: #02FFD4;
+  background: var(--accent);
   border-radius: 9999px;
   padding: 6px 16px;
   display: inline-flex;
@@ -228,7 +226,7 @@
 }
 
 .edit-profile-edit-photo-icon-wrapper {
-  color: #005D4C;
+  color: var(--on-accent);
   display: inline-flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -238,7 +236,7 @@
 .edit-profile-edit-photo-icon {
   width: 13.33px;
   height: 12px;
-  background: #005D4C;
+  background: var(--on-accent);
 }
 
 .edit-profile-edit-photo-text {
@@ -246,7 +244,7 @@
   flex-direction: column;
   justify-content: center;
   text-align: center;
-  color: #005D4C;
+  color: var(--on-accent);
   font-size: 12px;
   font-family: Inter, sans-serif;
   font-weight: 700;
@@ -260,12 +258,10 @@
   box-sizing: border-box;
   padding: 24px 34px;
   border-radius: 28px;
-  background: rgba(20, 20, 22, 0.72);
+  background: var(--card-bg);
   border: 1px solid rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(10px);
-  box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  box-shadow: var(--shadow-lg);
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -282,7 +278,7 @@
 
 .edit-profile-input-group h3 {
   margin: 0 0 10px !important;
-  color: #a7a7a7 !important;
+  color: var(--text-secondary) !important;
   font-size: 0.688rem !important;
   letter-spacing: 2px !important;
   font-weight: 700 !important;
@@ -294,7 +290,7 @@
   width: 100% !important;
   min-height: 58px !important;
   height: 58px !important;
-  background: rgba(32, 31, 31, 0.60) !important;
+  background: var(--card-bg) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   display: flex !important;
   flex-direction: row !important;
@@ -331,7 +327,7 @@
 
 .edit-profile-input-icon {
   font-size: 1.5rem;
-  color: #00E9C2;
+  color: var(--accent-text);
   pointer-events: none;
   z-index: 2;
 }
@@ -347,7 +343,7 @@
 }
 
 .edit-profile-input-icon.MdOutlineLock {
-  color: #FF716C !important;
+  color: var(--danger) !important;
 }
 
 .edit-profile-input-arrow {
@@ -356,7 +352,7 @@
   top: 50% !important;
   transform: translateY(-50%) !important;
   font-size: 1.25rem !important;
-  color: #a7a7a7 !important;
+  color: var(--text-muted) !important;
   pointer-events: none;
   z-index: 2;
 }
@@ -367,14 +363,14 @@
   top: 50% !important;
   transform: translateY(-50%) !important;
   font-size: 1.4rem !important;
-  color: #9a9a9a !important;
+  color: var(--text-muted) !important;
   cursor: pointer !important;
   transition: color 0.25s ease, transform 0.25s ease;
   z-index: 2;
 }
 
 .edit-profile-input-eye:hover {
-  color: #ffffff !important;
+  color: var(--text-primary) !important;
 }
 
 .edit-profile-input-box input {
@@ -393,7 +389,7 @@
 }
 
 .edit-profile-input-box input::placeholder {
-  color: #7f7f7f !important;
+  color: var(--text-muted) !important;
 }
 
 .edit-profile-forgot-password {
@@ -406,7 +402,7 @@
 }
 
 .edit-profile-forgot-password:hover {
-  color: #39f0d0 !important;
+  color: var(--accent-text) !important;
 }
 
 .edit-profile-error {
@@ -425,7 +421,7 @@
   border: none !important;
   border-radius: 18px !important;
   background: rgba(32, 31, 31, 0.60) !important;
-  color: #FF716C !important;
+  color: var(--danger) !important;
   font-size: 1rem !important;
   font-weight: 800 !important;
   cursor: pointer !important;
@@ -439,8 +435,8 @@
 .edit-profile-button-primary:hover {
   transform: translateY(-3px) scale(1.01);
   filter: brightness(1.03);
-  color: rgba(32, 31, 31, 0.60) !important;
-  background-color: #FF716C !important;
+  color: var(--surface-solid) !important;
+  background-color: var(--danger) !important;
   box-shadow: 0 0 40px rgba(255, 113, 108, 0.20) !important;
 }
 
@@ -476,9 +472,9 @@
   min-height: 58px !important;
   height: 58px !important;
   border-radius: 18px !important;
-  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid var(--card-bg) !important;
   background: rgba(20, 20, 22, 0.72) !important;
-  color: #ffffff !important;
+  color: var(--text-primary) !important;
   font-size: 2rem !important;
   cursor: pointer !important;
   display: flex !important;
@@ -492,13 +488,13 @@
 .edit-profile-google-button:hover {
   transform: translateY(-3px);
   background: rgba(32, 32, 36, 0.88) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
+  border-color: var(--border-strong) !important;
 }
 
 .edit-profile-register-text {
   margin-top: 26px !important;
   text-align: center !important;
-  color: #d6d6d6 !important;
+  color: var(--text-secondary) !important;
   font-size: 1rem !important;
   animation: editProfileFadeIn 1.4s ease;
 }
@@ -532,15 +528,13 @@
   align-items: center !important;
   justify-content: initial !important;
   gap: 18px;
-  color: #fff;
+  color: var(--text-primary);
   background:
-    linear-gradient(135deg, rgba(57, 240, 208, 0.055), rgba(255, 255, 255, 0.025)),
-    rgba(20, 20, 22, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+          linear-gradient(135deg, var(--accent-soft), var(--fill-subtle)),
+          var(--card-bg);
+  border: 1px solid var(--card-bg);
   backdrop-filter: blur(12px);
-  box-shadow:
-    0 16px 38px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: var(--shadow-lg);
   cursor: pointer;
   transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
@@ -548,10 +542,10 @@
 .edit-profile-actions .edit-profile-card:hover:not(:disabled),
 .edit-profile-actions .edit-profile-card:focus-visible {
   transform: translateY(-2px);
-  border-color: rgba(57, 240, 208, 0.34);
+  border-color: var(--accent-border);
   background:
-    linear-gradient(135deg, rgba(57, 240, 208, 0.09), rgba(255, 255, 255, 0.035)),
-    rgba(26, 26, 30, 0.86) !important;
+          linear-gradient(135deg, var(--accent-soft), var(--fill-subtle)),
+          var(--card-bg-hover) !important;
   outline: none;
 }
 
@@ -573,12 +567,12 @@
 }
 
 .edit-profile-actions .trash-card {
-  border-color: rgba(255, 113, 108, 0.18);
+  border-color: color-mix(in srgb, var(--danger) 18%, transparent);;
 }
 
 .edit-profile-actions .trash-card:hover:not(:disabled),
 .edit-profile-actions .trash-card:focus-visible {
-  border-color: rgba(255, 113, 108, 0.42);
+  border-color: color-mix(in srgb, var(--danger) 42%, transparent);
   background:
     linear-gradient(135deg, rgba(255, 113, 108, 0.09), rgba(255, 255, 255, 0.025)),
     rgba(26, 22, 24, 0.86) !important;

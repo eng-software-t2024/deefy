@@ -1,8 +1,8 @@
 .artist-profile-page {
   min-height: 100vh;
   display: flex;
-  background: #050505;
-  color: #fff;
+  background: var(--bg-app);
+  color: var(--text-primary);
   text-align: left;
   overflow-x: hidden;
 }
@@ -14,7 +14,7 @@
   padding: 42px clamp(20px, 3vw, 40px) 170px;
   background:
     radial-gradient(circle at 50% 0%, rgba(57, 240, 208, 0.1), transparent 28%),
-    linear-gradient(180deg, #080808 0%, #050505 60%);
+    linear-gradient(180deg, var(--bg-app) 0%, var(--bg-deep) 60%);
   overflow-x: hidden;
 }
 
@@ -30,9 +30,9 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
-  color: #f4f4f4;
+  border: 1px solid var(--border-subtle);
+  background: var(--fill-subtle);
+  color: var(--text-primary);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -44,9 +44,9 @@
 .artist-profile-close-btn:hover,
 .artist-profile-close-btn:focus-visible {
   transform: translateY(-2px);
-  border-color: rgba(57, 240, 208, 0.35);
-  background: rgba(57, 240, 208, 0.08);
-  color: #39f0d0;
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
   outline: none;
 }
 
@@ -59,10 +59,10 @@
   margin: 0 0 40px;
   padding: clamp(18px, 3vw, 32px);
   border-radius: 28px;
-  background-color: #12161a;
+  background-color: var(--surface-solid);
   background-image:
     radial-gradient(circle at 30% 20%, rgba(57, 240, 208, 0.22), transparent 45%),
-    linear-gradient(135deg, #10201f, #0b0b0d);
+    linear-gradient(135deg, var(--surface-glass), var(--bg-deep));
   background-size: cover;
   background-position: center;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
@@ -76,15 +76,15 @@
   min-width: 0;
   max-width: 560px;
   padding: 28px 32px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-subtle);
   border-radius: 24px;
-  background: rgba(10, 10, 10, 0.55);
+  background: var(--surface);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
 
 .artist-profile-label {
-  color: #39f0d0;
+  color: var(--accent-text);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 3px;
@@ -100,7 +100,7 @@
 
 .artist-profile-count {
   margin: 0;
-  color: #b8b8b8;
+  color: var(--text-secondary);
   font-size: 0.95rem;
 }
 
@@ -134,7 +134,7 @@
 .artist-profile-play-btn {
   border: none;
   background: #9fffe8;
-  color: #061512;
+  color: var(--on-accent);
 }
 
 .artist-profile-play-btn:hover:not(:disabled) {
@@ -142,18 +142,18 @@
 }
 
 .artist-profile-random-btn {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  border: 1px solid var(--border-strong);
+  background: var(--fill-subtle);
+  color: var(--text-primary);
 }
 
 .artist-profile-random-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--fill-hover);
 }
 
 .artist-profile-play-btn:focus-visible,
 .artist-profile-random-btn:focus-visible {
-  outline: 2px solid #39f0d0;
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
@@ -163,9 +163,9 @@
   max-width: 920px;
   margin-top: 40px;
   padding: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-subtle);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--fill-subtle);
 }
 
 .artist-profile-about h2 {
@@ -191,14 +191,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #39f0d0;
+  color: var(--accent-text);
   font-size: 3rem;
-  background: rgba(255, 255, 255, 0.055);
+  background: var(--fill-subtle);
 }
 
 .artist-profile-bio {
   margin: 0 0 16px;
-  color: #cfcfcf;
+  color: var(--text-secondary);
   font-size: 0.98rem;
   line-height: 1.6;
   white-space: pre-line;
@@ -216,10 +216,10 @@
 
 .artist-profile-genres li {
   padding: 6px 14px;
-  border: 1px solid rgba(57, 240, 208, 0.25);
+  border: 1px solid var(--accent-border);
   border-radius: 999px;
-  background: rgba(57, 240, 208, 0.08);
-  color: #9fffe8;
+  background: var(--accent-soft);
+  color: var(--accent-text);
   font-size: 0.8rem;
   font-weight: 700;
 }
@@ -229,12 +229,12 @@
 .artist-profile-message {
   max-width: 520px;
   margin: 40px 0;
-  color: #b8b8b8;
+  color: var(--text-secondary);
 }
 
 .artist-profile-message h2 {
   margin: 0 0 8px;
-  color: #fff;
+  color: var(--text-primary);
   font-size: 1.3rem;
 }
 
@@ -243,7 +243,7 @@
 }
 
 .artist-profile-message-link {
-  color: #39f0d0;
+  color: var(--accent-text);
   font-weight: 700;
   text-decoration: none;
 }

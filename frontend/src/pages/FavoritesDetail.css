@@ -1,6 +1,9 @@
 .favorites-page {
   min-height: 100vh;
-  background: #050505;
+  background:
+          radial-gradient(circle at top left, var(--glow-a), transparent 30%),
+          radial-gradient(circle at bottom right, var(--glow-b), transparent 28%),
+          var(--bg-app);;;;
   color: white;
   display: flex;
   overflow-x: hidden;
@@ -12,8 +15,9 @@
   min-width: 0;
   padding: 42px clamp(24px, 3vw, 40px) 170px;
   background:
-    radial-gradient(circle at 50% 18%, rgba(57, 240, 208, 0.18), transparent 22%),
-    linear-gradient(180deg, #080808 0%, #050505 55%);
+          radial-gradient(circle at top left, var(--glow-a), transparent 30%),
+          radial-gradient(circle at bottom right, var(--glow-b), transparent 28%),
+          var(--bg-app);;;
   overflow-x: hidden;
 }
 
@@ -30,7 +34,7 @@
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.06);
-  color: #f4f4f4;
+  color: var(--text-primary);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -69,7 +73,7 @@
 
 .favorites-cover {
   background: linear-gradient(135deg, rgba(57, 240, 208, 0.28), rgba(255, 255, 255, 0.06));
-  color: #39f0d0;
+  color: var(--accent-text);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -101,7 +105,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #39f0d0;
+  color: var(--accent-text);
   background:
     radial-gradient(circle at 35% 20%, rgba(57, 240, 208, 0.18), transparent 42%),
     rgba(255, 255, 255, 0.045);
@@ -118,13 +122,14 @@
 }
 
 .favorites-info span {
-  color: #39f0d0;
+  color: var(--accent-text);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 3px;
 }
 
 .favorites-info h1 {
+  color: var(--text-primary);
   font-size: clamp(2.6rem, 4vw, 4rem);
   line-height: 0.95;
   margin: 12px 0 16px;
@@ -134,7 +139,7 @@
 }
 
 .favorites-info p {
-  color: #b8b8b8;
+  color: var(--text-secondary);
   font-size: 1.05rem;
   letter-spacing: 0.5px;
 }
@@ -158,7 +163,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f8fffd;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 1.55rem;
   transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
@@ -166,8 +171,8 @@
 
 .favorites-play-btn {
   border: none;
-  background: #9fffe8;
-  color: #061512;
+  background: var(--fill-strong);
+  color: var(--on-accent);
 }
 
 .favorites-shuffle-btn {
@@ -180,7 +185,7 @@
   transform: translateY(-2px);
   border-color: rgba(57, 240, 208, 0.3);
   background: rgba(57, 240, 208, 0.08);
-  color: #39f0d0;
+  color: var(--accent-text);
   outline: none;
 }
 
@@ -198,7 +203,7 @@
 
 .favorites-empty {
   margin: 20px 0;
-  color: #a9a9a9;
+  color: var(--text-muted);
   max-width: 620px;
   line-height: 1.55;
 }

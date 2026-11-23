@@ -2,14 +2,14 @@ import { toast } from 'sonner';
 import { MdOutlineErrorOutline, MdOutlineCheckCircle, MdInfoOutline } from 'react-icons/md';
 
 const BASE_STYLE = {
-  background: '#141417',
-  color: '#e4e4e4',
-  border: '1px solid rgba(255, 255, 255, 0.08)',
+  background: 'var(--surface-solid)',
+  color: 'var(--text-primary)',
+  border: '1px solid var(--border-subtle)',
   borderRadius: '14px',
   fontFamily: "'Inter', sans-serif",
   fontSize: '0.88rem',
   fontWeight: '500',
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+  boxShadow: 'var(--shadow-lg)',
 };
 
 // IDs fixos por tipo: o Sonner substitui o toast existente pelo novo
@@ -28,11 +28,11 @@ const TOAST_IDS = {
 export const showMusicError = (message) => {
   toast.error(message, {
     id: TOAST_IDS.error,
-    icon: <MdOutlineErrorOutline size={22} color="#ff5d5d" />,
+    icon: <MdOutlineErrorOutline size={22} color="var(--danger)" />,
     style: {
       ...BASE_STYLE,
-      border: '1px solid rgba(255, 93, 93, 0.35)',
-      boxShadow: '0 8px 32px rgba(255, 93, 93, 0.15)',
+      border: '1px solid var(--danger-border)',
+      boxShadow: '0 8px 32px var(--danger-soft)',
     },
   });
 };
@@ -45,11 +45,11 @@ export const showMusicError = (message) => {
 export const showMusicSuccess = (message) => {
   toast.success(message, {
     id: TOAST_IDS.success,
-    icon: <MdOutlineCheckCircle size={22} color="#39f0d0" />,
+    icon: <MdOutlineCheckCircle size={22} color="var(--accent-text)" />,
     style: {
       ...BASE_STYLE,
-      border: '1px solid rgba(57, 240, 208, 0.3)',
-      boxShadow: '0 8px 32px rgba(57, 240, 208, 0.15)',
+      border: '1px solid var(--accent-border)',
+      boxShadow: '0 8px 32px var(--accent-soft)',
     },
   });
 };
