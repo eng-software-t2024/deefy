@@ -1,5 +1,11 @@
 # Arquitetura da integração com o Discord
 
+O perfil Maven `discord-bot` requer JDK 25 ou mais recente, por causa do
+runtime nativo DAVE incluído nessa configuração. O backend web padrão continua
+com JDK 21. A imagem de produção do bot inclui bibliotecas nativas `linux/amd64`
+e o Compose fixa essa plataforma. Em hosts ARM64, é necessário habilitar
+emulação AMD64 no runtime de containers.
+
 Este documento registra o estado atual e a evolução incremental planejada da
 integração entre o Deefy e o Discord. As referências `#56` e `#74` a `#82`
 neste texto identificam tarefas do Taiga acadêmico, não GitHub Issues.
@@ -8,11 +14,16 @@ neste texto identificam tarefas do Taiga acadêmico, não GitHub Issues.
 
 A integração tem como objetivo oferecer recursos do Deefy dentro de guilds do
 Discord por comandos de interação. O código atual conecta um cliente JDA ao
-processo do backend Spring e oferece `/deefy ping`, `/entrar` e `/sair`.
-Nesta etapa, os três comandos são registrados somente na guild de teste;
-`/entrar` e `/sair` conectam e desconectam o bot de canais de voz comuns.
-Cada guild mantém estado de conexão independente, e uma conexão existente não
-é movida silenciosamente para outro canal.
+processo Spring e oferece `/deefy ping`, `/entrar`, `/sair` e
+`/tocar musica:<titulo-ou-titulo-artista>`, além de `/pausar`, `/retomar` e
+`/parar`. No modo normal, os sete comandos
+são registrados globalmente e podem ser usados em qualquer guild na qual o bot
+tenha sido convidado com as permissões necessárias. Um modo de teste explícito
+e desativado por padrão pode restringir registro e execução a uma única guild.
+`/entrar` e `/sair` conectam e desconectam o bot de canais de voz comuns;
+`/tocar` reproduz uma única faixa do catálogo self-hosted. Cada guild mantém
+estado de conexão independente, e uma conexão existente não é movida
+silenciosamente para outro canal.
 
 Esta arquitetura cobre:
 
@@ -23,9 +34,9 @@ Esta arquitetura cobre:
 - a fronteira entre a integração Discord e os serviços de aplicação do Deefy;
 - segurança, configuração, observabilidade e estratégia de testes.
 
-Ficam fora do escopo desta tarefa Stage Channels, reprodução, player, controles,
-presença, fila e a ampliação da política de permissões, bem como alterações de
-infraestrutura, banco, Supabase, cliente web ou configuração operacional.
+Ficam fora do escopo desta tarefa Stage Channels, fila, playlists Discord,
+próxima/anterior, volume, presença e a ampliação da política de permissões,
+bem como alterações de banco, Supabase ou cliente web.
 
 As responsabilidades das partes são distintas:
 
@@ -44,55 +55,77 @@ As responsabilidades das partes são distintas:
 ## 2. Componentes atuais
 
 A implementação está concentrada em `backend/src/main/java/br/com/deefy/discord`.
-Não existe hoje uma abstração de fila ou um componente de reprodução de áudio.
+Existe reprodução de uma única faixa; não existe abstração ou implementação de
+fila.
 
 | Componente | Responsabilidade | Entradas | Saídas e efeitos | Dependências e limites |
 |---|---|---|---|---|
-| `DiscordBotProperties` | Mapear e validar a configuração `deefy.discord` | Propriedades Spring derivadas do ambiente | Estado de configuração e lista de erros de validação | Não inicia conexões nem conhece comandos. Valida token não vazio e guild como inteiro sem sinal |
+| `DiscordBotProperties` | Mapear e validar a configuração `deefy.discord` | Propriedades Spring derivadas do ambiente | Estado de configuração, política de guild e lista de erros de validação | Aceita token legado em ambiente ou arquivo protegido, sem registrar o valor; a guild só é obrigatória no modo de teste explícito |
 | `DiscordBotLifecycle` | Integrar o cliente JDA ao ciclo de vida Spring | Propriedades, listener, registrar e `ReadyEvent` | Criação do JDA, estado `running` e shutdown | Usa `JDABuilder`; não registra comandos nem trata regras de negócio |
-| `DiscordCommandRegistrar` | Registrar os comandos disponíveis na guild de teste | `ReadyEvent` e guild configurada | `upsertCommand` assíncrono para `/deefy ping`, `/entrar` e `/sair`, com logs do resultado | Não executa comandos nem registra globalmente. Se a guild não for encontrada, registra erro e encerra o processamento do evento |
-| `DiscordCommandListener` | Filtrar e rotear as interações suportadas | `SlashCommandInteractionEvent` | Resposta `pong` ou resposta efêmera do caso de voz | Aceita apenas eventos da guild configurada; mantém `/deefy ping` e delega `/entrar` e `/sair` ao serviço de voz |
+| `DiscordCommandRegistrar` | Registrar os comandos disponíveis | `ReadyEvent` e política de guild | `upsertCommand` individual e assíncrono para `/deefy ping`, `/entrar`, `/sair`, `/tocar`, `/pausar`, `/retomar` e `/parar`, com logs do resultado | Registra globalmente por padrão sem substituir comandos não relacionados; no modo de teste, registra somente na guild configurada |
+| `DiscordCommandListener` | Filtrar e rotear interações, botões e autocomplete suportados | Eventos slash, botão e autocomplete | Respostas públicas e uma mensagem Deefy atualizada durante a reprodução | Reconhece interações prontamente, desabilita menções e encaminha botões/slash ao mesmo serviço de domínio; rejeições individuais de botão são efêmeras |
 | `DiscordVoiceConnectionService` | Aplicar as regras de entrada e saída de voz por guild | Guild, membro solicitante e estado JDA do canal | Abertura ou fechamento da conexão de voz e resultado controlado | Suporta apenas canais de voz comuns; não move conexão existente, não reproduz áudio e não possui fila nem proprietário exclusivo |
+| `DiscordTrackCatalog` | Resolver título, título + artista ou ID técnico no catálogo | Entrada textual e `MusicRepository` | Faixa normalizada, sugestões ou erro de ausência, ambiguidade ou origem | Normaliza caixa, acentos e espaços; entende créditos importados; recusa URL fora do origin de `DEEFY_API_URL`, assinada ou do Supabase antigo |
+| `DiscordPlaybackSessionService` | Possuir uma sessão ativa por guild e executar mutações serializadas | Guild, membro, faixa e intenção de controle | Fonte JDA, estado, timers, conexão ociosa e cleanup restritos à guild | Uma segunda faixa é recusada; valida sessão/mensagem/canal no momento do controle; ao fim natural ou `/parar`, libera áudio e mantém voz por até 10 minutos |
+| `DiscordGuildCommandExecutor` | Serializar mutações por guild com fila limitada | Comandos, botões, timers e callbacks | Uma sequência ordenada por guild e paralelismo entre guilds | Não executa rede/FFmpeg sob um lock compartilhado; remove lanes inativas e rejeita sobrecarga explicitamente |
+| `DiscordPlaybackMessageCoordinator` | Coalescer edições da mensagem pública | Apresentações versionadas da sessão | No máximo uma edição em voo e entrega do estado mais recente | Uma conclusão atrasada não republica estado antigo |
+| `DiscordFfmpegAudioSource` | Converter mídia self-hosted em PCM de 20 ms e preservar posição durante pausa | Processo FFmpeg sem shell | Frames PCM para `AudioSendHandler` | Na pausa deixa de ler e entregar frames; não registra URL e libera stream/processo no término, erro ou saída |
 | JDA 6.7.0 | Adaptar Gateway, eventos e operações da API Discord | Token, listeners e chamadas assíncronas | Eventos JDA e ações remotas | Dependência declarada em `backend/pom.xml`; não substitui as regras de aplicação do Deefy |
 
 A configuração é ligada por:
 
 - `DEEFY_DISCORD_ENABLED`;
 - `DEEFY_DISCORD_TOKEN`;
-- `DEEFY_DISCORD_TEST_GUILD_ID`.
+- `DEEFY_DISCORD_TOKEN_FILE` (preferido para Docker secret);
+- `DEEFY_DISCORD_TEST_MODE` (opcional, `false` por padrão);
+- `DEEFY_DISCORD_TEST_GUILD_ID`;
+- `DEEFY_API_URL` (origin self-hosted permitido para áudio).
 
-Os nomes são mapeados em `backend/src/main/resources/application.properties` e
-repassados pelo `docker-compose.local.yml`. Quando não informada, a ativação é
-`false` e os dois valores textuais são vazios.
+Os nomes são mapeados em `backend/src/main/resources/application.properties`.
+Quando não informada, a ativação é `false`. O modelo futuro
+`docker-compose.discord-bot.yml` usa arquivo protegido para o token, não publica
+portas e exige a origem self-hosted. A guild só é exigida quando
+`DEEFY_DISCORD_TEST_MODE=true`.
 
-Há 31 testes unitários distribuídos entre:
+A cobertura Discord inclui:
 
 - `DiscordBotPropertiesTest`: configuração completa, campos ausentes e guild
   inválida;
 - `DiscordBotLifecycleTest`: integração desativada, configuração incompleta e
   transição para `running` após o evento de pronto;
-- `DiscordCommandListenerTest`: resposta ao ping, descarte de guild não
-  autorizada e roteamento de `/entrar` e `/sair`;
-- `DiscordCommandRegistrarTest`: registro dos três comandos somente na guild de
-  teste;
+- `DiscordCommandListenerTest`: resposta ao ping, modo global, descarte de guild
+  no modo de teste, autocomplete, mensagem pública, botões e roteamento dos
+  comandos de voz/reprodução;
+- `DiscordCommandRegistrarTest`: registro global individual ou registro
+  restrito quando o modo de teste está explicitamente habilitado;
 - `DiscordVoiceConnectionServiceTest`: canal e permissão, idempotência,
-  concorrência por guild, isolamento entre guilds e saída controlada.
+  concorrência por guild, isolamento entre guilds e saída controlada;
+- testes de catálogo/origem, sessões por guild, fonte PCM/FFmpeg, executor por
+  guild, coalescência de mensagem e corridas de controle, todos com mocks ou
+  fakes e sem Discord ou mídia reais.
 
 ## 3. Diagrama textual
 
 ```text
                          estado atual
 
-Discord (guild de teste)
+Discord (qualquer guild autorizada pela instalação do bot)
         | eventos e interactions
         v
 JDA client -- ciclo de vida --> DiscordBotLifecycle
         |
-        +--> DiscordCommandRegistrar -- registra --> /deefy ping, /entrar, /sair
+        +--> DiscordCommandRegistrar -- registra --> /deefy ping, /entrar, /sair, /tocar
+        |                                          /pausar, /retomar, /parar
         |
         +--> DiscordCommandListener  -- responde --> pong
                          |
                          +--> DiscordVoiceConnectionService --> conexão de voz por guild
+                         |
+                         +--> DiscordPlaybackService
+                                   +--> DiscordTrackCatalog --> catálogo self-hosted
+                                   +--> executor por guild --> sessão/estado/timers
+                                   +--> sessão por guild --> FFmpeg PCM --> JDA
+                                   +--> mensagem pública versionada + botões
 
                     evolução incremental planejada
 
@@ -126,15 +159,16 @@ controlados pela aplicação.
 2. Como `SmartLifecycle`, `DiscordBotLifecycle` recebe o início do contexto.
 3. Se `enabled` for `false`, registra que a integração está desativada e não
    cria o JDA.
-4. Se ativada, valida token e guild. Configuração ausente ou guild que não seja
-   um inteiro sem sinal impede o início sem encerrar o backend.
-5. Com configuração válida, `JDABuilder.createDefault` cria o cliente e recebe
-   como listeners `DiscordCommandListener`, `DiscordCommandRegistrar` e o
-   próprio lifecycle.
+4. Se ativada, valida o token. A guild só é obrigatória e validada quando o modo
+   de teste explícito está ativo; no modo normal sua ausência é válida.
+5. Com configuração válida, o processo exclusivo do bot valida JDave/native e
+   configura `AudioModuleConfig` com um `DaveSessionFactory` explícito. Só então
+   `JDABuilder.createDefault` cria o cliente e recebe como listeners
+   `DiscordCommandListener`, `DiscordCommandRegistrar` e o próprio lifecycle.
 6. A construção solicita a inicialização de forma assíncrona. O estado só muda
    para `running` quando `DiscordBotLifecycle` recebe `ReadyEvent`.
-7. No mesmo tipo de evento, `DiscordCommandRegistrar` procura a guild de teste
-   e solicita o registro de `/deefy ping`.
+7. No mesmo tipo de evento, `DiscordCommandRegistrar` faz `upsert` individual
+   dos sete comandos globais ou, no modo de teste, na guild configurada.
 8. Na parada do contexto, o lifecycle zera suas referências e chama
    `shutdownNow()` no cliente existente. Na variante com callback, o callback é
    executado mesmo após a tentativa de shutdown.
@@ -143,9 +177,10 @@ O comportamento seguro atual é:
 
 - bot desativado: backend segue ativo sem cliente Discord;
 - token ausente: inicialização do JDA não é tentada;
-- guild ausente ou inválida: inicialização não é tentada;
-- guild válida na configuração, mas não encontrada após a conexão: o JDA pode
-  estar pronto, porém o comando não é registrado;
+- guild ausente no modo normal: não impede a inicialização;
+- guild ausente ou inválida no modo de teste: inicialização não é tentada;
+- guild de teste válida, mas não encontrada após a conexão: o JDA pode estar
+  pronto, porém os comandos restritos não são registrados;
 - falha síncrona ao construir o JDA: referência e estado são limpos, o erro é
   registrado e o backend permanece em execução;
 - encerramento da aplicação: o cliente existente recebe shutdown imediato.
@@ -158,12 +193,72 @@ ser confundido com uma política implementada e testada pelo Deefy.
 
 O fluxo atual de `/deefy ping` é:
 
-1. após `ReadyEvent`, o registrar localiza a guild configurada;
-2. solicita `upsert` do comando raiz `deefy` com o subcomando `ping`;
+1. após `ReadyEvent`, o registrar escolhe o escopo global ou a guild de teste;
+2. solicita `upsert` individual dos comandos, sem limpar comandos não
+   relacionados da aplicação;
 3. o listener recebe uma `SlashCommandInteractionEvent`;
-4. descarta eventos fora de guild e valida guild, comando e subcomando;
+4. descarta eventos fora de guild e aplica a restrição apenas no modo de teste;
 5. para a combinação suportada, responde `pong` por uma ação assíncrona;
 6. interações de outro contexto são ignoradas, sem resposta de erro.
+
+Em `/tocar`, o campo `musica` oferece autocomplete do catálogo self-hosted e
+aceita título, `título - artista` ou ID como alternativa técnica. O resolvedor
+normaliza caixa, acentos e espaços e prioriza título + artista exatos, título
+exato e só então correspondências parciais. Hífens internos permanecem parte do
+título quando essa for a correspondência correta. Resultados ambíguos retornam
+opções para refinamento e nunca iniciam uma faixa arbitrária.
+
+As respostas normais são públicas no canal de texto, com menções desabilitadas.
+`/tocar` cria uma única mensagem com título, créditos, solicitante e canal de
+voz e atualiza esse mesmo registro entre preparação, reprodução, conclusão ou
+falha. Detalhes de FFmpeg, transporte e codecs permanecem somente nos logs
+sanitizados. No fim natural, a fonte e o processo de áudio são liberados, mas a
+conexão fica ociosa por até 10 minutos. Uma reprodução válida no mesmo canal
+cancela o prazo anterior; `/sair`, falha terminal, desconexão externa e shutdown
+encerram imediatamente os recursos da guild correspondente.
+
+Na mensagem de reprodução, os botões `Pausar/Retomar` e `Parar` chamam o mesmo
+serviço usado por `/pausar`, `/retomar` e `/parar`. A autorização é refeita no
+momento da ação: o membro precisa continuar no mesmo canal de voz, e botões
+também precisam corresponder à guild, à mensagem e ao identificador da sessão
+ativa. O canal conectado é relido do `AudioManager`; se o bot já não estiver no
+canal associado à sessão, o controle expira. Controles de sessões anteriores ou
+de mensagens antigas expiram sem criar uma sessão nova. Sucessos atualizam a mensagem pública existente;
+rejeições individuais de botão podem ser efêmeras para não poluir o canal.
+
+### 5.1 Estados e transições do player
+
+| Estado | Entradas válidas | Próximo estado | Efeito principal |
+|---|---|---|---|
+| `IDLE` | `/entrar` ou `/tocar` válido | `IDLE` ou `STARTING` | Mantém somente conexão ociosa, com prazo de 10 minutos |
+| `STARTING` | primeiro frame, falha, timeout, `/parar` ou `/sair` | `PLAYING`, `STOPPING` | Fonte é preparada fora da lane; a conclusão revalida a sessão |
+| `PLAYING` | pausar, parar, fim/erro ou sair | `PAUSED`, `STOPPING` | Frames são entregues; uma segunda faixa é recusada, pois não há fila |
+| `PAUSED` | retomar, parar, timeout de 10 minutos ou sair | `PLAYING`, `STOPPING` | FFmpeg/stream permanecem na posição sem leitura ou descarte em segundo plano |
+| `STOPPING` | callbacks/timers atrasados | `STOPPING` | Cleanup idempotente; nenhuma nova mutação da sessão é aceita |
+
+`/parar` libera a faixa e inicia o período ocioso da conexão. `/sair` fecha a
+voz imediatamente. Cada pausa recebe uma geração própria, de modo que um timer
+de uma pausa anterior não encerre uma pausa posterior da mesma sessão.
+
+### 5.2 Ordenação e concorrência
+
+Todas as mutações de uma guild passam por uma lane limitada do
+`DiscordGuildCommandExecutor`: slash commands, botões, timers, término/erro da
+fonte e callbacks de voz. Guilds distintas usam lanes independentes. Operações
+lentas de resolução do catálogo e abertura da fonte são feitas fora da lane;
+ao concluir, revalidam a identidade da sessão antes de anexar recursos.
+
+Sessões possuem UUID, a mensagem de controle fica vinculada à sessão e timers
+carregam a identidade do proprietário ou uma geração. Interaction IDs recentes
+são deduplicados dentro de um limite fixo. A fila interna de mutações também é
+limitada; saturação retorna erro claro em vez de crescer sem limite. Lanes,
+timers e metadados são liberados quando a guild deixa de ter sessão ou conexão
+ociosa.
+
+Edições da mensagem são versionadas e coalescidas: existe no máximo uma edição
+em voo e, ao terminar, somente o estado mais recente pendente é enviado. Assim,
+uma atualização lenta não sobrescreve uma pausa, retomada, parada ou falha mais
+nova. Estados terminais removem os botões.
 
 Para comandos futuros, o registro permanece na borda JDA, mas a execução deve
 ser incrementalmente separada por caso de uso:
@@ -191,7 +286,7 @@ introduzida apenas quando cada incremento justificar a extração.
 | Validação/permissões | Autorizar guild, canal, usuário e ação | Contexto normalizado e política configurada | Token do bot e persistência da fila | Matrizes de permitido/negado | #81 |
 | Camada de voz | Entrar, sair e manter sessão de voz | Gateway Discord e estado mínimo da sessão | Ordenação da fila e regras de catálogo | Adaptadores JDA simulados | #76 |
 | Reprodução/player | Controlar ciclo da faixa e emitir eventos de término/erro | Fonte de áudio, voz e porta da fila | Estrutura interna ou ordenação da fila | Fonte e fila falsas | #77 |
-| Controles | Traduzir pausar, retomar, pular e volume em intenções | Serviço de reprodução e permissões | Mutação direta da fila/player | Estado e autorização simulados | #78 |
+| Controles | Traduzir pausar, retomar e parar em intenções; reservar extensão para avanço quando a fila existir | Serviço de reprodução e permissões | Mutação direta da fila/player | Estado, concorrência e autorização simulados | #78 |
 | Porta da fila | Fornecer ao player o estado necessário sem revelar implementação | Contrato definido com o responsável pela fila | JDA e detalhes de áudio | Fake contratual | #79 |
 | Presença | Projetar estado relevante em atividade/status do bot | Estado sanitizado da aplicação/player | Credenciais e acesso direto a dados | Atualizações deduplicadas simuladas | #80 |
 | Integração com backend | Reusar casos de uso do Deefy | Serviços de aplicação e modelos de entrada/saída | Dependência de Discord no domínio | Testes de serviço e adaptadores | #77–#82 |
@@ -215,6 +310,12 @@ Essas capacidades não são assinaturas Java. Tipos, concorrência, persistênci
 repetição, remoção, prioridade e a semântica exata de avanço pertencem à #79 e
 devem ser acordados com seu responsável.
 
+O `ListeningHistoryService` e a tabela `historico_execucao` registram histórico
+de escuta, não representam uma fila e não autorizam inferir ordenação de
+próxima/anterior. Por isso, a #78 não registra `/pular` ou `/voltar` e não exibe
+esses botões. O ponto de extensão é o serviço centralizado de controle; ele só
+ganhará novas ações quando a porta da #79 estiver definida e testada.
+
 As regras de integração são:
 
 - a reprodução **consome** a porta; a fila é dona da ordenação;
@@ -230,8 +331,8 @@ As regras de integração são:
 | Tarefa | Pré-requisitos | Responsabilidade | Limite de escopo | Aceite resumido | Testes principais |
 |---|---|---|---|---|---|
 | #76 — voz | JDA pronto, guild/canal autorizados e intents revisados | Entrada, saída e estado da conexão de voz | Não reproduz nem ordena faixas | Conecta e desconecta no canal permitido com erro controlado | Canal ausente, permissão negada, conexão e shutdown simulados |
-| #77 — reprodução | Sessão de voz e fonte de áudio definida | Iniciar, terminar e sinalizar erro de uma faixa | Não implementa fila nem comandos | Player entrega áudio e encerra estado de forma determinística | Fonte válida/inválida, término, erro e limpeza com fakes |
-| #78 — controles | Player e autorização disponíveis | Pausar, retomar, pular e ajustar volume | Não altera a estrutura interna da fila | Cada controle produz uma intenção autorizada e observável | Estado inválido, limites, permissão e idempotência |
+| #77 — reprodução | Sessão de voz e fonte de áudio definida | Iniciar, terminar e sinalizar erro de uma faixa | Não implementa fila nem controles do player | Player entrega áudio e encerra estado de forma determinística | Fonte válida/inválida, término, erro e limpeza com fakes |
+| #78 — controles | Player e autorização disponíveis | Pausar, retomar e parar por botão/slash | Não implementa fila, próxima/anterior ou volume | Cada controle produz uma intenção autorizada, serializada e observável | Corridas, timers antigos, permissão, idempotência e isolamento por guild |
 | #79 — fila | Contrato alinhado com o player | Possuir coleção, ordenação e semântica de avanço | Não conhece JDA nem detalhes de áudio | Contrato aceito pelo player e sem vazamento de implementação | Ordem, concorrência e semânticas definidas na própria tarefa |
 | #80 — presença | Estado confiável do bot/player | Atualizar atividade/status com informação sanitizada | Não dirige reprodução | Presença reflete transições relevantes sem excesso de chamadas | Deduplicação, indisponibilidade e ausência de faixa |
 | #81 — permissões | Contexto normalizado de guild/canal/usuário | Autorizar comandos e ações de voz | Não contém regra de reprodução | Ações negadas por padrão fora do escopo autorizado | Matrizes de papéis, guilds, canais e respostas seguras |
@@ -243,14 +344,18 @@ As regras de integração são:
 |---|---|---|
 | `DEEFY_DISCORD_ENABLED` | Habilitar explicitamente a integração | Permanecer `false` por padrão |
 | `DEEFY_DISCORD_TOKEN` | Autenticar o cliente bot no Discord | Segredo externo ao Git, nunca registrado ou exibido |
-| `DEEFY_DISCORD_TEST_GUILD_ID` | Restringir registro e execução à guild controlada | Valor validado e diferente de uma permissão global |
+| `DEEFY_DISCORD_TOKEN_FILE` | Ler o token por arquivo protegido | Preferido no serviço Docker; `/run/secrets/deefy_discord_token` |
+| `DEEFY_DISCORD_TEST_MODE` | Ativar restrição temporária para teste controlado | `false` por padrão; não é necessário no uso normal |
+| `DEEFY_DISCORD_TEST_GUILD_ID` | Guild permitida quando o modo de teste está ativo | Obrigatória somente com `DEEFY_DISCORD_TEST_MODE=true` |
+| `DEEFY_API_URL` | Definir o origin self-hosted aceito para as mídias | URL sem credenciais; outro origin, URL assinada e Supabase antigo são recusados |
 
 Regras de segurança:
 
 - o token não entra no Git, logs, exceções reproduzidas, mensagens ou capturas;
 - o `.env` real permanece ignorado; templates contêm somente nomes e
   placeholders sem valor real;
-- a guild de teste é obrigatória enquanto a validação estiver controlada;
+- a restrição por guild é opcional, explicitamente ativada e desabilitada por
+  padrão; o modo normal atende todas as guilds em que o bot foi autorizado;
 - intents futuros devem ser mínimos, declarados explicitamente e revisados antes
   da ativação; hoje não há configuração explícita de intents no projeto;
 - permissões do bot e OAuth seguem menor privilégio por comando, canal e guild;
@@ -258,15 +363,14 @@ Regras de segurança:
 - testes unitários não usam token nem executam ações reais no Discord;
 - logs registram estado técnico suficiente, sem token ou payload privado.
 
-As três variáveis já são consumidas por `application.properties` e Compose, mas
-não constam em `.env.example` nem `.env.production.example`. Completar esses
-templates é pendência das tarefas #74/#82 e não será feito na #56.
+As variáveis são consumidas por `application.properties`; o template futuro do
+serviço contém somente nomes e valores não sensíveis.
 
 ## 10. Estratégia de testes
 
-O conjunto atual cobre validação básica de propriedades, estados iniciais do
-lifecycle, transição por `ReadyEvent` e filtragem/resposta do listener. A
-evolução deve adotar a seguinte pirâmide:
+O conjunto atual cobre propriedades, lifecycle, registro/roteamento, catálogo,
+voz, reprodução, controles, timers, coalescência de mensagens e corridas
+determinísticas por guild. A evolução mantém a seguinte pirâmide:
 
 1. **Unidade:** propriedades, roteamento, parsing, autorização e handlers com
    Mockito ou fakes, sem rede.
@@ -274,15 +378,17 @@ evolução deve adotar a seguinte pirâmide:
    interfaces simuladas, sem exigir a implementação da #79.
 3. **Componente:** lifecycle com fábrica/cliente controlável, incluindo falha de
    início, evento pronto, desconexão e shutdown.
-4. **Integração controlada:** registro e conexão somente em guild de teste, com
-   credenciais fornecidas fora do repositório e execução explicitamente opt-in.
+4. **Integração controlada:** o modo de teste restringe registro e execução a
+   uma guild, com credenciais fora do repositório e execução opt-in.
 5. **Cenários de voz:** preferir simulação de canal, fonte e envio de áudio;
    testes reais ficam isolados, controlados e não fazem parte da suíte comum.
 
-Devem existir casos de permissão permitida/negada, comandos desconhecidos,
-estado inválido do player, término/erro de faixa, ausência de próximo item e
-shutdown durante operação. Testes e logs também devem verificar que tokens não
-aparecem em mensagens de erro.
+Os controles usam scheduler capturável, barreiras e latches em vez de espera
+real. Os casos cobrem ações simultâneas, interação repetida, timer/callback
+antigo, mensagem fora de ordem, canal divergente, isolamento entre guilds,
+cleanup único e preservação dos frames durante pausa. Ausência de próximo item
+só poderá ser testada como contrato quando a #79 definir sua porta. Testes e
+logs também devem verificar que tokens não aparecem em mensagens de erro.
 
 Nenhum teste unitário deve conectar ao Discord real.
 
@@ -294,8 +400,8 @@ Nenhum teste unitário deve conectar ao Discord real.
 | #74 | Parcialmente entregue | Configuração Spring e ambiente | Configuração operacional completa, segura e documentada | Sem comandos, voz ou reprodução |
 | #75 | Parcialmente entregue | #74 e JDA | Ciclo de conexão e comando básico testável | Sem player ou fila |
 | #76 | Implementada | #74, #75 e intents padrão do JDA | Entrada e saída de canal de voz comum por guild | Sem reprodução, fila ou Stage Channel |
-| #77 | Não implementada | #76 e contrato compatível com #79 | Serviço de reprodução desacoplado | Sem possuir a fila |
-| #78 | Não implementada | #77 e #81 | Controles de reprodução autorizados | Sem mutação direta da fila |
+| #77 | Implementada | #76 e catálogo self-hosted | Uma faixa por guild via FFmpeg/JDA, com cleanup explícito | Sem fila |
+| #78 | Implementada localmente, ainda sem commit/deploy | #77 e autorização por canal | Pausar, retomar e parar por botão/slash, com concorrência serializada | Sem próxima/anterior, volume ou mutação direta da fila |
 | #79 | Não implementada; responsabilidade de outro colega | Contrato alinhado com #77/#78 | Fila e suas semânticas | Sem JDA ou reprodução de áudio |
 | #80 | Não implementada | Estado de #75/#77 | Presença coerente e sanitizada | Sem regras de player |
 | #81 | Não implementada | Contexto de comandos e voz | Política explícita de permissões | Sem credenciais ou regra de fila |
@@ -303,17 +409,30 @@ Nenhum teste unitário deve conectar ao Discord real.
 
 ## 12. Decisões e lacunas
 
-- A integração permanece embutida no backend Spring; não há justificativa atual
-  para separá-la em outro processo.
+- O código permanece no artefato Spring, mas há um Compose futuro para executar
+  o bot em processo/container separado, sem portas publicadas e sem modificar o
+  backend web existente.
+- O runtime de voz do bot usa Java 25 e JDave 0.1.8 em perfil Maven e Dockerfile
+  exclusivos. O backend web permanece em Java 21 e não carrega JDave quando a
+  integração Discord está desativada.
+- A imagem fixa os estágios Java 25 por digest e incorpora o native DAVE em
+  `/app/native/libdave.so`; o carregamento não depende de executar arquivos no
+  `/tmp`, que continua montado com `noexec`.
+- A inicialização do bot valida o native DAVE antes de abrir o cliente JDA e não
+  aceita fallback silencioso para `PassthroughDaveSessionFactory`.
+- Transições de voz, lifecycle do FFmpeg, exit code, bytes PCM e frames entregues
+  são registrados somente com IDs técnicos; URL de mídia e valores sensíveis são
+  removidos do stderr limitado.
 - A borda Discord deve chamar serviços de aplicação. Ela não deve acessar
   Supabase, repositórios ou estruturas internas de reprodução diretamente.
 - A reconexão não está explicitamente implementada nem testada.
 - Intents não estão explicitamente definidos no código atual.
-- Presença, reprodução, controles, política ampla de permissões e fila não estão
-  implementados. A voz cobre somente entrada e saída na guild de teste.
-- A guild configurada pode não ser encontrada depois do JDA ficar pronto; esse
-  caso impede o registro do comando, mas não muda o estado `running` do
-  lifecycle.
+- Presença, política ampla de permissões e fila não estão implementadas nesta
+  linha. Os controles locais cobrem pausa, retomada e parada de uma única faixa
+  independente por guild; próxima/anterior e volume continuam ausentes.
+- No modo de teste, a guild configurada pode não ser encontrada depois do JDA
+  ficar pronto; esse caso impede o registro dos comandos restritos, mas não muda
+  o estado `running` do lifecycle.
 - Falhas assíncronas de resposta e registro são tratadas de forma limitada; o
   registrar possui callback de erro, enquanto a resposta `pong` não possui.
 - Os templates `.env.example` e `.env.production.example` estão incompletos para

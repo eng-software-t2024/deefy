@@ -1,0 +1,60 @@
+services:
+  deefy-discord-bot:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.discord-bot
+    image: deefy-discord-bot:${DEEFY_DISCORD_BOT_IMAGE_TAG:-local}
+    container_name: deefy-discord-bot
+    user: "${DEEFY_DISCORD_RUNTIME_UID:-1000}:${DEEFY_DISCORD_RUNTIME_GID:-1000}"
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - deefy-discord-audio-cache:/var/cache/deefy-discord
+    environment:
+      SPRING_MAIN_WEB_APPLICATION_TYPE: none
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:?configure the self-hosted catalog database}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:?configure a catalog role}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:?configure the protected database password}
+      JWT_SECRET: ${JWT_SECRET:?configure the protected application secret}
+      DEEFY_DISCORD_ENABLED: "true"
+      DEEFY_DISCORD_TOKEN_FILE: /run/secrets/deefy_discord_token
+      DEEFY_DISCORD_TEST_MODE: ${DEEFY_DISCORD_TEST_MODE:-false}
+      DEEFY_DISCORD_TEST_GUILD_ID: ${DEEFY_DISCORD_TEST_GUILD_ID:-}
+      DEEFY_API_URL: ${DEEFY_API_URL:?configure the self-hosted Deefy origin}
+      DEEFY_DISCORD_PLAYBACK_CACHE_DIRECTORY: /var/cache/deefy-discord
+      DEEFY_DISCORD_PLAYBACK_CACHE_TTL: ${DEEFY_DISCORD_PLAYBACK_CACHE_TTL:-PT1H}
+      DEEFY_DISCORD_PLAYBACK_CACHE_MAX_BYTES: ${DEEFY_DISCORD_PLAYBACK_CACHE_MAX_BYTES:-1073741824}
+      DEEFY_DISCORD_PLAYBACK_CACHE_MAX_FILE_BYTES: ${DEEFY_DISCORD_PLAYBACK_CACHE_MAX_FILE_BYTES:-104857600}
+      DEEFY_DISCORD_PLAYBACK_CACHE_CLEANUP_INTERVAL: ${DEEFY_DISCORD_PLAYBACK_CACHE_CLEANUP_INTERVAL:-PT5M}
+      DEEFY_DISCORD_PLAYBACK_AUDIO_INITIAL_BUFFER: ${DEEFY_DISCORD_PLAYBACK_AUDIO_INITIAL_BUFFER:-PT10S}
+      DEEFY_DISCORD_PLAYBACK_AUDIO_INITIAL_BUFFER_TIMEOUT: ${DEEFY_DISCORD_PLAYBACK_AUDIO_INITIAL_BUFFER_TIMEOUT:-PT15S}
+      DEEFY_DISCORD_PLAYBACK_AUDIO_DOWNLOAD_ATTEMPTS: ${DEEFY_DISCORD_PLAYBACK_AUDIO_DOWNLOAD_ATTEMPTS:-3}
+      DEEFY_DISCORD_PLAYBACK_AUDIO_DOWNLOAD_BACKOFF: ${DEEFY_DISCORD_PLAYBACK_AUDIO_DOWNLOAD_BACKOFF:-PT2S,PT5S,PT10S}
+      DEEFY_DISCORD_PLAYBACK_AUDIO_CONNECT_TIMEOUT: ${DEEFY_DISCORD_PLAYBACK_AUDIO_CONNECT_TIMEOUT:-PT10S}
+      DEEFY_DISCORD_PLAYBACK_AUDIO_READ_TIMEOUT: ${DEEFY_DISCORD_PLAYBACK_AUDIO_READ_TIMEOUT:-PT20S}
+      DEEFY_DISCORD_PLAYBACK_DECODE_VALIDATION_TIMEOUT: ${DEEFY_DISCORD_PLAYBACK_DECODE_VALIDATION_TIMEOUT:-PT20S}
+      DEEFY_DISCORD_PLAYBACK_DECODE_VALIDATION_SAMPLE: ${DEEFY_DISCORD_PLAYBACK_DECODE_VALIDATION_SAMPLE:-PT15S}
+    secrets:
+      - deefy_discord_token
+    networks:
+      - deefy-selfhost
+
+secrets:
+  deefy_discord_token:
+    file: ${DEEFY_DISCORD_TOKEN_SOURCE_FILE:?configure a protected token file}
+
+volumes:
+  deefy-discord-audio-cache:
+    name: ${DEEFY_DISCORD_CACHE_VOLUME:-deefy-discord-audio-cache}
+
+networks:
+  deefy-selfhost:
+    external: true
+    name: ${DEEFY_SELFHOST_NETWORK:?configure the existing self-hosted internal network}

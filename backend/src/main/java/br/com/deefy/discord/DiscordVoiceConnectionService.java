@@ -13,18 +13,31 @@ import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.VoiceChannel;
 import net.dv8tion.jda.api.entities.channel.unions.AudioChannelUnion;
 import net.dv8tion.jda.api.managers.AudioManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 @Service
 public class DiscordVoiceConnectionService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(DiscordVoiceConnectionService.class);
+
     private final ConcurrentMap<Long, GuildVoiceSession> sessionsByGuild = new ConcurrentHashMap<>();
 
     public VoiceCommandResult join(Guild guild, Member requester) {
+        return join(guild, requester, ignored -> { });
+    }
+
+    public VoiceCommandResult join(
+            Guild guild,
+            Member requester,
+            Consumer<ConnectionStatus> statusObserver
+    ) {
         VoiceChannel requestedChannel = getStandardVoiceChannel(requester);
         if (requestedChannel == null) {
             return requesterHasAudioChannel(requester)
@@ -41,7 +54,7 @@ public class DiscordVoiceConnectionService {
         }
 
         long guildId = guild.getIdLong();
-        GuildVoiceSession session = sessionsByGuild.computeIfAbsent(guildId, ignored -> new GuildVoiceSession());
+        GuildVoiceSession session = sessionsByGuild.computeIfAbsent(guildId, GuildVoiceSession::new);
 
         synchronized (session) {
             ConnectionAttempt attempt = null;
@@ -50,9 +63,12 @@ public class DiscordVoiceConnectionService {
                 AudioChannelUnion connectedChannel = audioManager.getConnectedChannel();
 
                 if (connectedChannel != null) {
-                    return connectedChannel.getIdLong() == requestedChannel.getIdLong()
-                            ? VoiceCommandResult.ALREADY_IN_CHANNEL
-                            : VoiceCommandResult.ALREADY_IN_ANOTHER_CHANNEL;
+                    if (connectedChannel.getIdLong() != requestedChannel.getIdLong()) {
+                        return VoiceCommandResult.ALREADY_IN_ANOTHER_CHANNEL;
+                    }
+                    session.activeAttempt = null;
+                    installConnectionListener(audioManager, session, null, statusObserver);
+                    return VoiceCommandResult.ALREADY_IN_CHANNEL;
                 }
 
                 if (session.activeAttempt != null) {
@@ -63,7 +79,7 @@ public class DiscordVoiceConnectionService {
 
                 attempt = new ConnectionAttempt(requestedChannel.getIdLong());
                 session.activeAttempt = attempt;
-                installConnectionListener(audioManager, session, attempt);
+                installConnectionListener(audioManager, session, attempt, statusObserver);
 
                 audioManager.openAudioConnection(requestedChannel);
                 return VoiceCommandResult.CONNECTION_STARTED;
@@ -75,6 +91,10 @@ public class DiscordVoiceConnectionService {
     }
 
     public VoiceCommandResult leave(Guild guild, Member requester) {
+        return leave(guild, requester, () -> { });
+    }
+
+    public VoiceCommandResult leave(Guild guild, Member requester, Runnable beforeDisconnect) {
         VoiceChannel requesterChannel = getStandardVoiceChannel(requester);
         if (requesterChannel == null) {
             return requesterHasAudioChannel(requester)
@@ -84,7 +104,7 @@ public class DiscordVoiceConnectionService {
 
         GuildVoiceSession session = sessionsByGuild.computeIfAbsent(
                 guild.getIdLong(),
-                ignored -> new GuildVoiceSession()
+                GuildVoiceSession::new
         );
 
         synchronized (session) {
@@ -100,6 +120,7 @@ public class DiscordVoiceConnectionService {
             }
 
             try {
+                beforeDisconnect.run();
                 audioManager.closeAudioConnection();
                 session.activeAttempt = null;
                 return VoiceCommandResult.DISCONNECTION_STARTED;
@@ -133,13 +154,19 @@ public class DiscordVoiceConnectionService {
     private void installConnectionListener(
             AudioManager audioManager,
             GuildVoiceSession session,
-            ConnectionAttempt attempt
+            ConnectionAttempt attempt,
+            Consumer<ConnectionStatus> statusObserver
     ) {
         ConnectionListener currentListener = audioManager.getConnectionListener();
         ConnectionListener delegate = currentListener instanceof AttemptConnectionListener managedListener
                 ? managedListener.delegate
                 : currentListener;
-        audioManager.setConnectionListener(new AttemptConnectionListener(session, attempt, delegate));
+        audioManager.setConnectionListener(new AttemptConnectionListener(
+                session,
+                attempt,
+                delegate,
+                statusObserver
+        ));
     }
 
     private void clearAttempt(GuildVoiceSession session, ConnectionAttempt attempt) {
@@ -155,7 +182,12 @@ public class DiscordVoiceConnectionService {
     }
 
     private static final class GuildVoiceSession {
+        private final long guildId;
         private ConnectionAttempt activeAttempt;
+
+        private GuildVoiceSession(long guildId) {
+            this.guildId = guildId;
+        }
     }
 
     private static final class ConnectionAttempt {
@@ -171,15 +203,18 @@ public class DiscordVoiceConnectionService {
         private final GuildVoiceSession session;
         private final ConnectionAttempt attempt;
         private final ConnectionListener delegate;
+        private final Consumer<ConnectionStatus> statusObserver;
 
         private AttemptConnectionListener(
                 GuildVoiceSession session,
                 ConnectionAttempt attempt,
-                ConnectionListener delegate
+                ConnectionListener delegate,
+                Consumer<ConnectionStatus> statusObserver
         ) {
             this.session = session;
             this.attempt = attempt;
             this.delegate = delegate;
+            this.statusObserver = statusObserver;
         }
 
         @Override
@@ -191,12 +226,19 @@ public class DiscordVoiceConnectionService {
 
         @Override
         public void onStatusChange(ConnectionStatus status) {
+            LOGGER.info("Discord voice state transition: guildId={}, status={}", session.guildId, status.name());
             if (!status.name().startsWith("CONNECTING_")) {
                 clearAttempt(session, attempt);
             }
 
             if (delegate != null) {
                 delegate.onStatusChange(status);
+            }
+
+            try {
+                statusObserver.accept(status);
+            } catch (RuntimeException ignored) {
+                // Observers cannot break JDA connection callbacks.
             }
         }
 
