@@ -3,7 +3,10 @@ package br.com.deefy.model;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "musica")
+@Table(name = "musica", indexes = {
+        // recomendacoes: busca por genero (IN :genres) com ordenacao por id
+        @Index(name = "idx_musica_genero_id", columnList = "genero, id")
+})
 public class Music {
 
     @Id
