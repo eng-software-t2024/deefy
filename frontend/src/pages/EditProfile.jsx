@@ -8,7 +8,6 @@ import api from "../services/api";
 import { showMusicError, showMusicSuccess } from "../utils/musicToast";
 import ButtonSpinner from "../components/ButtonSpinner";
 import BreadcrumbNav from "../components/BreadcrumbNav";
-<<<<<<< HEAD
 import {
   PRIVATE_PROFILE_PHOTO_ENABLED,
   usePrivateProfilePhoto,
