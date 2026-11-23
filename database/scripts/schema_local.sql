@@ -1036,5 +1036,21 @@ ALTER TABLE ONLY public.musica
 
 
 --
+-- Índices de performance para histórico e recomendações (PR #26)
+-- Espelham as anotações @Index das entidades ListeningHistory e Music
+-- (idempotentes: seguros para volumes já inicializados).
+--
+
+CREATE INDEX IF NOT EXISTS idx_historico_usuario_data
+    ON public.historico_execucao USING btree (usuario_id, datahoraexecucao);
+
+CREATE INDEX IF NOT EXISTS idx_historico_usuario_musica
+    ON public.historico_execucao USING btree (usuario_id, musica_id);
+
+CREATE INDEX IF NOT EXISTS idx_musica_genero_id
+    ON public.musica USING btree (genero, id);
+
+
+--
 -- PostgreSQL database dump complete
 --
