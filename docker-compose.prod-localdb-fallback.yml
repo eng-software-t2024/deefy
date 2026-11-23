@@ -1,0 +1,40 @@
+# Development fallback only. This creates a separate, empty demo database;
+# it does not restore or mirror production data. Never use this override for
+# a production release. Start explicitly with:
+# docker compose -f docker-compose.prod.yml -f docker-compose.prod-localdb-fallback.yml up
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: deefy-localdb-fallback
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: deefy
+      POSTGRES_USER: deefy
+      POSTGRES_PASSWORD: ${LOCAL_FALLBACK_POSTGRES_PASSWORD:?Set LOCAL_FALLBACK_POSTGRES_PASSWORD}
+    volumes:
+      - deefy-localdb-fallback:/var/lib/postgresql/data
+      - ./database/scripts/schema_local.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/scripts/seed_local_demo.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deefy -d deefy"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - traefik-public
+
+  backend:
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/deefy
+      SPRING_DATASOURCE_USERNAME: deefy
+      SPRING_DATASOURCE_PASSWORD: ${LOCAL_FALLBACK_POSTGRES_PASSWORD:?Set LOCAL_FALLBACK_POSTGRES_PASSWORD}
+
+volumes:
+  deefy-localdb-fallback:
+
+networks:
+  traefik-public:
+    external: true
