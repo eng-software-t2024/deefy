@@ -210,6 +210,9 @@ function MusicPlayer({ onAddToPlaylist, isHidden = false }) {
   const pendingRestoreTimeRef = useRef(0);
   const lastPersistedSecondRef = useRef(-1);
   const lastPlaybackCommandIdRef = useRef(null);
+  // Guarda o último src de áudio que registramos como reprodução: evita
+  // POSTs duplicados em re-execuções de efeito/retomadas de pausa.
+  const recordedAudioSrcRef = useRef(null);
   const playlistSheetDragStartYRef = useRef(null);
   const playlistSheetDragOffsetYRef = useRef(0);
 
@@ -538,6 +541,13 @@ function MusicPlayer({ onAddToPlaylist, isHidden = false }) {
         .then(() => {
           setIsPlaying(true);
           syncContextPlaying(true);
+          // Registra a reprodução só quando o áudio realmente começa a tocar
+          // e uma única vez por faixa carregada (dedupe por src).
+          const trackId = currentTrack.id ?? currentTrack.musicId;
+          if (trackId && recordedAudioSrcRef.current !== audio.src) {
+            recordedAudioSrcRef.current = audio.src;
+            musicService.recordMusicPlay(trackId);
+          }
         })
         .catch((error) => {
           setIsPlaying(false);
@@ -657,7 +667,13 @@ function MusicPlayer({ onAddToPlaylist, isHidden = false }) {
     if (isRepeat && audioRef.current) {
       audioRef.current.currentTime = 0;
       persistPlaybackProgress(0);
-      audioRef.current.play().catch((error) => {
+      audioRef.current.play()
+        .then(() => {
+          // Cada ciclo de repeat é uma reprodução completa a mais.
+          const trackId = currentTrack.id ?? currentTrack.musicId;
+          if (trackId) musicService.recordMusicPlay(trackId);
+        })
+        .catch((error) => {
         setIsPlaying(false);
         syncContextPlaying(false);
         console.warn("Deefy player: nao foi possivel repetir o audio.", error);

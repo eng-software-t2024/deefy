@@ -2,7 +2,6 @@
 // Exporting both PlayerProvider and usePlayer from the same file is intentional:
 // this is standard React context pattern. The Fast Refresh warning is suppressed here.
 import {createContext, useCallback, useEffect, useState, useContext} from 'react';
-import { musicService } from '../services/musicService';
 
 
 const PlayerContext = createContext();
@@ -75,9 +74,6 @@ export function PlayerProvider({children}) {
     const nextSourceQueue = newQueue ? normalizeQueue(newQueue) : sourceQueue;
     setCurrentTrack(track);
     setIsPlaying(true);
-    if (track) {
-      musicService.recordMusicPlay(getTrackId(track));
-    }
 
     if (newQueue) {
       setSourceQueue(nextSourceQueue);
@@ -92,10 +88,8 @@ export function PlayerProvider({children}) {
     if (!queue.length || !currentTrack) return;
     const currentIndex = queue.findIndex(t => getTrackId(t) === getTrackId(currentTrack));
     if (currentIndex !== -1 && currentIndex < queue.length - 1) {
-      const nextTrack = queue[currentIndex + 1];
-      setCurrentTrack(nextTrack);
+      setCurrentTrack(queue[currentIndex + 1]);
       setIsPlaying(true);
-      musicService.recordMusicPlay(getTrackId(nextTrack));
     }
   }, [currentTrack, queue]);
 
@@ -103,10 +97,8 @@ export function PlayerProvider({children}) {
     if (!queue.length || !currentTrack) return;
     const currentIndex = queue.findIndex(t => getTrackId(t) === getTrackId(currentTrack));
     if (currentIndex > 0) {
-      const previousTrack = queue[currentIndex - 1];
-      setCurrentTrack(previousTrack);
+      setCurrentTrack(queue[currentIndex - 1]);
       setIsPlaying(true);
-      musicService.recordMusicPlay(getTrackId(previousTrack));
     }
   }, [currentTrack, queue]);
 
