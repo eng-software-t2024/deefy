@@ -4,6 +4,7 @@ import br.com.deefy.config.OpenApiConfig;
 import br.com.deefy.controller.docs.ListeningHistoryControllerDocs;
 import br.com.deefy.dto.request.ListeningHistoryRequest;
 import br.com.deefy.dto.request.ListeningHistoryResponse;
+import br.com.deefy.dto.response.MusicListResponseDTO;
 import br.com.deefy.service.ListeningHistoryService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,6 +14,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/history")
@@ -34,5 +37,10 @@ public class ListeningHistoryController implements ListeningHistoryControllerDoc
     @GetMapping("/{id}")
     public ResponseEntity<Page<ListeningHistoryResponse>> findAll(@PathVariable Long id, @PageableDefault(size = 10) Pageable pageable) {
         return ResponseEntity.ok(listeningHistoryService.getHistoryByUserId(id, pageable));
+    }
+
+    @GetMapping("/recommendations")
+    public ResponseEntity<List<MusicListResponseDTO>> recommendations() {
+        return ResponseEntity.ok(listeningHistoryService.getRecommendations());
     }
 }

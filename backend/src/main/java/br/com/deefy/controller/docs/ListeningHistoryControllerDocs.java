@@ -2,6 +2,7 @@ package br.com.deefy.controller.docs;
 
 import br.com.deefy.dto.request.ListeningHistoryRequest;
 import br.com.deefy.dto.request.ListeningHistoryResponse;
+import br.com.deefy.dto.response.MusicListResponseDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -11,6 +12,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+
+import java.util.List;
 
 @Tag(name = "History", description = "Histórico de músicas ouvidas pelo usuário autenticado")
 public interface ListeningHistoryControllerDocs {
@@ -65,4 +68,22 @@ public interface ListeningHistoryControllerDocs {
             )
     })
     ResponseEntity<Page<ListeningHistoryResponse>> findAll(Long id, Pageable pageable);
+
+    @Operation(
+            summary = "Listar músicas recomendadas",
+            description = "Retorna músicas dos gêneros mais ouvidos pelo usuário autenticado. Músicas ainda não ouvidas vêm primeiro. Lista vazia quando não há histórico."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Recomendações retornadas com sucesso (pode ser lista vazia)",
+                    content = @Content(schema = @Schema(hidden = true))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Não autenticado — token JWT ausente ou inválido",
+                    content = @Content(schema = @Schema(hidden = true))
+            )
+    })
+    ResponseEntity<List<MusicListResponseDTO>> recommendations();
 }

@@ -162,6 +162,19 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(HistoryNotFoundException.class)
+    public ResponseEntity<ErrorDetails> handleHistoryNotFoundException(
+            HistoryNotFoundException ex,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                List.of(ex.getMessage()),
+                request.getRequestURI()
+        );
+    }
+
     @ExceptionHandler(PlaylistException.class)
     public ResponseEntity<ErrorDetails> handlePlaylistException(
             PlaylistException ex,
@@ -198,6 +211,19 @@ public class GlobalExceptionHandler {
         return buildResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 List.of("Internal server error"),
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(HistoryNotAuthorizedException.class)
+    public ResponseEntity<ErrorDetails> handleHistoryNotAuthorized(
+            HistoryNotAuthorizedException ex,
+            HttpServletRequest request
+    ) {
+
+        return buildResponse(
+                HttpStatus.FORBIDDEN,
+                List.of(ex.getMessage()),
                 request.getRequestURI()
         );
     }

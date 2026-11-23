@@ -6,7 +6,12 @@ import java.time.LocalDateTime;
 
 
 @Entity
-@Table(name="historico_execucao")
+@Table(name = "historico_execucao", indexes = {
+        // listagem do historico: filtro por usuario ordenado por data
+        @Index(name = "idx_historico_usuario_data", columnList = "usuario_id, datahoraexecucao"),
+        // top generos e subconsultas de recomendacao (join/NOT IN por usuario+musica)
+        @Index(name = "idx_historico_usuario_musica", columnList = "usuario_id, musica_id")
+})
 public class ListeningHistory {
 
     @Id
